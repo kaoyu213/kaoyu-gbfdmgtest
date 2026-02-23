@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBF 伤害计算器 (含10个备用乘区)</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; color: #2c3e50; }
+        .container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        @media (max-width: 1024px) { .container { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        .input-group { margin-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9em; }
+        .sub-label { font-size: 0.8em; color: #666; font-weight: normal; }
+        input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        input[type="checkbox"] { transform: scale(1.2); margin-right: 5px; }
+        
+        /* 备用乘区特定样式 */
+        .backup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px dashed #ccc; padding-top: 15px; margin-top: 10px; }
+        .backup-title { grid-column: 1 / -1; font-weight: bold; color: #e67e22; margin-bottom: 5px; font-size: 0.95em; }
+
+        .result-box { background-color: #e0f2f1; border: 1px solid #b2dfdb; color: #00695c; }
+        .data-box { background-color: #fff8e1; border: 1px solid #ffd54f; color: #5d4037; }
+        .step-list { list-style-type: none; padding: 0; margin: 0; font-family: Consolas, monospace; font-size: 0.9em; }
+        .step-list li { padding: 5px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        .step-list li:last-child { border-bottom: none; font-weight: bold; font-size: 1.1em; color: #d32f2f; margin-top: 10px; }
+        .highlight { color: #00796b; font-weight: bold; }
+        .note { font-size: 0.85em; color: #666; background: #fff; padding: 8px; border-radius: 4px; margin-top: 10px; border: 1px dashed #999; }
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-family: Consolas, monospace; font-size: 0.9em; }
+        .data-table th, .data-table td { padding: 6px; border: 1px solid #ddd; }
+        .data-table th { background-color: #f5f5f5; text-align: left; }
+        .damage-value { font-weight: bold; color: #d32f2f; }
+        .copy-btn { margin-top: 10px; padding: 8px 12px; background-color: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .copy-btn:hover { background-color: #45a049; }
+        h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+    <h1>GBF 伤害计算器 <span style="font-size:0.6em; color:#d32f2f;">(Pro)</span></h1>
+
+    <div class="container">
+        <div class="card">
+            <h3>基础参数</h3>
+            <div class="input-group">
+                <label>基础攻击力 (ATK)</label>
+                <input type="number" id="atk_base" value="24629" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>普刃系数 (Normal) %</label>
+                <input type="number" id="p_mult" value="47" step="1" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>EX系数 (EX) %</label>
+                <input type="number" id="e_mult" value="10" step="1" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>浑身系数 (Stamina) % <span class="sub-label">(基础值)</span></label>
+                <input type="number" id="h_base_mult" value="0" step="1" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>HP百分比 %</label>
+                <input type="number" id="hp_percent" value="100" min="0" max="100" oninput="calculate()">
+            </div>
+            
+            <div id="backup-container" class="backup-grid">
+                <div class="backup-title">▼ 备用独立乘区 (Spare Multipliers)</div>
+                </div>
+
+            <hr style="width:100%; margin: 15px 0; border:0; border-top:1px solid #eee;">
+
+            <div class="input-group">
+                <label><input type="checkbox" id="is_advantage" checked onchange="calculate()"> 是否克属</label>
+            </div>
+            <div class="input-group">
+                <label>属攻系数 (Ele) %</label>
+                <input type="number" id="ele_mult" value="28" step="1" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>伤害上限/增幅 (Cap/Amp) %</label>
+                <input type="number" id="nda" value="3" step="1" oninput="calculate()">
+            </div>
+             <div class="input-group">
+                <label>戒指/耳环 (Ring) %</label>
+                <input type="number" id="r_mult" value="3.4" step="0.1" oninput="calculate()">
+            </div>
+            <div class="input-group">
+                <label>天司/克属增幅 (Adv Cap) %</label>
+                <input type="number" id="eada" value="5" step="1" oninput="calculate()">
+            </div>
+        </div>
+
+        <div class="card result-box">
+            <h3>计算流程详解</h3>
+            <ul class="step-list" id="log"></ul>
+            <div class="note">
+                <strong>逻辑说明：</strong><br>
+                1. 备用乘区在“浑身”之后，“属攻”之前计算。<br>
+                2. 保持每一步骤乘完立即取整 (gameRound)。<br>
+                3. 数值为0的备用乘区会自动跳过。
+            </div>
+        </div>
+
+        <div class="card data-box">
+            <h3>数据导出</h3>
+            <table class="data-table">
+                <thead><tr><th>参数</th><th>值</th></tr></thead>
+                <tbody id="data-table-body"></tbody>
+            </table>
+            <button class="copy-btn" onclick="copyTableToClipboard()">复制到剪贴板 (Excel)</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 初始化设置 ---
+        const BACKUP_COUNT = 10;
+
+        // 页面加载时生成备用乘区输入框
+        (function initBackupInputs() {
+            const container = document.getElementById('backup-container');
+            for (let i = 1; i <= BACKUP_COUNT; i++) {
+                const div = document.createElement('div');
+                div.className = 'input-group';
+                div.innerHTML = `
+                    <label style="font-size:0.85em">备用乘区 ${i} (%)</label>
+                    <input type="number" id="backup_${i}" value="0" step="1" oninput="calculate()" placeholder="0">
+                `;
+                container.appendChild(div);
+            }
+        })();
+
+        // --- 2. 核心精度工具函数 ---
+        // 游戏实际取整：加0.5后向下取整，含epsilon修正
+        const gameRound = (num) => Math.floor(num + 0.5 + 1e-12);
+        // 最终伤害取整：除以10向上取整
+        const finalRound = (num) => Math.ceil(num / 10 - 1e-12);
+
+        // --- 3. 计算逻辑核心 (逻辑与视图分离) ---
+        // 输入：所有参数对象；输出：最终伤害值 + 步骤日志数组
+        function performCalculation(inputs) {
+            let logSteps = []; // 用于存储每一步的描述和结果
+            let val = 0; // 临时变量
+
+            // Helper to push log
+            const addLog = (name, value, desc = "") => {
+                logSteps.push({ name, value, desc });
+            };
+
+            // Step 1: 基础 / 10
+            let current = Math.ceil(inputs.atk / 10);
+            addLog("基础ATK/10", current);
+
+            // Step 2: 骑空艇 1.1
+            current = Math.round(current * 1.1 + 1e-12);
+            addLog("骑空艇 (x1.1)", current);
+
+            // Step 3: 支援 1.1
+            current = Math.round(current * 1.1 + 1e-12);
+            addLog("支援 (x1.1)", current);
+
+            // Step 4: 基准放大 x10
+            current = current * 10;
+            addLog("基准放大 (x10)", current);
+
+            // Step 5: 普刃
+            val = inputs.p_mult;
+            current = gameRound(current * (1 + val));
+            addLog("普刃", current, `x${(1+val).toFixed(2)}`);
+
+            // Step 6: EX
+            val = inputs.e_mult;
+            current = gameRound(current * (1 + val));
+            addLog("EX攻刃", current, `x${(1+val).toFixed(2)}`);
+
+            // Step 7: 浑身 (模拟通用曲线)
+            const hpRatio = inputs.hp / 50;
+            const base_curve = (Math.pow(hpRatio, 2.9) + 2.1) / 100;
+            const max_curve = (Math.pow(2, 2.9) + 2.1) / 100;
+            let stam_real = 0;
+            if (max_curve !== 0) stam_real = inputs.h_mult * (base_curve / max_curve);
+            
+            current = gameRound(current * (1 + stam_real));
+            addLog("浑身", current, `x${(1+stam_real).toFixed(4)}`);
+
+            // --- 插入：备用乘区循环 ---
+            inputs.backups.forEach((bVal, idx) => {
+                if (bVal !== 0) {
+                    current = gameRound(current * (1 + bVal));
+                    addLog(`备用乘区 ${idx + 1}`, current, `x${(1+bVal).toFixed(2)}`);
+                }
+            });
+
+            // Step 9: 属攻 + 克属固定0.5
+            const advBonus = inputs.isAdv ? 0.5 : 0;
+            const totalEle = 1.0 + inputs.ele_mult + advBonus;
+            current = gameRound(current * totalEle);
+            addLog("属攻+克属", current, `x${totalEle.toFixed(2)}`);
+
+            // Step 10: 增幅 + 上限 + 戒指 + 天司
+            const advCap = inputs.isAdv ? inputs.eada : 0;
+            const totalAmp = 1 + inputs.nda + advCap + inputs.r_mult;
+            current = gameRound(current * totalAmp);
+            addLog("上限/增幅/戒指", current, `x${totalAmp.toFixed(3)}`);
+
+            // Step 11: 最终取整
+            const final = finalRound(current);
+            addLog("最终伤害", final, "", true); // true 标记为高亮结果
+
+            return { damage: final, logs: logSteps };
+        }
+
+        // --- 4. UI 交互层 ---
+        function getInputsFromDOM(forceAdvantage = null) {
+            // 获取备用乘区数组
+            const backups = [];
+            for(let i=1; i<=BACKUP_COUNT; i++) {
+                backups.push((parseFloat(document.getElementById(`backup_${i}`).value) || 0) / 100);
+            }
+
+            return {
+                atk: parseFloat(document.getElementById('atk_base').value) || 0,
+                p_mult: (parseFloat(document.getElementById('p_mult').value) || 0) / 100,
+                e_mult: (parseFloat(document.getElementById('e_mult').value) || 0) / 100,
+                h_mult: (parseFloat(document.getElementById('h_base_mult').value) || 0) / 100,
+                hp: parseFloat(document.getElementById('hp_percent').value) || 0,
+                isAdv: forceAdvantage !== null ? forceAdvantage : document.getElementById('is_advantage').checked,
+                ele_mult: (parseFloat(document.getElementById('ele_mult').value) || 0) / 100,
+                nda: (parseFloat(document.getElementById('nda').value) || 0) / 100,
+                r_mult: (parseFloat(document.getElementById('r_mult').value) || 0) / 100,
+                eada: (parseFloat(document.getElementById('eada').value) || 0) / 100,
+                backups: backups
+            };
+        }
+
+        function calculate() {
+            // 1. 获取当前输入
+            const currentInputs = getInputsFromDOM();
+            // 2. 执行计算
+            const result = performCalculation(currentInputs);
+            
+            // 3. 渲染日志
+            const logEl = document.getElementById('log');
+            logEl.innerHTML = result.logs.map((step, idx) => {
+                const stepNum = idx + 1;
+                const descSpan = step.desc ? `<span style="font-size:0.8em; color:#888; margin-left:5px;">(${step.desc})</span>` : '';
+                const valClass = step.name === "最终伤害" ? "highlight" : "highlight";
+                const valStyle = step.name === "最终伤害" ? "font-size:1.3em; color:#d32f2f;" : "";
+                
+                return `<li>
+                    <span>Step ${stepNum}: ${step.name} ${descSpan}</span>
+                    <span class="${valClass}" style="${valStyle}">${step.value}</span>
+                </li>`;
+            }).join('');
+
+            // 4. 计算克属对比 (强制 True)
+            const advInputs = getInputsFromDOM(true);
+            const advResult = performCalculation(advInputs);
+
+            // 5. 更新数据表格
+            updateTable(currentInputs, result.damage, advResult.damage);
+        }
+
+        function updateTable(inputs, currentDmg, advDmg) {
+            const tbody = document.getElementById('data-table-body');
+            
+            // 构建基础行
+            let rows = [
+                ['基础攻击力', inputs.atk],
+                ['普刃系数 %', (inputs.p_mult * 100).toFixed(0)],
+                ['EX系数 %', (inputs.e_mult * 100).toFixed(0)],
+                ['浑身系数 %', (inputs.h_mult * 100).toFixed(0)],
+                ['HP %', inputs.hp],
+            ];
+
+            // 动态添加非0的备用乘区到表格
+            inputs.backups.forEach((val, idx) => {
+                if(val !== 0) {
+                    rows.push([`备用乘区 ${idx+1} %`, (val * 100).toFixed(2)]);
+                }
+            });
+
+            // 添加剩余行
+            rows.push(
+                ['是否克属', inputs.isAdv ? "是" : "否"],
+                ['属攻系数 %', (inputs.ele_mult * 100).toFixed(0)],
+                ['其他增幅 %', ((inputs.nda + inputs.r_mult)*100).toFixed(1)],
+                ['预测伤害', currentDmg.toLocaleString()],
+                ['克属伤害', advDmg.toLocaleString()]
+            );
+
+            tbody.innerHTML = rows.map(r => `
+                <tr>
+                    <td style="width:60%">${r[0]}</td>
+                    <td style="font-weight:bold; text-align:right">${r[1]}</td>
+                </tr>
+            `).join('');
+        }
+
+        function copyTableToClipboard() {
+            const rows = document.querySelectorAll('#data-table-body tr');
+            let text = "参数\t值\n";
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td');
+                text += `${cols[0].innerText}\t${cols[1].innerText}\n`;
+            });
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const oldText = btn.innerText;
+                btn.innerText = "已复制！";
+                btn.style.backgroundColor = "#2196f3";
+                setTimeout(() => {
+                    btn.innerText = oldText;
+                    btn.style.backgroundColor = "#4caf50";
+                }, 1500);
+            });
+        }
+
+        // 启动首次计算
+        calculate();
+
+    </script>
+</body>
+</html>

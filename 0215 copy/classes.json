@@ -1,0 +1,92 @@
+[
+  {
+    "id": "warrior",
+    "name": "warrior(战士)",
+    "proficiency": [
+      "sabre",
+      "axe"
+    ],
+    "type": "class_2",
+    "image": "",
+    "description": "c2职业",
+    "bonuses": {
+      "chara_atk_base": 3000,
+      "chara_da_base": 0.15
+    },
+    "battle_bonuses": ""
+  },
+  {
+    "id": "spartan",
+    "name": "spartan(斯巴达)",
+    "proficiency": [
+      "sabre",
+      "spear"
+    ],
+    "type": "class_4",
+    "image": "",
+    "description": "c4职业",
+    "bonuses": {
+      "chara_da_base": 0.14,
+      "chara_ta_base": 0.1,
+      "chara_def_passive": 0.5,
+      "chara_hp_base": 6500,
+      "chara_debuff_resistance_passive": 0.2,
+      "chara_atk_base": 3500,
+      "chara_all_cap_passive": 0.12
+    },
+    "battle_bonuses": ""
+  },
+  {
+    "id": "knight",
+    "name": "knight(骑士)",
+    "proficiency": [
+      "sabre",
+      "spear"
+    ],
+    "type": "class_1",
+    "image": "",
+    "description": "c1职业",
+    "bonuses": {
+      "chara_def_passive": 0.1
+    },
+    "battle_bonuses": ""
+  },
+  {
+    "id": "berserker",
+    "name": "berserker（狗头）",
+    "proficiency": [
+      "sabre",
+      "axe"
+    ],
+    "type": "class_4",
+    "image": "",
+    "description": "c4职业",
+    "bonuses": {
+      "chara_da_base": 0.25,
+      "chara_ta_base": 0.05,
+      "chara_atk_base": 13100,
+      "chara_hp_base": 4000,
+      "chara_all_cap_passive": 0.22,
+      "chara_hp_passive": 0.1,
+      "chara_ca_passive": 0.07,
+      "chara_db_rate_passive": 0.07,
+      "chara_cb_cap_passive": 0.07
+    },
+    "battle_bonuses": ""
+  },
+  {
+    "id": "Mariachi",
+    "name": "Mariachi(流浪乐团)",
+    "proficiency": [
+      "harp",
+      "harp"
+    ],
+    "type": "class_5",
+    "image": "",
+    "description": "c5职业",
+    "bonuses": {
+      
+    },
+    "battle_bonuses": ""
+  }
+]

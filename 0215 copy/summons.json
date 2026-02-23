@@ -1,0 +1,64 @@
+[
+  {
+    "id": "optiums",
+    "name": "神石",
+    "element": "mc",
+    "type": "神石",
+    "image": "icon_sort_summon_04.png",
+    "maxLevel": 250,
+    "availableLevels": [100, 150, 200, 210, 220, 230, 240, 250],
+    "effects": {
+      "main": {
+        "100": { "description": "神石的效果+120%", "effect": "element_optiums:120%" },
+        "150": { "description": "神石的效果+140%", "effect": "element_optiums:140%" },
+        "200": { "description": "神石的效果+150%", "effect": "element_optiums:150%" },
+        "210": { "description": "神石的效果+150%", "effect": "element_optiums:150%" },
+        "220": { "description": "神石的效果+150%", "effect": "element_optiums:150%" },
+        "230": { "description": "神石的效果+160%", "effect": "element_optiums:160%" },
+        "240": { "description": "神石的效果+160%；属性攻击力+30%", "effect": "element_optiums:160%;summon_element_atk:30%" },
+        "250": { "description": "神石的效果+170%；属性攻击力+30%", "effect": "element_optiums:170%;summon_element_atk:30%" }
+      },
+      "friend": {
+        "100": { "description": "神石的效果+120%", "effect": "element_optiums:120%" },
+        "150": { "description": "神石的效果+140%", "effect": "element_optiums:140%" },
+        "200": { "description": "神石的效果+150%", "effect": "element_optiums:150%" },
+        "210": { "description": "神石的效果+150%", "effect": "element_optiums:150%" },
+        "220": { "description": "神石的效果+150%", "effect": "element_optiums:150%" },
+        "230": { "description": "神石的效果+160%", "effect": "element_optiums:160%" },
+        "240": { "description": "神石的效果+160%", "effect": "element_optiums:160%" },
+        "250": { "description": "神石的效果+170%", "effect": "element_optiums:170%" }
+      },
+      "sub": {
+        "210": { "description": "属性角色属性攻击力+10%；HP+10%", "effect": "summon_element_atk:10%;summon_hp:10%" },
+        "250": { "description": "属性角色属性攻击力+20%；HP+20%", "effect": "summon_element_atk:20%;summon_hp:20%" }
+      }
+    }
+  },
+  {
+    "id": "archangel",
+    "name": "天司",
+    "element": "mc",
+    "type": "天司",
+    "image": "icon_sort_summon_06.png",
+    "maxLevel": 150,
+    "availableLevels": [100, 150],
+    "effects": {
+      "main": {
+        "100": { "description": "属性攻击力+120%", "effect": "summon_element_atk:120%" },
+        "150": { "description": "属性攻击力+140%", "effect": "summon_element_atk:140%" }
+      },
+      "friend": {
+        "100": { "description": "属性攻击力+120%", "effect": "summon_element_atk:120%" },
+        "150": { "description": "属性攻击力+140%", "effect": "summon_element_atk:140%" }
+       
+      },
+      "sub": {
+        "100": { "description": "属性角色伤害上限+10%", "effect": "summon_damage_cap:10%" },
+        "150": { "description": "属性角色伤害上限+15%", "effect": "summon_damage_cap:15%" }
+      }
+    }
+  }
+
+
+
+]

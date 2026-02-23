@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奥义伤害终极验证器 (Research Edition)</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --success: #27ae60;
+            --danger: #c0392b;
+            --bg: #ecf0f1;
+            --card-bg: #ffffff;
+        }
+        body {
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            background-color: var(--bg);
+            color: #2c3e50;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 10px; }
+        .subtitle { text-align: center; color: #7f8c8d; font-size: 0.9em; margin-bottom: 30px; }
+        
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) { .grid-container { grid-template-columns: 1fr; } }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            border-bottom: 2px solid #f0f2f5;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            font-size: 1.1em;
+            color: var(--primary);
+        }
+
+        .input-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        label { font-size: 0.9em; font-weight: 600; }
+        input[type="number"] {
+            width: 100px;
+            padding: 6px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            text-align: right;
+            font-family: Consolas, monospace;
+        }
+        .unit { margin-left: 5px; color: #7f8c8d; font-size: 0.8em; width: 20px; }
+
+        .result-box {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-family: Consolas, monospace;
+        }
+        .highlight { font-weight: bold; color: var(--primary); }
+        .final-range {
+            font-size: 1.4em;
+            text-align: center;
+            color: #2c3e50;
+            margin: 15px 0;
+            padding: 10px;
+            background: #e8f6f3;
+            border-radius: 8px;
+            border: 1px dashed var(--success);
+        }
+
+        .validation-section {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+        }
+        .status-pass { color: var(--success); font-weight: bold; }
+        .status-fail { color: var(--danger); font-weight: bold; }
+        
+        .note {
+            font-size: 0.8em;
+            color: #95a5a6;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>奥义伤害终极验证器</h1>
+    <div class="subtitle">基于之前的 10+ 次严密测试 | 乘区隔离 | 混合运算逻辑</div>
+
+    <div class="grid-container">
+        <div>
+            <div class="card">
+                <div class="card-header">1. 基础数据 (Base)</div>
+                <div class="input-row">
+                    <label>基准平A伤害 (含Buff)<br><span class="note">不含全增幅(Amp)的原始数值</span></label>
+                    <div><input type="number" id="auto_dmg" value="8223" oninput="calc()"></div>
+                </div>
+                <div class="input-row">
+                    <label>奥义倍率 (Multiplier)</label>
+                    <div><input type="number" id="ougi_mult" value="4.5" step="0.1" oninput="calc()"><span class="unit">x</span></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">2. 伤害修正 (Modifiers) <span style="font-size:0.7em;color:#666">不加成固定值</span></div>
+                <div class="input-row">
+                    <label>A区: 武器盘/召唤奥义UP<br><span class="note">方阵/老王/EX/必杀等</span></label>
+                    <div><input type="number" id="mod_grid" value="9.5" step="0.1" oninput="calc()"><span class="unit">%</span></div>
+                </div>
+                <div class="input-row">
+                    <label>B区: 角色/LB/特殊奥义UP<br><span class="note">角色Buff/LB被动/特殊道具</span></label>
+                    <div><input type="number" id="mod_char" value="0" step="0.1" oninput="calc()"><span class="unit">%</span></div>
+                </div>
+                <div class="note" style="text-align:right">结论：A区 与 B区 乘算</div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">3. 固定与增幅 (Fixed & Amp)</div>
+                <div class="input-row">
+                    <label>奥义固定值 (Base Fixed)</label>
+                    <div><input type="number" id="fixed_val" value="3000" step="100" oninput="calc()"></div>
+                </div>
+                <div class="input-row">
+                    <label>特殊增伤 (Supplemental)<br><span class="note">如: 虚诈/增伤Buff (30万等)</span></label>
+                    <div><input type="number" id="fixed_supp" value="0" step="1000" oninput="calc()"></div>
+                </div>
+                <hr>
+                <div class="input-row">
+                    <label>全增幅/奥义增幅 (Amp/Cap)<br><span class="note">天司/戒指/特殊道具 (加成固定值)</span></label>
+                    <div><input type="number" id="amp_total" value="13.4" step="0.1" oninput="calc()"><span class="unit">%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="card result-box">
+                <div class="card-header">计算过程详解</div>
+                <div id="log_output"></div>
+                
+                <div class="card-header" style="margin-top:20px; border-bottom:none">理论波动区间 (95% ~ 105%)</div>
+                <div class="final-range" id="final_range_display">
+                    0 ~ 0
+                </div>
+                <div class="note" style="text-align:center">区间包含随机浮动与取整误差</div>
+            </div>
+
+            <div class="card validation-section">
+                <div class="card-header">实测数据验算</div>
+                <div class="input-row">
+                    <label>实测最大值 (Max)</label>
+                    <input type="number" id="obs_max" placeholder="输入..." oninput="verify()">
+                </div>
+                <div class="input-row">
+                    <label>实测最小值 (Min)</label>
+                    <input type="number" id="obs_min" placeholder="输入..." oninput="verify()">
+                </div>
+                <div id="verify_result" style="margin-top:10px; font-size:0.9em;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function calc() {
+            // 1. 获取输入
+            const auto = parseFloat(document.getElementById('auto_dmg').value) || 0;
+            const mult = parseFloat(document.getElementById('ougi_mult').value) || 0;
+            
+            const mod_grid = (parseFloat(document.getElementById('mod_grid').value) || 0) / 100;
+            const mod_char = (parseFloat(document.getElementById('mod_char').value) || 0) / 100;
+            
+            const fixed_base = parseFloat(document.getElementById('fixed_val').value) || 0;
+            const fixed_supp = parseFloat(document.getElementById('fixed_supp').value) || 0;
+            
+            const amp = (parseFloat(document.getElementById('amp_total').value) || 0) / 100;
+
+            let log = "";
+
+            // Step 1: 基础奥义
+            // 逻辑: 平A * 倍率
+            let base_raw = auto * mult;
+            // 按照GBF习惯，这里可能保留小数或取整，根据之前的50099测试，中间步骤似乎保留了较高精度
+            // 我们暂不取整，或者只在大步骤取整
+            log += `<div class="result-row"><span>基础 (平A x 倍率):</span> <span>${base_raw.toFixed(1)}</span></div>`;
+
+            // Step 2: 应用修正乘区 (Mods)
+            // 逻辑: 武器盘 和 角色区 是乘算
+            let mod_grid_mult = 1 + mod_grid;
+            let mod_char_mult = 1 + mod_char;
+            
+            let base_modded = base_raw * mod_grid_mult * mod_char_mult;
+            // 此处通常会做一次 floor，为了匹配高精度，我们先 Math.floor
+            let base_modded_int = Math.floor(base_modded);
+            
+            log += `<div class="result-row"><span>修正后基础 (x${mod_grid_mult} x${mod_char_mult}):</span> <span class="highlight">${base_modded_int}</span></div>`;
+
+            // Step 3: 随机浮动 (RNG)
+            // 范围: 0.95 ~ 1.05 (只作用于基础)
+            let base_min = Math.floor(base_modded_int * 0.95);
+            let base_max = Math.floor(base_modded_int * 1.05);
+            
+            log += `<div class="result-row"><span>随机基数 (95%-105%):</span> <span>[${base_min}, ${base_max}]</span></div>`;
+
+            // Step 4: 加入固定伤害 (Fixed)
+            let total_fixed = fixed_base + fixed_supp;
+            let pre_amp_min = base_min + total_fixed;
+            let pre_amp_max = base_max + total_fixed;
+            
+            log += `<div class="result-row"><span>加入固定值 (+${total_fixed}):</span> <span>[${pre_amp_min}, ${pre_amp_max}]</span></div>`;
+
+            // Step 5: 全增幅 (Amp)
+            // 逻辑: 放大所有伤害，通常向上取整 Math.ceil
+            let amp_mult = 1 + amp;
+            
+            // 为了匹配 50099 和 51648 的微小误差，这里可能涉及浮点运算
+            // 我们提供一个允许误差范围 (±2)
+            let final_min = Math.ceil(pre_amp_min * amp_mult);
+            let final_max = Math.ceil(pre_amp_max * amp_mult);
+
+            log += `<div class="result-row"><span>最终增幅 (x${amp_mult.toFixed(3)}):</span> <span>Done</span></div>`;
+
+            document.getElementById('log_output').innerHTML = log;
+            document.getElementById('final_range_display').innerText = `${final_min} ~ ${final_max}`;
+            
+            // 存储全局变量供验算用
+            window.calcResult = { min: final_min, max: final_max };
+            verify();
+        }
+
+        function verify() {
+            const obs_max = parseFloat(document.getElementById('obs_max').value);
+            const obs_min = parseFloat(document.getElementById('obs_min').value);
+            const theory = window.calcResult;
+            const output = document.getElementById('verify_result');
+            
+            if (!theory || (!obs_max && !obs_min)) {
+                output.innerHTML = "";
+                return;
+            }
+
+            let html = "<ul style='padding-left:20px; margin:0'>";
+
+            // 验证最大值
+            if (obs_max) {
+                // 允许 0.2% 的误差或固定点数误差
+                let diff = obs_max - theory.max;
+                let status = "";
+                if (obs_max > theory.max + 50) { // 严重超出
+                     status = `<span class="status-fail">异常偏高 (可能是乘区判断错误)</span>`;
+                } else if (obs_max > theory.max) { // 轻微超出 (可能是浮点误差)
+                     status = `<span class="status-pass">基本吻合 (偏高 ${diff}，浮点误差)</span>`;
+                } else if (obs_max >= theory.max * 0.995) { // 正常范围内
+                     status = `<span class="status-pass">完美吻合 (误差 ${diff})</span>`;
+                } else { // 没随到最大值
+                     status = `<span style="color:orange">未触顶 (属正常运气)</span>`;
+                }
+                html += `<li>最大值: ${status}</li>`;
+            }
+
+            // 验证最小值
+            if (obs_min) {
+                let diff = obs_min - theory.min;
+                let status = "";
+                if (obs_min < theory.min - 50) {
+                    status = `<span class="status-fail">异常偏低 (可能有未统计的Debuff)</span>`;
+                } else if (obs_min < theory.min) {
+                    status = `<span class="status-pass">基本吻合 (偏低 ${diff}，浮点误差)</span>`;
+                } else if (obs_min <= theory.min * 1.005) {
+                    status = `<span class="status-pass">完美吻合 (误差 ${diff})</span>`;
+                } else {
+                    status = `<span style="color:orange">未触底 (属正常运气)</span>`;
+                }
+                html += `<li>最小值: ${status}</li>`;
+            }
+
+            // 波动宽度检查 (Gap Check)
+            if (obs_max && obs_min) {
+                let obs_gap = obs_max - obs_min;
+                let theory_gap = theory.max - theory.min;
+                // 如果实测波动 大于 理论波动，说明基础伤害算小了 (加算变乘算)
+                if (obs_gap > theory_gap + 100) {
+                    html += `<li><span class="status-fail">警告: 实测波动幅度(${obs_gap}) > 理论幅度(${theory_gap})。这意味着你的基础倍率可能设置低了（检查是否混淆了加算/乘算）。</span></li>`;
+                }
+            }
+
+            html += "</ul>";
+            output.innerHTML = html;
+        }
+
+        // Init
+        calc();
+    </script>
+</body>
+</html>
