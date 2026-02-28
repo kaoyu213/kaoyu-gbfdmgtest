@@ -885,6 +885,188 @@ function addAllPlusMarks() {
     recalculate();
 }
 
+// 渲染常驻加成
+function renderResidentBonuses() {
+    const container = document.getElementById('resident-bonuses-output');
+    if(!container) return;
+    
+    // 获取召唤石加成
+    const summonBonuses = getSummonBonuses();
+    
+    // 获取特殊道具加成
+    const specialBonuses = getSpecialBonuses();
+    
+    let html = '';
+    
+    // 召唤石加成部分 - 常驻显示
+    html += `<div class="stat-line"><span style="color:#aaa">召唤石加成</span></div>`;
+    
+    if (summonBonuses.details.length > 0) {
+        summonBonuses.details.forEach(detail => {
+            // 解析显示值，提取数值和单位
+            const displayValue = detail.displayValue;
+            let valueStr = displayValue;
+            let isCapped = false;
+            
+            // 检查是否超过上限（如果有MAX标记）
+            if (displayValue.includes('(MAX)')) {
+                isCapped = true;
+                valueStr = displayValue.replace(' (MAX)', '');
+            }
+            
+            html += `<div class="stat-line">`;
+            html += `<span>${detail.source}</span>`;
+            html += `<span class="${isCapped ? 'capped-val' : 'val-highlight'}">${valueStr}</span>`;
+            html += `</div>`;
+        });
+    } else {
+        // 召唤石加成为空时显示提示
+        html += `<div class="stat-line">`;
+        html += `<span style="color:#666">暂无召唤石加成</span>`;
+        html += `<span style="color:#666">-</span>`;
+        html += `</div>`;
+    }
+    
+    // 添加分隔线
+    html += `<hr style="border-color:#444; margin: 10px 0;">`;
+    
+    // 特殊道具加成部分 - 常驻显示
+    html += `<div class="stat-line"><span style="color:#aaa">特殊道具加成</span></div>`;
+    
+    if (specialBonuses.details.length > 0) {
+        specialBonuses.details.forEach(detail => {
+            // 解析显示值，提取数值和单位
+            const displayValue = detail.displayValue;
+            let valueStr = displayValue;
+            let isCapped = false;
+            
+            // 检查是否超过上限（如果有MAX标记）
+            if (displayValue.includes('(MAX)')) {
+                isCapped = true;
+                valueStr = displayValue.replace(' (MAX)', '');
+            }
+            
+            html += `<div class="stat-line">`;
+            html += `<span>${detail.source}</span>`;
+            html += `<span class="${isCapped ? 'capped-val' : 'val-highlight'}">${valueStr}</span>`;
+            html += `</div>`;
+        });
+    } else {
+        // 特殊道具加成为空时显示提示
+        html += `<div class="stat-line">`;
+        html += `<span style="color:#666">暂无特殊道具加成</span>`;
+        html += `<span style="color:#666">-</span>`;
+        html += `</div>`;
+    }
+    
+    container.innerHTML = html;
+}
+
+// 获取召唤石加成数据
+function getSummonBonuses() {
+    let total = 0;
+    const details = [];
+    
+    // 遍历所有召唤石槽位
+    for (let i = 0; i < 8; i++) {
+        const summon = currentSummons[i];
+        if (!summon) continue;
+        
+        // 解析召唤石效果
+        const bonuses = parseSummonEffects(summon, i);
+        
+        // 神石加成
+        if (bonuses.optimus > 0) {
+            const source = `${summon.name} (${getSummonSlotLabel(i)})`;
+            const displayValue = `+${bonuses.optimus.toFixed(2)}%`;
+            details.push({
+                source: source,
+                displayValue: displayValue,
+                value: bonuses.optimus
+            });
+            total += bonuses.optimus;
+        }
+        
+        // 属攻加成
+        if (bonuses.elementAtk > 0) {
+            const source = `${summon.name} (${getSummonSlotLabel(i)})`;
+            const displayValue = `+${bonuses.elementAtk.toFixed(2)}%`;
+            details.push({
+                source: source,
+                displayValue: displayValue,
+                value: bonuses.elementAtk
+            });
+            total += bonuses.elementAtk;
+        }
+        
+        // 伤害上限加成
+        if (bonuses.damageCap > 0) {
+            const source = `${summon.name} (${getSummonSlotLabel(i)})`;
+            const displayValue = `+${bonuses.damageCap.toFixed(2)}%`;
+            details.push({
+                source: source,
+                displayValue: displayValue,
+                value: bonuses.damageCap
+            });
+            total += bonuses.damageCap;
+        }
+    }
+    
+    return {
+        total: total,
+        details: details
+    };
+}
+
+// 获取特殊道具加成数据
+function getSpecialBonuses() {
+    let total = 0;
+    const details = [];
+    
+    // 遍历所有激活的特殊道具
+    activeSpecialBuffs.forEach(id => {
+        const buff = specialBuffsData.find(b => b.id === id);
+        if (!buff || !buff.stats) return;
+        
+        // 遍历特殊道具的所有加成
+        for (const [key, value] of Object.entries(buff.stats)) {
+            if (value === 0) continue;
+            
+            // 跳过一些不需要显示的内部字段
+            if (key === 'optimus_boost' || key === 'magna_boost') continue;
+            
+            const source = buff.name;
+            let displayValue = '';
+            
+            // 根据数值类型格式化显示
+            if (Math.abs(value) <= 1 && value !== 0 && !Number.isInteger(value)) {
+                displayValue = `+${(value * 100).toFixed(2)}%`;
+                total += value * 100; // 转换为百分比累加
+            } else {
+                displayValue = `+${value}`;
+                total += value;
+            }
+            
+            details.push({
+                source: source,
+                displayValue: displayValue,
+                value: value
+            });
+        }
+    });
+    
+    return {
+        total: total,
+        details: details
+    };
+}
+
+// 获取召唤石槽位标签
+function getSummonSlotLabel(index) {
+    const labels = ['主召', '友召', 'Sum 1', 'Sum 2', 'Sum 3', 'Sum 4', 'Sub 1', 'Sub 2'];
+    return labels[index] || `槽位${index}`;
+}
+
 // 渲染详细分解
 function renderDetailedBreakdown(gridStats) {
     const container = document.getElementById('all-stats-breakdown');

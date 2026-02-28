@@ -433,6 +433,9 @@ function recalculate() {
         panelAtk: finalBaseAtk
     });
     
+    // 更新常驻加成显示
+    renderResidentBonuses();
+    
     // 更新伤害计算显示
     updateDamageDisplay(0);
 }

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>常驻加成测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: #e0e0e0; }
+        .test-section { margin-bottom: 20px; padding: 15px; background: #2d2d2d; border-radius: 8px; border: 1px solid #444; }
+        .test-result { margin-top: 10px; padding: 10px; background: #222; border-radius: 4px; }
+        .success { color: #2ecc71; }
+        .error { color: #e74c3c; }
+        .info { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>常驻加成功能测试</h1>
+    
+    <div class="test-section">
+        <h3>测试项目</h3>
+        <ul>
+            <li>1. HTML结构是否正确添加了常驻加成区域</li>
+            <li>2. JavaScript函数是否正确定义</li>
+            <li>3. CSS样式是否正确应用</li>
+            <li>4. 函数调用是否集成到计算流程</li>
+            <li>5. 显示格式是否与武器盘面板一致</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h3>测试结果</h3>
+        <div id="test-results" class="test-result">
+            正在运行测试...
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h3>手动测试步骤</h3>
+        <ol>
+            <li>打开主页面 index1.html</li>
+            <li>切换到"加成面板"选项卡</li>
+            <li>检查是否有"常驻加成"区域</li>
+            <li>添加一些召唤石到召唤石设定区域</li>
+            <li>检查常驻加成区域是否显示召唤石加成</li>
+            <li>在特殊加成选项卡中激活一些特殊道具</li>
+            <li>检查常驻加成区域是否显示特殊道具加成</li>
+        </ol>
+    </div>
+
+    <script>
+        // 简单的测试函数
+        function runTests() {
+            const results = [];
+            
+            // 测试1: 检查HTML结构
+            const residentBonusContainer = document.getElementById('resident-bonuses-output');
+            if (residentBonusContainer) {
+                results.push('<span class="success">✓</span> 常驻加成容器已添加');
+            } else {
+                results.push('<span class="error">✗</span> 常驻加成容器未找到');
+            }
+            
+            // 测试2: 检查JavaScript函数
+            if (typeof renderResidentBonuses === 'function') {
+                results.push('<span class="success">✓</span> renderResidentBonuses 函数已定义');
+            } else {
+                results.push('<span class="error">✗</span> renderResidentBonuses 函数未定义');
+            }
+            
+            if (typeof getSummonBonuses === 'function') {
+                results.push('<span class="success">✓</span> getSummonBonuses 函数已定义');
+            } else {
+                results.push('<span class="error">✗</span> getSummonBonuses 函数未定义');
+            }
+            
+            if (typeof getSpecialBonuses === 'function') {
+                results.push('<span class="success">✓</span> getSpecialBonuses 函数已定义');
+            } else {
+                results.push('<span class="error">✗</span> getSpecialBonuses 函数未定义');
+            }
+            
+            if (typeof parseSummonEffects === 'function') {
+                results.push('<span class="success">✓</span> parseSummonEffects 函数已定义');
+            } else {
+                results.push('<span class="error">✗</span> parseSummonEffects 函数未定义');
+            }
+            
+            if (typeof getSummonSlotLabel === 'function') {
+                results.push('<span class="success">✓</span> getSummonSlotLabel 函数已定义');
+            } else {
+                results.push('<span class="error">✗</span> getSummonSlotLabel 函数未定义');
+            }
+            
+            // 测试3: 检查CSS样式
+            const testElement = document.createElement('div');
+            testElement.className = 'bonus-box summon-bonuses-box';
+            document.body.appendChild(testElement);
+            const computedStyle = window.getComputedStyle(testElement);
+            if (computedStyle.borderLeftWidth === '4px') {
+                results.push('<span class="success">✓</span> 召唤石加成CSS样式已应用');
+            } else {
+                results.push('<span class="error">✗</span> 召唤石加成CSS样式未正确应用');
+            }
+            testElement.remove();
+            
+            // 测试4: 检查函数是否在recalculate中调用
+            const recalculateStr = recalculate.toString();
+            if (recalculateStr.includes('renderResidentBonuses')) {
+                results.push('<span class="success">✓</span> renderResidentBonuses 已集成到 recalculate 函数');
+            } else {
+                results.push('<span class="error">✗</span> renderResidentBonuses 未集成到 recalculate 函数');
+            }
+            
+            // 显示结果
+            const resultsContainer = document.getElementById('test-results');
+            resultsContainer.innerHTML = results.join('<br>');
+        }
+        
+        // 页面加载完成后运行测试
+        window.onload = runTests;
+    </script>
+</body>
+</html>

@@ -1534,3 +1534,102 @@ input[type="range"] {
     font-family: monospace;
     font-weight: bold;
 }
+
+/* 角色buff区域备用样式 */
+.char-buff-area {
+    margin-top: 15px;
+    border-top: 1px dashed #444;
+    padding-top: 10px;
+}
+
+.char-buff-title {
+    font-size: 0.85em;
+    font-weight: bold;
+    color: #9b59b6;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed #444;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.char-buff-toggle {
+    cursor: pointer;
+    font-size: 1em;
+    color: #9b59b6;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.char-buff-toggle:hover {
+    background: #9b59b6;
+    color: #fff;
+}
+
+.char-buff-bar {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 8px;
+    margin-bottom: 10px;
+    min-height: 24px;
+    color: #666;
+    font-size: 0.8em;
+    text-align: center;
+}
+
+/* 大容器：4个大方格 */
+.char-buff-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+/* 大方格 */
+.char-buff-big-cell {
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 4px;
+    aspect-ratio: 1;
+}
+
+/* 大方格内的小网格：2x2布局 */
+.char-buff-small-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 4px;
+    height: 100%;
+}
+
+/* 小方格 */
+.char-buff-cell {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 2px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.char-buff-cell:hover {
+    border-color: #9b59b6;
+    background: #333;
+}
+
+.cell-inner {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(145deg, #252525, #2a2a2a);
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #555;
+    font-size: 0.65em;
+}
+

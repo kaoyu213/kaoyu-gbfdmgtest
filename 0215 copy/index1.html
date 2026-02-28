@@ -139,7 +139,7 @@
     <div class="right-panel">
         <div class="tab-header">
             <div class="tab-btn active" onclick="switchTab('mc', this)">角色设定</div>
-            <div class="tab-btn" onclick="switchTab('weapon-panel', this)">武器盘面板</div>
+            <div class="tab-btn" onclick="switchTab('weapon-panel', this)">加成面板</div>
             <div class="tab-btn" onclick="switchTab('summon-panel', this)">召唤石设定</div>
         </div>
 
@@ -193,6 +193,51 @@
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">主角面板ATK</span>
                             <span class="char-panel-value" id="char-panel-atk-0">-</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 角色buff区域备用 -->
+                    <div class="char-buff-area" id="char-buff-area-0">
+                        <div class="char-buff-title">
+                            <span>角色buff区域备用</span>
+                            <span class="char-buff-toggle" onclick="toggleCharBuffCells(0, event)" title="点击隐藏/显示4x4buff格">展开</span>
+                        </div>
+                        <div class="char-buff-bar">
+                            <!-- buff显示栏预留区域 -->
+                        </div>
+                        <div class="char-buff-container" id="char-buff-cells-0">
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -367,6 +412,51 @@
                         </div>
                     </div>
                     
+                    <!-- 角色buff区域备用 -->
+                    <div class="char-buff-area" id="char-buff-area-1">
+                        <div class="char-buff-title">
+                            <span>角色buff区域备用</span>
+                            <span class="char-buff-toggle" onclick="toggleCharBuffCells(1, event)" title="点击隐藏/显示4x4buff格">展开</span>
+                        </div>
+                        <div class="char-buff-bar">
+                            <!-- buff显示栏预留区域 -->
+                        </div>
+                        <div class="char-buff-container" id="char-buff-cells-1">
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 伤害预测区域 -->
                     <div class="dmg-predict-section">
                         <div class="dmg-section-header" onclick="toggleDmgSection(this)">
@@ -453,6 +543,51 @@
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板ATK</span>
                             <span class="char-panel-value" id="char-panel-atk-2">-</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 角色buff区域备用 -->
+                    <div class="char-buff-area" id="char-buff-area-2">
+                        <div class="char-buff-title">
+                            <span>角色buff区域备用</span>
+                            <span class="char-buff-toggle" onclick="toggleCharBuffCells(2, event)" title="点击隐藏/显示4x4buff格">展开</span>
+                        </div>
+                        <div class="char-buff-bar">
+                            <!-- buff显示栏预留区域 -->
+                        </div>
+                        <div class="char-buff-container" id="char-buff-cells-2">
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -545,6 +680,51 @@
                         </div>
                     </div>
                     
+                    <!-- 角色buff区域备用 -->
+                    <div class="char-buff-area" id="char-buff-area-3">
+                        <div class="char-buff-title">
+                            <span>角色buff区域备用</span>
+                            <span class="char-buff-toggle" onclick="toggleCharBuffCells(3, event)" title="点击隐藏/显示4x4buff格">展开</span>
+                        </div>
+                        <div class="char-buff-bar">
+                            <!-- buff显示栏预留区域 -->
+                        </div>
+                        <div class="char-buff-container" id="char-buff-cells-3">
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 伤害预测区域 -->
                     <div class="dmg-predict-section">
                         <div class="dmg-section-header" onclick="toggleDmgSection(this)">
@@ -631,6 +811,51 @@
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板ATK</span>
                             <span class="char-panel-value" id="char-panel-atk-4">-</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 角色buff区域备用 -->
+                    <div class="char-buff-area" id="char-buff-area-4">
+                        <div class="char-buff-title">
+                            <span>角色buff区域备用</span>
+                            <span class="char-buff-toggle" onclick="toggleCharBuffCells(4, event)" title="点击隐藏/显示4x4buff格">展开</span>
+                        </div>
+                        <div class="char-buff-bar">
+                            <!-- buff显示栏预留区域 -->
+                        </div>
+                        <div class="char-buff-container" id="char-buff-cells-4">
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -723,6 +948,51 @@
                         </div>
                     </div>
                     
+                    <!-- 角色buff区域备用 -->
+                    <div class="char-buff-area" id="char-buff-area-5">
+                        <div class="char-buff-title">
+                            <span>角色buff区域备用</span>
+                            <span class="char-buff-toggle" onclick="toggleCharBuffCells(5, event)" title="点击隐藏/显示4x4buff格">展开</span>
+                        </div>
+                        <div class="char-buff-bar">
+                            <!-- buff显示栏预留区域 -->
+                        </div>
+                        <div class="char-buff-container" id="char-buff-cells-5">
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                            <div class="char-buff-big-cell">
+                                <div class="char-buff-small-grid">
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                    <div class="char-buff-cell"><div class="cell-inner"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 伤害预测区域 -->
                     <div class="dmg-predict-section">
                         <div class="dmg-section-header" onclick="toggleDmgSection(this)">
@@ -804,6 +1074,12 @@
                 </div>
                 <div id="stats-output"></div>
             </div>
+            
+            <!-- 常驻加成栏目 -->
+            <div class="result-board" style="margin-top: 15px;">
+                <h3>常驻加成</h3>
+                <div id="resident-bonuses-output"></div>
+            </div>
         </div>
 
         <div id="tab-summon-panel" class="tab-content">
@@ -871,6 +1147,26 @@
                 btn.classList.add('active');
             }
             recalculate();
+        }
+
+        // 切换角色buff区域4x4格显示/隐藏
+        function toggleCharBuffCells(charIndex, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            const containerId = 'char-buff-cells-' + charIndex;
+            const container = document.getElementById(containerId);
+            const toggleBtn = document.querySelector('#char-buff-area-' + charIndex + ' .char-buff-toggle');
+            
+            if (container) {
+                if (container.style.display === 'none') {
+                    container.style.display = 'grid';
+                    if (toggleBtn) toggleBtn.textContent = '收起';
+                } else {
+                    container.style.display = 'none';
+                    if (toggleBtn) toggleBtn.textContent = '展开';
+                }
+            }
         }
     </script>
 
