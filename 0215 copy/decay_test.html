@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBF 衰减伤害测试工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/decimal.js@10.4.3/decimal.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 8px;
+            color: #ff6b6b;
+            text-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 25px;
+            font-size: 0.9em;
+        }
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .panel-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #ff6b6b;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .two-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 1000px) {
+            .two-columns { grid-template-columns: 1fr; }
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 18px;
+            gap: 15px;
+        }
+        .input-group label {
+            min-width: 110px;
+            color: #aaa;
+            font-weight: bold;
+        }
+        .input-group input[type="number"],
+        .input-group input[type="text"] {
+            flex: 1;
+            max-width: 250px;
+            padding: 10px 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 1.05em;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #ff6b6b;
+            box-shadow: 0 0 10px rgba(255, 107, 107, 0.3);
+        }
+        .input-group select {
+            flex: 1;
+            max-width: 250px;
+            padding: 10px 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 1em;
+            cursor: pointer;
+        }
+        .input-group select:focus {
+            outline: none;
+            border-color: #ff6b6b;
+        }
+        .input-group select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+        .input-hint {
+            color: #666;
+            font-size: 0.8em;
+            margin-left: auto;
+        }
+        .result-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .result-row:last-child { border-bottom: none; }
+        .result-label { color: #aaa; }
+        .result-value { color: #fff; font-weight: bold; }
+        .result-value.highlight {
+            color: #00ff88;
+            font-size: 1.4em;
+        }
+        .result-value.warning { color: #ff6b6b; }
+        .highlight-row {
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .highlight-row .result-label { color: #00ff88; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.9em;
+        }
+        th {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+        tr:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
+        tr:hover { background: rgba(255, 107, 107, 0.1); }
+        .tier-active { background: rgba(0, 255, 136, 0.15) !important; }
+        .chart-container {
+            position: relative;
+            height: 420px;
+            margin-top: 15px;
+        }
+        .btn {
+            padding: 10px 22px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6b6b, #cc4444);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.2); }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .log-area {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.82em;
+            max-height: 350px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #aaa;
+            line-height: 1.6;
+        }
+        .code-editor {
+            width: 100%;
+            min-height: 280px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 15px;
+            color: #00d4ff;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.85em;
+            resize: vertical;
+            line-height: 1.5;
+            tab-size: 4;
+        }
+        .code-editor:focus {
+            outline: none;
+            border-color: #ff6b6b;
+            box-shadow: 0 0 10px rgba(255, 107, 107, 0.3);
+        }
+        .code-hint {
+            color: #666;
+            font-size: 0.78em;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        }
+        .formula-box {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+        .formula-title {
+            color: #ff6b6b;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .formula-content {
+            color: #fff;
+            line-height: 1.8;
+        }
+        .warning-row {
+            background: rgba(255, 107, 107, 0.1);
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .warning-row .result-label { color: #ff6b6b; }
+        hr {
+            border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚔️ GBF 伤害衰减测试工具</h1>
+        <p class="subtitle">填写奥义伤害参数和上限加成，选择衰减表，计算衰减后的实际伤害</p>
+
+        <div class="two-columns">
+            <!-- 左侧：输入参数 -->
+            <div>
+                <div class="panel">
+                    <div class="panel-title">📊 奥义伤害参数</div>
+
+                    <div class="input-group">
+                        <label>基础伤害</label>
+                        <input type="number" id="base-damage" value="500000" min="0" step="1000" oninput="calculate()">
+                        <span class="input-hint">（面板攻击÷防御后的值）</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label>奥义倍率</label>
+                        <input type="number" id="ca-multiplier" value="4.5" min="0.1" step="0.1" oninput="calculate()">
+                        <span class="input-hint">（如4.5代表450%）</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label>奥义固定值</label>
+                        <input type="number" id="ca-fixed" value="2000" min="0" step="100" oninput="calculate()">
+                        <span class="input-hint">（武器/角色固定值）</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label>随机补正</label>
+                        <input type="number" id="random-factor" value="1" min="0.95" max="1.05" step="0.01" oninput="calculate()">
+                        <span class="input-hint">（0.95~1.05，默认1）</span>
+                    </div>
+
+                    <hr>
+
+                    <div class="input-group">
+                        <label>奥义伤害加成1 (%)</label>
+                        <input type="number" id="ca-weapon-grid" value="0" min="0" max="500" step="0.1" oninput="calculate()">
+                        <span class="input-hint">（武器盘加成）</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label>奥义伤害加成2 (%)</label>
+                        <input type="number" id="ca-other" value="0" min="0" max="500" step="0.1" oninput="calculate()">
+                        <span class="input-hint">（其余来源加成）</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label>奥义伤害增幅 (%)</label>
+                        <input type="number" id="ca-amp" value="0" min="0" max="500" step="0.1" oninput="calculate()">
+                        <span class="input-hint">（伤害增幅 Amp）</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label>被伤害增幅 (%)</label>
+                        <input type="number" id="ca-taken-amp" value="0" min="0" max="500" step="0.1" oninput="calculate()">
+                        <span class="input-hint">（Taken Amp）</span>
+                    </div>
+
+                    <div class="input-group">
+                        <label>奥义伤害上升</label>
+                        <input type="number" id="ca-dmg-supp" value="0" min="0" step="100" oninput="calculate()">
+                        <span class="input-hint">（固定值，直接加上）</span>
+                    </div>
+
+                    <hr>
+
+                    <div class="input-group">
+                        <label>总上限加成 (%)</label>
+                        <input type="number" id="cap-bonus" value="6" min="0" max="500" step="0.1" oninput="calculate()">
+                        <span class="input-hint">（总上限系数 C = 1 + 此值）</span>
+                    </div>
+
+                    <div class="formula-box">
+                        <div class="formula-title">奥义伤害公式：</div>
+                        <div class="formula-content">
+                            inner = 基础伤害 × 随机补正 × 倍率 × (1+加成1) × (1+加成2) + 固定值<br>
+                            衰减后 + ceil = ceil( funcDecay(floor(inner), C, 衰减表) )<br>
+                            衰减后 + ceil → 乘被伤增幅取整 → + 伤害上升 → 乘增幅取整<br>
+                            最终伤害 = ceil( ( ceil( 衰减后 × (1+被伤增幅) ) + 伤害上升 ) × (1+增幅) )<br>
+                            <span style="color: #888;">先衰减，再乘增幅/被伤增幅（与 damage_cap.js 一致）</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 衰减表选择 -->
+                <div class="panel">
+                    <div class="panel-title">📋 衰减表选择</div>
+
+                    <div class="input-group">
+                        <label>衰减表</label>
+                        <select id="table-select" onchange="onTableSelect()">
+                            <option value="普攻基础表">普攻基础表 (0~30/40/50/60万)</option>
+                            <option value="主角奥义(倍率3)">主角奥义(倍率3) (0~30/40/50/60万)</option>
+                            <option value="奥义4.5倍率">奥义4.5倍率 (0~150/170/180/250万)</option>
+                            <option value="奥义5倍率" selected>奥义5倍率 (0~150/170/180/250万)</option>
+                            <option value="奥义测试表">奥义测试表 (0~180/200/220/300万)</option>
+                            <option value="奥义210万起">奥义210万起 (0~210/230/250/300万)</option>
+                            <option value="世界上限660万">世界上限660万 (0~600/700/800万)</option>
+                            <option value="世界上限1310万">世界上限1310万 (0~1200/1400/1500万)</option>
+                            <option value="自定义表">自定义表（见下方编辑区）</option>
+                        </select>
+                    </div>
+
+                    <div id="current-table-display" class="formula-box" style="font-size: 0.85em;">
+                    </div>
+                </div>
+
+                <!-- 自定义衰减表编辑区 -->
+                <div class="panel">
+                    <div class="panel-title">✏️ 自定义衰减表（可手动添加）</div>
+                    <p class="code-hint">
+                        格式：每行一个对象 { limit: 边界值, slope: 斜率 }。<br>
+                        边界从小到大排列，最后一段 limit 为 999999999 代表无穷大。<br>
+                        slope=1.0 无衰减，slope=0.5 即50%衰减，以此类推。<br>
+                        <b>修改后需在下拉框选择"自定义表"并点击"应用自定义表"。</b>
+                    </p>
+                    <textarea id="custom-table-editor" class="code-editor" spellcheck="false">// ===== 自定义衰减表 =====
+// 在 customTables 对象中添加新表，格式如下：
+const customTables = {
+    "我的测试表": [
+        { limit: 1000000, slope: 1.0 },    // 0~100万: 0%衰减
+        { limit: 2000000, slope: 0.6 },    // 100万~200万: 40%衰减
+        { limit: 3000000, slope: 0.3 },    // 200万~300万: 70%衰减
+        { limit: 4000000, slope: 0.05 },   // 300万~400万: 95%衰减
+        { limit: 999999999, slope: 0.01 }  // 400万以上: 99%衰减
+    ],
+    // 在这里添加更多自定义表...
+};</textarea>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="applyCustomTable()">🔄 应用自定义表</button>
+                        <button class="btn btn-secondary" onclick="resetCustomEditor()">↩ 重置编辑器</button>
+                    </div>
+                    <div id="custom-parse-msg" style="margin-top: 10px; font-size: 0.85em;"></div>
+                </div>
+            </div>
+
+            <!-- 右侧：计算结果 -->
+            <div>
+                <div class="panel">
+                    <div class="panel-title">📈 计算结果</div>
+                    <div class="result-box">
+                        <div class="result-row">
+                            <span class="result-label">理论伤害</span>
+                            <span class="result-value" id="result-raw">-</span>
+                        </div>
+                        <div class="result-row">
+                            <span class="result-label">总上限系数 C</span>
+                            <span class="result-value" id="result-cap-coef">-</span>
+                        </div>
+                        <div class="result-row">
+                            <span class="result-label">最终边界（末尾段缩放后）</span>
+                            <span class="result-value" id="result-final-limit">-</span>
+                        </div>
+                        <div class="result-row highlight-row">
+                            <span class="result-label">衰减后伤害</span>
+                            <span class="result-value highlight" id="result-decayed">-</span>
+                        </div>
+                        <div class="result-row warning-row">
+                            <span class="result-label">损失伤害</span>
+                            <span class="result-value warning" id="result-loss">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 衰减区间详情 -->
+                <div class="panel">
+                    <div class="panel-title">📋 衰减区间详情</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>级别</th>
+                                <th>原始边界</th>
+                                <th>缩放后边界</th>
+                                <th>衰减率</th>
+                                <th>有效伤害</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tier-table">
+                            <tr><td colspan="5" style="color: #666;">输入参数后自动计算...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 衰减曲线图 -->
+        <div class="panel">
+            <div class="panel-title">📉 衰减曲线</div>
+            <div class="chart-container">
+                <canvas id="decayChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 详细计算日志 -->
+        <div class="panel">
+            <div class="panel-title">🔧 详细计算日志</div>
+            <div class="log-area" id="log-area">点击下方"详细计算"按钮查看完整计算过程...</div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="detailedCalculate()">🔍 详细计算</button>
+                <button class="btn btn-primary" id="export-btn" onclick="exportJSON()" style="background: linear-gradient(135deg, #00cc66, #008844);">📋 复制JSON</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('log-area').textContent = '点击下方详细计算按钮查看完整计算过程...';">🗑️ 清空日志</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        //  预置衰减表
+        // ==========================================
+        const THRESHOLD_TABLE = [
+            { limit: 300000, slope: 1.0 },
+            { limit: 400000, slope: 0.8 },
+            { limit: 500000, slope: 0.6 },
+            { limit: 600000, slope: 0.05 },
+            { limit: Infinity, slope: 0.01 }
+        ];
+        const THRESHOLD_TABLE_CA_OUGI_4_5 = [
+            { limit: 1500000, slope: 1.0 },
+            { limit: 1700000, slope: 0.6 },
+            { limit: 1800000, slope: 0.3 },
+            { limit: 2500000, slope: 0.05 },
+            { limit: Infinity, slope: 0.01 }
+        ];
+        const THRESHOLD_TABLE_CA_OUGI_5 = [
+            { limit: 1500000, slope: 1.0 },
+            { limit: 1700000, slope: 0.6 },
+            { limit: 1800000, slope: 0.3 },
+            { limit: 2500000, slope: 0.05 },
+            { limit: Infinity, slope: 0.01 }
+        ];
+        const THRESHOLD_TABLE_CA_OUGI_test = [
+            { limit: 1800000, slope: 1.0 },
+            { limit: 2000000, slope: 0.6 },
+            { limit: 2200000, slope: 0.3 },
+            { limit: 3000000, slope: 0.05 },
+            { limit: Infinity, slope: 0.01 }
+        ];
+        const THRESHOLD_TABLE_CA_OUGI_210 = [
+            { limit: 2100000, slope: 1.0 },
+            { limit: 2300000, slope: 0.6 },
+            { limit: 2500000, slope: 0.3 },
+            { limit: 3000000, slope: 0.05 },
+            { limit: Infinity, slope: 0.01 }
+        ];
+        const WORLD_CAP_THRESHOLD_TABLE = [
+            { limit: 6000000, slope: 1.0 },
+            { limit: 7000000, slope: 0.5 },
+            { limit: 8000000, slope: 0.1 },
+            { limit: Infinity, slope: 0.001 }
+        ];
+        const WORLD_CAP_THRESHOLD_TABLE_1310 = [
+            { limit: 12000000, slope: 1.0 },
+            { limit: 14000000, slope: 0.5 },
+            { limit: 15000000, slope: 0.1 },
+            { limit: Infinity, slope: 0.001 }
+        ];
+
+        const presetTables = {
+            "普攻基础表": THRESHOLD_TABLE,
+            "主角奥义(倍率3)": THRESHOLD_TABLE,
+            "奥义4.5倍率": THRESHOLD_TABLE_CA_OUGI_4_5,
+            "奥义5倍率": THRESHOLD_TABLE_CA_OUGI_5,
+            "奥义测试表": THRESHOLD_TABLE_CA_OUGI_test,
+            "奥义210万起": THRESHOLD_TABLE_CA_OUGI_210,
+            "世界上限660万": WORLD_CAP_THRESHOLD_TABLE,
+            "世界上限1310万": WORLD_CAP_THRESHOLD_TABLE_1310
+        };
+
+        // 动态自定义表存储
+        let dynamicCustomTables = {};
+
+        // Chart 实例
+        let decayChart = null;
+
+        // ==========================================
+        //  core: funcDecay
+        // ==========================================
+        function funcDecay(rawDamage, totalCap, thresholdTable) {
+            const damage = new Decimal(rawDamage);
+            const cap = new Decimal(totalCap);
+            let decayedDamage = new Decimal(0);
+            let previousThreshold = new Decimal(0);
+            const tierResults = [];
+
+            for (let i = 0; i < thresholdTable.length; i++) {
+                const stage = thresholdTable[i];
+                const isInfinite = stage.limit === Infinity || stage.limit >= 999999998;
+                const currentThreshold = isInfinite
+                    ? new Decimal(Infinity)
+                    : new Decimal(stage.limit).times(cap);
+
+                if (damage.lte(previousThreshold)) break;
+
+                const damageInTier = Decimal.min(damage, currentThreshold).minus(previousThreshold);
+
+                if (damageInTier.gt(0)) {
+                    const effective = damageInTier.times(stage.slope);
+                    decayedDamage = decayedDamage.plus(effective);
+                    tierResults.push({
+                        index: i + 1,
+                        originalLimit: isInfinite ? '∞' : stage.limit,
+                        scaledLimit: isInfinite ? '∞' : currentThreshold.toNumber(),
+                        slope: stage.slope,
+                        decayRate: 1 - stage.slope,
+                        damageInTier: damageInTier.toNumber(),
+                        effectiveDamage: effective.toNumber()
+                    });
+                }
+
+                if (damage.lte(currentThreshold)) break;
+                previousThreshold = currentThreshold;
+            }
+
+            return {
+                decayedDamage: decayedDamage.toNumber(),
+                tierResults: tierResults
+            };
+        }
+
+        // ==========================================
+        //  获取当前选中的衰减表
+        // ==========================================
+        function getCurrentTable() {
+            const select = document.getElementById('table-select');
+            const selected = select.value;
+            if (selected.startsWith('custom_')) {
+                const tableName = selected.replace('custom_', '');
+                return (dynamicCustomTables && dynamicCustomTables[tableName]) || null;
+            }
+            if (selected === '自定义表') {
+                const allCustom = { ...dynamicCustomTables };
+                const keys = Object.keys(allCustom);
+                if (keys.length === 0) return null;
+                return allCustom[keys[0]];
+            }
+            return presetTables[selected] || null;
+        }
+
+        // ==========================================
+        //  奥义理论伤害计算（与 ca_dmg_calc.js 的 calcCaDamageRaw 对齐）
+        // ==========================================
+        function calcOugiTheoryDamage() {
+            const baseDamage = parseFloat(document.getElementById('base-damage').value) || 0;
+            const caMultiplier = parseFloat(document.getElementById('ca-multiplier').value) || 0;
+            const caFixed = parseFloat(document.getElementById('ca-fixed').value) || 0;
+            const randomFactor = parseFloat(document.getElementById('random-factor').value) || 1;
+            const weaponGrid = (parseFloat(document.getElementById('ca-weapon-grid').value) || 0) / 100;
+            const other = (parseFloat(document.getElementById('ca-other').value) || 0) / 100;
+            const amp = (parseFloat(document.getElementById('ca-amp').value) || 0) / 100;
+            const takenAmp = (parseFloat(document.getElementById('ca-taken-amp').value) || 0) / 100;
+            const caDmgSupp = parseFloat(document.getElementById('ca-dmg-supp').value) || 0;
+
+            // inner = baseDamage × randomFactor × caMultiplier × (1+加成1) × (1+加成2) + caFixed （使用 Decimal 避免浮点误差）
+            const inner = new Decimal(baseDamage)
+                .times(randomFactor).times(caMultiplier)
+                .times(new Decimal(1).plus(weaponGrid))
+                .times(new Decimal(1).plus(other))
+                .plus(caFixed).toNumber();
+            // 不在此处乘增幅/被伤增幅，留给衰减后再乘
+
+            return { inner, baseDamage, caMultiplier, caFixed, randomFactor, weaponGrid, other, amp, takenAmp, caDmgSupp };
+        }
+
+        // ==========================================
+        //  主计算
+        // ==========================================
+        function calculate() {
+            const ougi = calcOugiTheoryDamage();
+            const inner = ougi.inner;
+            const capBonusPercent = parseFloat(document.getElementById('cap-bonus').value) || 0;
+            const totalCap = 1 + capBonusPercent / 100;
+            const thresholdTable = getCurrentTable();
+
+            if (!thresholdTable) {
+                document.getElementById('result-decayed').textContent = '请选择有效衰减表';
+                return;
+            }
+
+            // 步骤1：对 inner 做衰减
+            const decayResult = funcDecay(Math.floor(inner), totalCap, thresholdTable);
+            // 步骤1.5：衰减后向上取整
+            const afterDecay = new Decimal(decayResult.decayedDamage).ceil().toNumber();
+            // 步骤2：衰减后 → 乘被伤增幅取整 → + 伤害上升 → 乘增幅取整
+            const afterTakenAmp = new Decimal(afterDecay).times(new Decimal(1).plus(ougi.takenAmp)).ceil().toNumber();
+            const afterSupp = afterTakenAmp + ougi.caDmgSupp;
+            const finalDamage = new Decimal(afterSupp).times(new Decimal(1).plus(ougi.amp)).ceil().toNumber();
+            const loss = inner - finalDamage;
+            const lossPercent = inner > 0 ? (loss / inner * 100).toFixed(2) : 0;
+
+            // 更新基础结果
+            document.getElementById('result-raw').textContent = Math.floor(inner).toLocaleString();
+            document.getElementById('result-cap-coef').textContent = totalCap.toFixed(4);
+            const lastFiniteLimit = getLastFiniteLimit(thresholdTable);
+            document.getElementById('result-final-limit').textContent = lastFiniteLimit !== null
+                ? formatNumber(lastFiniteLimit * totalCap)
+                : '-';
+            document.getElementById('result-decayed').textContent = finalDamage.toLocaleString();
+            document.getElementById('result-loss').textContent = formatNumber(loss) + ' (' + lossPercent + '%)';
+
+            // 更新区间表（基于 inner 展示衰减区间）
+            updateTierTable(thresholdTable, totalCap, decayResult.tierResults);
+
+            // 更新曲线（基于 inner）
+            updateChart(Math.floor(inner), totalCap, thresholdTable);
+
+            // 更新当前表展示
+            updateCurrentTableDisplay(thresholdTable, totalCap);
+        }
+
+        function getLastFiniteLimit(table) {
+            for (let i = table.length - 1; i >= 0; i--) {
+                if (table[i].limit !== Infinity && table[i].limit < 999999998) {
+                    return table[i].limit;
+                }
+            }
+            return null;
+        }
+
+        // ==========================================
+        //  更新区间详情表
+        // ==========================================
+        function updateTierTable(thresholdTable, totalCap, tierResults) {
+            const tbody = document.getElementById('tier-table');
+            let html = '';
+
+            const activeMap = {};
+            tierResults.forEach(t => { activeMap[t.index] = t; });
+
+            for (let i = 0; i < thresholdTable.length; i++) {
+                const stage = thresholdTable[i];
+                const scaledLimit = (stage.limit === Infinity || stage.limit >= 999999998)
+                    ? '∞'
+                    : formatNumber(stage.limit * totalCap);
+                const originalDisplay = (stage.limit === Infinity || stage.limit >= 999999998)
+                    ? '∞'
+                    : formatNumber(stage.limit);
+                const decayRateDisplay = ((1 - stage.slope) * 100).toFixed(1) + '%';
+                const isActive = activeMap[i + 1] !== undefined;
+                const effectiveDisplay = isActive
+                    ? formatNumber(activeMap[i + 1].effectiveDamage)
+                    : '-';
+
+                html += `<tr class="${isActive ? 'tier-active' : ''}">
+                    <td>第${i + 1}级</td>
+                    <td>${originalDisplay}</td>
+                    <td>${scaledLimit}</td>
+                    <td>${decayRateDisplay}</td>
+                    <td>${effectiveDisplay}</td>
+                </tr>`;
+            }
+
+            tbody.innerHTML = html;
+        }
+
+        // ==========================================
+        //  更新当前表展示
+        // ==========================================
+        function updateCurrentTableDisplay(thresholdTable, totalCap) {
+            const display = document.getElementById('current-table-display');
+            let html = '<div class="formula-title">当前衰减表结构：</div><div class="formula-content">';
+            html += '总上限系数 C = <b>' + totalCap.toFixed(4) + '</b><br><br>';
+
+            let prev = 0;
+            for (let i = 0; i < thresholdTable.length; i++) {
+                const stage = thresholdTable[i];
+                const prevDisplay = formatNumber(prev);
+                const limitDisplay = (stage.limit === Infinity || stage.limit >= 999999998)
+                    ? '∞'
+                    : formatNumber(stage.limit);
+                const scaledPrev = formatNumber(prev * totalCap);
+                const scaledLimit = (stage.limit === Infinity || stage.limit >= 999999998)
+                    ? '∞'
+                    : formatNumber(stage.limit * totalCap);
+                const decayPercent = ((1 - stage.slope) * 100).toFixed(1);
+
+                html += `段${i + 1}: 原始 [${prevDisplay} ~ ${limitDisplay}] → 缩放 [${scaledPrev} ~ ${scaledLimit}] | 衰减率: ${decayPercent}%<br>`;
+                prev = stage.limit >= 999999998 ? prev : stage.limit;
+            }
+            html += '</div>';
+            display.innerHTML = html;
+        }
+
+        // ==========================================
+        //  衰减曲线图
+        // ==========================================
+        function updateChart(rawDamage, totalCap, thresholdTable) {
+            const ctx = document.getElementById('decayChart').getContext('2d');
+
+            // 动态确定X轴范围：最大到 rawDamage * 1.5
+            const maxX = Math.max(rawDamage * 1.5, 1000000);
+            const step = Math.ceil(maxX / 100);
+            const labels = [];
+            const decayData = [];
+            const noDecayData = [];
+            const capLine = [];
+
+            // 末尾段边界
+            const lastLimit = getLastFiniteLimit(thresholdTable);
+            const boundaryVal = lastLimit !== null ? lastLimit * totalCap : null;
+
+            for (let dmg = 0; dmg <= maxX; dmg += step) {
+                labels.push(dmg / 10000); // 万
+                const result = funcDecay(dmg, totalCap, thresholdTable);
+                decayData.push(result.decayedDamage / 10000);
+                noDecayData.push(dmg / 10000);
+                if (boundaryVal !== null) {
+                    capLine.push(boundaryVal / 10000);
+                }
+            }
+
+            if (decayChart) decayChart.destroy();
+
+            const datasets = [
+                {
+                    label: '无衰减线 (y=x)',
+                    data: noDecayData,
+                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                    borderDash: [5, 5],
+                    fill: false,
+                    pointRadius: 0
+                },
+                {
+                    label: '衰减后伤害',
+                    data: decayData,
+                    borderColor: '#00ff88',
+                    backgroundColor: 'rgba(0, 255, 136, 0.08)',
+                    fill: true,
+                    pointRadius: 0,
+                    tension: 0.05
+                }
+            ];
+
+            if (boundaryVal !== null) {
+                datasets.push({
+                    label: '末尾段边界',
+                    data: capLine,
+                    borderColor: '#ff6b6b',
+                    borderDash: [10, 5],
+                    fill: false,
+                    pointRadius: 0
+                });
+            }
+
+            decayChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: '理论伤害 (万)', color: '#aaa' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255, 255, 255, 0.08)' }
+                        },
+                        y: {
+                            title: { display: true, text: '实际伤害 (万)', color: '#aaa' },
+                            ticks: { color: '#888' },
+                            grid: { color: 'rgba(255, 255, 255, 0.08)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#aaa' } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '万';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        //  详细计算日志
+        // ==========================================
+        function detailedCalculate() {
+            const ougi = calcOugiTheoryDamage();
+            const inner = ougi.inner;
+            const capBonusPercent = parseFloat(document.getElementById('cap-bonus').value) || 0;
+            const totalCap = 1 + capBonusPercent / 100;
+            const thresholdTable = getCurrentTable();
+            const tableName = document.getElementById('table-select').value;
+
+            if (!thresholdTable) {
+                document.getElementById('log-area').textContent = '错误：未选择有效衰减表';
+                return;
+            }
+
+            // 步骤1：衰减
+            const decayResult = funcDecay(Math.floor(inner), totalCap, thresholdTable);
+            // 步骤1.5：衰减后向上取整
+            const afterDecayLog = new Decimal(decayResult.decayedDamage).ceil().toNumber();
+            // 步骤2：衰减后 → 乘被伤增幅取整 → + 伤害上升 → 乘增幅取整
+            const afterTakenAmpLog = new Decimal(afterDecayLog).times(new Decimal(1).plus(ougi.takenAmp)).ceil().toNumber();
+            const afterSuppLog = afterTakenAmpLog + ougi.caDmgSupp;
+            const finalDamage = new Decimal(afterSuppLog).times(new Decimal(1).plus(ougi.amp)).ceil().toNumber();
+
+            let log = '══════════ 伤害衰减详细计算 ══════════\n\n';
+            log += '【奥义伤害公式】\n';
+            log += `  基础伤害: ${formatNumber(ougi.baseDamage)}\n`;
+            log += `  奥义倍率: ${ougi.caMultiplier}\n`;
+            log += `  奥义固定值: ${formatNumber(ougi.caFixed)}\n`;
+            log += `  随机补正: ${ougi.randomFactor.toFixed(2)}\n`;
+            log += `  奥义伤害加成1(武器盘): ${(ougi.weaponGrid * 100).toFixed(1)}%\n`;
+            log += `  奥义伤害加成2(其余): ${(ougi.other * 100).toFixed(1)}%\n`;
+            log += `  inner = ${formatNumber(ougi.baseDamage)} × ${ougi.randomFactor.toFixed(2)} × ${ougi.caMultiplier} × ${(1+ougi.weaponGrid).toFixed(4)} × ${(1+ougi.other).toFixed(4)} + ${formatNumber(ougi.caFixed)} = ${formatNumber(inner)}\n\n`;
+
+            log += '【衰减参数】\n';
+            log += `  总上限加成: ${capBonusPercent}%\n`;
+            log += `  总上限系数 C: ${totalCap.toFixed(6)}\n`;
+            log += `  衰减表: ${tableName}\n\n`;
+
+            log += '【步骤1：对 inner 做衰减】（各级边界 × C 缩放后）\n';
+            let prev = 0;
+            for (let i = 0; i < thresholdTable.length; i++) {
+                const stage = thresholdTable[i];
+                const sPrev = formatNumber(prev * totalCap);
+                const sLimit = (stage.limit === Infinity || stage.limit >= 999999998)
+                    ? '∞'
+                    : formatNumber(stage.limit * totalCap);
+                const decayRate = ((1 - stage.slope) * 100).toFixed(1);
+                log += `  段${i + 1}: [${sPrev} ~ ${sLimit}] | 斜率 ${stage.slope.toFixed(2)} | 衰减 ${decayRate}%\n`;
+                prev = stage.limit >= 999999998 ? prev : stage.limit;
+            }
+            log += '\n';
+            log += '【逐段衰减计算】（对 inner = ' + formatNumber(Math.floor(inner)) + '）\n';
+            let remaining = Math.floor(inner);
+            let prevThreshold = 0;
+            for (let i = 0; i < thresholdTable.length; i++) {
+                const stage = thresholdTable[i];
+                const curThreshold = (stage.limit === Infinity || stage.limit >= 999999998)
+                    ? Infinity
+                    : stage.limit * totalCap;
+
+                if (remaining <= prevThreshold) break;
+
+                const damageInTier = Math.min(remaining, curThreshold) - prevThreshold;
+                if (damageInTier > 0) {
+                    const effective = damageInTier * stage.slope;
+                    log += `  段${i + 1}: 区间内伤害 = ${formatNumber(damageInTier)}`;
+                    log += ` × ${stage.slope.toFixed(2)} = ${formatNumber(effective)}\n`;
+                    remaining -= damageInTier;
+                }
+                if (remaining <= curThreshold) break;
+                prevThreshold = curThreshold;
+            }
+            log += `  衰减后: ${formatNumber(decayResult.decayedDamage)}\n`;
+            log += `  ceil(衰减后) = ${formatNumber(afterDecayLog)}\n\n`;
+
+            log += '【步骤2：衰减后 → 乘被伤增幅取整 → + 伤害上升 → 乘增幅取整】\n';
+            log += `  衰减后(ceil): ${formatNumber(afterDecayLog)}\n`;
+            log += `  被伤害增幅: ${(ougi.takenAmp * 100).toFixed(1)}%\n`;
+            log += `  ceil( ${formatNumber(afterDecayLog)} × ${(1+ougi.takenAmp).toFixed(4)} ) = ${formatNumber(afterTakenAmpLog)}\n`;
+            log += `  + 奥义伤害上升: ${formatNumber(ougi.caDmgSupp)} = ${formatNumber(afterSuppLog)}\n`;
+            log += `  伤害增幅: ${(ougi.amp * 100).toFixed(1)}%\n`;
+            log += `  ceil( ${formatNumber(afterSuppLog)} × ${(1+ougi.amp).toFixed(4)} ) = ${formatNumber(finalDamage)}\n\n`;
+
+            log += '【最终结果】\n';
+            log += `  理论伤害(inner): ${formatNumber(inner)}\n`;
+            log += `  衰减后伤害: ${formatNumber(finalDamage)}\n`;
+            const totalLoss = inner - finalDamage;
+            log += `  总损失伤害: ${formatNumber(totalLoss)} (${(totalLoss / inner * 100).toFixed(2)}%)\n`;
+
+            document.getElementById('log-area').textContent = log;
+        }
+
+        // ==========================================
+        //  自定义表处理
+        // ==========================================
+        function applyCustomTable() {
+            const code = document.getElementById('custom-table-editor').value;
+            const msgEl = document.getElementById('custom-parse-msg');
+
+            try {
+                // 用 Function 安全执行
+                const fn = new Function(code + '; return customTables;');
+                const parsed = fn();
+
+                if (typeof parsed !== 'object' || parsed === null) {
+                    throw new Error('customTables 必须是一个对象');
+                }
+
+                const keys = Object.keys(parsed);
+                if (keys.length === 0) {
+                    throw new Error('customTables 中没有定义任何表');
+                }
+
+                // 验证每个表
+                for (const key of keys) {
+                    const table = parsed[key];
+                    if (!Array.isArray(table)) {
+                        throw new Error(`表 "${key}" 不是一个数组`);
+                    }
+                    if (table.length === 0) {
+                        throw new Error(`表 "${key}" 为空数组`);
+                    }
+                    for (let i = 0; i < table.length; i++) {
+                        const row = table[i];
+                        if (typeof row.limit !== 'number' || typeof row.slope !== 'number') {
+                            throw new Error(`表 "${key}" 的第${i + 1}行缺少 limit 或 slope`);
+                        }
+                        if (row.slope < 0 || row.slope > 1) {
+                            throw new Error(`表 "${key}" 的第${i + 1}行 slope 必须在 0~1 之间，当前值: ${row.slope}`);
+                        }
+                    }
+                    // 检查最后一段是否为无穷大
+                    const last = table[table.length - 1];
+                    if (last.limit < 999999998) {
+                        throw new Error(`表 "${key}" 的最后一段 limit 应为 999999999（无穷大），当前值: ${last.limit}`);
+                    }
+                    // 检查边界是否递增
+                    for (let i = 1; i < table.length; i++) {
+                        if (table[i].limit !== Infinity && table[i].limit < 999999998 && table[i].limit <= table[i - 1].limit) {
+                            throw new Error(`表 "${key}" 的边界值未递增（第${i}段 ≤ 第${i - 1}段）`);
+                        }
+                    }
+                }
+
+                dynamicCustomTables = parsed;
+
+                // 更新下拉框
+                const select = document.getElementById('table-select');
+                // 移除旧的自定义选项（保留最后一个"自定义表"）
+                for (let i = select.options.length - 1; i >= 0; i--) {
+                    if (select.options[i].value.startsWith('custom_')) {
+                        select.remove(i);
+                    }
+                }
+                // 在"自定义表"前插入
+                const customOption = select.querySelector('option[value="自定义表"]');
+                keys.reverse().forEach(key => {
+                    const opt = document.createElement('option');
+                    opt.value = 'custom_' + key;
+                    opt.textContent = '自定义: ' + key;
+                    select.insertBefore(opt, customOption);
+                });
+
+                // 自动选中第一个自定义表
+                if (keys.length > 0) {
+                    select.value = 'custom_' + keys[0];
+                }
+
+                msgEl.innerHTML = '<span style="color: #00ff88;">✓ 成功加载 ' + keys.length + ' 个自定义表: ' + keys.join(', ') + '</span>';
+                calculate();
+            } catch (e) {
+                msgEl.innerHTML = '<span style="color: #ff6b6b;">✗ 解析失败: ' + e.message + '</span>';
+            }
+        }
+
+        function resetCustomEditor() {
+            document.getElementById('custom-table-editor').value = `// ===== 自定义衰减表 =====
+// 在 customTables 对象中添加新表，格式如下：
+const customTables = {
+    "我的测试表": [
+        { limit: 1000000, slope: 1.0 },    // 0~100万: 0%衰减
+        { limit: 2000000, slope: 0.6 },    // 100万~200万: 40%衰减
+        { limit: 3000000, slope: 0.3 },    // 200万~300万: 70%衰减
+        { limit: 4000000, slope: 0.05 },   // 300万~400万: 95%衰减
+        { limit: 999999999, slope: 0.01 }  // 400万以上: 99%衰减
+    ],
+    // 在这里添加更多自定义表...
+};`;
+            document.getElementById('custom-parse-msg').innerHTML = '';
+            dynamicCustomTables = {};
+            // 清除自定义选项
+            const select = document.getElementById('table-select');
+            for (let i = select.options.length - 1; i >= 0; i--) {
+                if (select.options[i].value.startsWith('custom_')) {
+                    select.remove(i);
+                }
+            }
+            select.value = '世界上限660万';
+            calculate();
+        }
+
+        // ==========================================
+        //  下拉选择事件
+        // ==========================================
+        function onTableSelect() {
+            const select = document.getElementById('table-select');
+            const selected = select.value;
+            if (selected === '自定义表') {
+                // 提示用户先应用自定义表
+                if (Object.keys(dynamicCustomTables).length === 0) {
+                    document.getElementById('custom-parse-msg').innerHTML =
+                        '<span style="color: #ffaa00;">⚠ 请先在下方编辑自定义表并点击"应用自定义表"</span>';
+                }
+            }
+            calculate();
+        }
+
+        // ==========================================
+        //  工具函数
+        // ==========================================
+        function formatNumber(num) {
+            if (num === Infinity || isNaN(num)) return '∞';
+            if (Math.abs(num) >= 100000000) {
+                return (num / 100000000).toFixed(2) + '亿';
+            }
+            if (Math.abs(num) >= 10000) {
+                return (num / 10000).toFixed(2) + '万';
+            }
+            return Math.floor(num).toLocaleString();
+        }
+
+        // ==========================================
+        //  本地存储：保存/恢复输入值
+        // ==========================================
+        const STORAGE_KEY = 'gbf_decay_test_inputs';
+
+        function saveInputs() {
+            const data = {
+                baseDamage: document.getElementById('base-damage').value,
+                caMultiplier: document.getElementById('ca-multiplier').value,
+                caFixed: document.getElementById('ca-fixed').value,
+                randomFactor: document.getElementById('random-factor').value,
+                caWeaponGrid: document.getElementById('ca-weapon-grid').value,
+                caOther: document.getElementById('ca-other').value,
+                caAmp: document.getElementById('ca-amp').value,
+                caTakenAmp: document.getElementById('ca-taken-amp').value,
+                caDmgSupp: document.getElementById('ca-dmg-supp').value,
+                capBonus: document.getElementById('cap-bonus').value,
+                tableSelect: document.getElementById('table-select').value
+            };
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            } catch (e) { /* 忽略存储错误 */ }
+        }
+
+        function loadInputs() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return false;
+                const data = JSON.parse(raw);
+                if (data.baseDamage !== undefined) document.getElementById('base-damage').value = data.baseDamage;
+                if (data.caMultiplier !== undefined) document.getElementById('ca-multiplier').value = data.caMultiplier;
+                if (data.caFixed !== undefined) document.getElementById('ca-fixed').value = data.caFixed;
+                if (data.randomFactor !== undefined) document.getElementById('random-factor').value = data.randomFactor;
+                if (data.caWeaponGrid !== undefined) document.getElementById('ca-weapon-grid').value = data.caWeaponGrid;
+                if (data.caOther !== undefined) document.getElementById('ca-other').value = data.caOther;
+                if (data.caAmp !== undefined) document.getElementById('ca-amp').value = data.caAmp;
+                if (data.caTakenAmp !== undefined) document.getElementById('ca-taken-amp').value = data.caTakenAmp;
+                if (data.caDmgSupp !== undefined) document.getElementById('ca-dmg-supp').value = data.caDmgSupp;
+                if (data.capBonus !== undefined) document.getElementById('cap-bonus').value = data.capBonus;
+                if (data.tableSelect !== undefined) document.getElementById('table-select').value = data.tableSelect;
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // ==========================================
+        //  初始化
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function () {
+            const loaded = loadInputs();
+            if (!loaded) {
+                // 首次使用：预设选中奥义5倍率，上限加成6%
+                document.getElementById('table-select').value = '奥义5倍率';
+            }
+            calculate();
+        });
+
+        // ==========================================
+        //  导出 JSON（供 AI 分析误差来源）
+        // ==========================================
+        function exportJSON() {
+            const ougi = calcOugiTheoryDamage();
+            const inner = ougi.inner;
+            const capBonusPercent = parseFloat(document.getElementById('cap-bonus').value) || 0;
+            const totalCap = 1 + capBonusPercent / 100;
+            const thresholdTable = getCurrentTable();
+            const tableName = document.getElementById('table-select').value;
+
+            if (!thresholdTable) {
+                alert('请先选择有效衰减表');
+                return;
+            }
+
+            const decayResult = funcDecay(Math.floor(inner), totalCap, thresholdTable);
+            const afterDecay = new Decimal(decayResult.decayedDamage).ceil().toNumber();
+            const afterTakenAmp = new Decimal(afterDecay).times(new Decimal(1).plus(ougi.takenAmp)).ceil().toNumber();
+            const afterSupp = afterTakenAmp + ougi.caDmgSupp;
+            const finalDamage = new Decimal(afterSupp).times(new Decimal(1).plus(ougi.amp)).ceil().toNumber();
+
+            // 构建完整的原始阈值（带衰减率）
+            const rawThresholds = thresholdTable.map(t => ({
+                limit: t.limit >= 999999998 ? 'Infinity' : t.limit,
+                slope: t.slope,
+                decayRate: parseFloat(((1 - t.slope) * 100).toFixed(2))
+            }));
+
+            // 缩放后的阈值
+            const scaledThresholds = [];
+            let prev = 0;
+            for (let i = 0; i < thresholdTable.length; i++) {
+                const t = thresholdTable[i];
+                const sLimit = (t.limit === Infinity || t.limit >= 999999998) ? 'Infinity' : t.limit * totalCap;
+                scaledThresholds.push({
+                    tier: i + 1,
+                    rangeStart: prev * totalCap,
+                    rangeEnd: t.limit >= 999999998 ? 'Infinity' : t.limit * totalCap,
+                    slope: t.slope,
+                    decayRate: parseFloat(((1 - t.slope) * 100).toFixed(2))
+                });
+                prev = t.limit >= 999999998 ? prev : t.limit;
+            }
+
+            // 衰减逐段明细
+            const decaySteps = decayResult.tierResults.map(t => ({
+                tier: t.index,
+                rangeStart: t.index === 1 ? 0 : scaledThresholds[t.index - 2] ? scaledThresholds[t.index - 2].rangeEnd : 0,
+                rangeEnd: t.scaledLimit === '∞' ? 'Infinity' : t.scaledLimit,
+                damageInTier: t.damageInTier,
+                slope: t.slope,
+                decayRate: parseFloat((t.decayRate * 100).toFixed(2)),
+                effectiveDamage: t.effectiveDamage
+            }));
+
+            const exportData = {
+                timestamp: new Date().toLocaleString(),
+                description: "GBF 奥义伤害衰减测试数据。请分析理论伤害(inner)与最终伤害(finalDamage)的差异来源，重点关注衰减表的各级斜率和系数C是否导致预期偏差。",
+                formula: {
+                    overview: "inner = baseDamage × randomFactor × caMultiplier × (1+bonus1) × (1+bonus2) + caFixed",
+                    decayStep: "decayed = funcDecay(floor(inner), C, thresholdTable) —— 各级边界 = 原始boundary × C，逐段乘法衰减",
+                    ampStep: "decayed = ceil( funcDecay(...) ); step1 = ceil( decayed × (1+takenAmp) ); step2 = step1 + caDmgSupp; finalDamage = ceil( step2 × (1+amp) ) —— 衰减取整 → takenAmp取整 → +伤害上升 → amp取整",
+                    funcDecayDescription: "funcDecay将原始伤害在每段区间内乘以该段的slope（余量系数）。slope=1.0表示0%衰减，slope=0.6表示40%衰减，以此类推。边界值缩放因子为总上限系数C。"
+                },
+                input: {
+                    baseDamage: ougi.baseDamage,
+                    caMultiplier: ougi.caMultiplier,
+                    caFixed: ougi.caFixed,
+                    randomFactor: parseFloat(ougi.randomFactor.toFixed(2)),
+                    weaponGridBonus: (ougi.weaponGrid * 100).toFixed(1) + '%',
+                    otherBonus: (ougi.other * 100).toFixed(1) + '%',
+                    amp: (ougi.amp * 100).toFixed(1) + '%',
+                    takenAmp: (ougi.takenAmp * 100).toFixed(1) + '%',
+                    caDmgSupp: ougi.caDmgSupp,
+                    capBonusPercent: capBonusPercent + '%',
+                    totalCapCoefficient: parseFloat(totalCap.toFixed(6))
+                },
+                decayTable: {
+                    name: tableName,
+                    isCustom: tableName.startsWith('custom_'),
+                    totalCapCoefficient: parseFloat(totalCap.toFixed(6)),
+                    rawThresholds: rawThresholds,
+                    scaledThresholds: scaledThresholds
+                },
+                calculation: {
+                    innerValue: parseFloat(inner.toFixed(0)),
+                    innerFloor: Math.floor(inner),
+                    decaySteps: decaySteps,
+                    decayedDamage: parseFloat(decayResult.decayedDamage.toFixed(0)),
+                    step0_decayCeil: afterDecay,
+                    step1_takenAmpCeil: afterTakenAmp,
+                    step1_afterSupp: afterSupp,
+                    caDmgSupp: ougi.caDmgSupp,
+                    ampFactor: parseFloat((1 + ougi.amp).toFixed(6)),
+                    takenAmpFactor: parseFloat((1 + ougi.takenAmp).toFixed(6)),
+                    finalDamage: finalDamage
+                },
+                result: {
+                    inner: parseFloat(inner.toFixed(0)),
+                    decayedDamage: parseFloat(decayResult.decayedDamage.toFixed(0)),
+                    finalDamage: finalDamage,
+                    totalLoss: parseFloat((inner - finalDamage).toFixed(0)),
+                    lossPercent: inner > 0 ? parseFloat(((inner - finalDamage) / inner * 100).toFixed(2)) + '%' : '0%'
+                }
+            };
+
+            const jsonStr = JSON.stringify(exportData, null, 2);
+
+            navigator.clipboard.writeText(jsonStr).then(function () {
+                var btn = document.getElementById('export-btn');
+                var oldText = btn.textContent;
+                btn.textContent = '✅ 已复制';
+                btn.style.background = 'linear-gradient(135deg, #00ff88, #00aa55)';
+                setTimeout(function () {
+                    btn.textContent = oldText;
+                    btn.style.background = 'linear-gradient(135deg, #00cc66, #008844)';
+                }, 2000);
+            }).catch(function () {
+                // 降级：用 textarea + execCommand
+                var ta = document.createElement('textarea');
+                ta.value = jsonStr;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                var btn = document.getElementById('export-btn');
+                var oldText = btn.textContent;
+                btn.textContent = '✅ 已复制';
+                btn.style.background = 'linear-gradient(135deg, #00ff88, #00aa55)';
+                setTimeout(function () {
+                    btn.textContent = oldText;
+                    btn.style.background = 'linear-gradient(135deg, #00cc66, #008844)';
+                }, 2000);
+            });
+        }
+
+        // 每次计算后保存
+        var _origCalculate = calculate;
+        calculate = function () {
+            saveInputs();
+            _origCalculate();
+        };
+    </script>
+</body>
+</html>

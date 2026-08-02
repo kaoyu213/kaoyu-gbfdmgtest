@@ -4,8 +4,9 @@
     "name": "神石",
     "element": "mc",
     "type": "神石",
-    "image": "icon_sort_summon_04.png",
+    "image": "icon/icon_sort_summon_04.png",
     "maxLevel": 250,
+    "subonly": true,
     "availableLevels": [100, 150, 200, 210, 220, 230, 240, 250],
     "effects": {
       "main": {
@@ -39,8 +40,9 @@
     "name": "天司",
     "element": "mc",
     "type": "天司",
-    "image": "icon_sort_summon_06.png",
+    "image": "icon/icon_sort_summon_06.png",
     "maxLevel": 150,
+    "subonly": true,
     "availableLevels": [100, 150],
     "effects": {
       "main": {

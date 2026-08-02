@@ -7,23 +7,69 @@
 // ==========================================
 const DAMAGE_ZONES = {
     // 普刃来源
-    normal_atk: ['weapon_normal_atk'],
+    normal_atk: [
+        'weapon_normal_atk'
+    ],
+    // M攻刃来源
+    omega_atk: [
+        'weapon_omega_atk'
+    ],
+    // OD攻刃来源
+    odious_atk: [
+        'weapon_odious_atk'
+    ],
     // EX攻刃来源
     ex_atk: ['weapon_ex_atk', 'weapon_special_ex_atk'],
     // 浑身来源
     stamina: ['weapon_normal_stamina'],
-    // 属攻来源 (觉醒 + 进境 + 召唤石属攻)
+    stamina_omega: [ 'weapon_omega_stamina'],
+
+
+    // 背水来源
+    enmity: ['weapon_normal_enmity'],
+    enmity_omega: ['weapon_omega_enmity'],
+
+
+
+
+    // 属攻来源 (觉醒 + 进境 + 召唤石属攻等总和)
     element_atk: [
         'weapon_awaken_element_atk',
         'weapon_progression_element_atk',
-        'element_atk'
+        'summon_element_atk', // 召唤石属攻
+        'element_atk', // 手动输入的统筹字段(如果后续还需要的话保留支持)
+        'weapon_element_atk',
+        'chara_earring_element_atk', // 耳饰属性攻击（存于 currentParty，需 overlay 进 stats）
+        'chara_lb_element_atk' // 非主角 LB 属攻（存于 currentParty；主角已并入 party[0].stats.element_atk）
+    ],
+    // HP 加成来源（目前只使用这三种，后续可按需扩展）
+    hp: [
+        'weapon_hp',        // 武器守护
+        'weapon_ax_hp',     // 武器附魔HP
+        'chara_marriage_hp' // 婚戒HP%
     ],
     // 全伤害增幅来源
     dmg_amp: ['weapon_dmg_amp'],
     // 普通攻击伤害增幅来源
-    normal_dmg_amp: ['weapon_normal_dmg_amp'],
+    normal_dmg_amp: [
+        'weapon_normal_dmg_amp',
+        'job_na_amp'
+    ],
+    // 伤害上升(固定值)
+    dmg_supp: [
+        'weapon_dmg_supp'
+    ],
+    na_dmg_supp: [
+        'weapon_na_dmg_supp',
+        'weapon_special_na_dmg_supp'
+    ],
     // 对有利属性伤害增幅来源 (仅弱点补正时生效)
-    dmg_to_elemental_amp: ['weapon_dmg_to_elemental_amp']
+    dmg_to_elemental_amp: ['weapon_dmg_to_elemental_amp'],
+
+    // 独立攻刃【久远乘区】来源
+    marriage_perpetuity_atk: [
+        'marriage_perpetuity_atk'
+    ]
 };
 
 // 备用乘区配置 (预留5个)
@@ -89,6 +135,365 @@ function calculateStamina(hpPercent, baseMult) {
 }
 
 // ==========================================
+// 强壮/浑身类 Buff 通用曲线 (根据血量比例线性衰减，带硬上限)
+// - hpPercent01: 当前HP比例 (0.0~1.0)
+// - maxCap: 满血时硬上限 (如14%传0.14)，与 minValue 独立
+// - minValue: 0%HP 时的底层保底加成 (如5%传0.05)
+// 公式：单体实际效果 = min( maxCap, minValue + hp_percent * minValue * 2 )
+// ==========================================
+function calculateStrongBuff(hpPercent01, maxCap, minValue) {
+    if (!maxCap || maxCap <= 0) return 0;
+    if (minValue == null || minValue < 0) minValue = 0;
+
+    const hp = Math.max(0, Math.min(1, hpPercent01 || 0));
+
+    const theoretical = new Decimal(minValue)
+        .plus(new Decimal(minValue).times(2).times(hp))
+        .toNumber();
+
+    return Math.min(theoretical, maxCap);
+}
+
+// ==========================================
+// 单条强壮技能的 min_value 映射（示例表）：
+//  - 8%  → 3%
+//  - 10% → 4%
+//  - 14%以上 → 5%
+// 后续如有更多档位，可在此扩展。该函数仅针对“单条技能”使用。
+// ==========================================
+function getStrongMinValueForSingleSkill(maxCap) {
+    if (!maxCap || maxCap <= 0) return 0;
+    if (maxCap <= 0.08) return 0.03;
+    if (maxCap <= 0.10) return 0.04;
+    return 0.05;
+}
+
+// ==========================================
+// 多条强壮技能的总和：对 capList 中每一条独立套用 calculateStrongBuff，再累加
+// - hpPercent01: 0.0~1.0
+// - capList: [0.08, 0.06] 等，每个元素是一条技能的 max_cap
+// ==========================================
+function calculateStrongBuffSum(hpPercent01, capList) {
+    if (!Array.isArray(capList) || capList.length === 0) return 0;
+    const hp = Math.max(0, Math.min(1, hpPercent01 || 0));
+    let total = 0;
+
+    capList.forEach(cap => {
+        if (!cap || cap <= 0) return;
+        const minVal = getStrongMinValueForSingleSkill(cap);
+        const eff = calculateStrongBuff(hp, cap, minVal);
+        total += eff;
+    });
+
+    return total;
+}
+
+// ==========================================
+// 浑身LB → 强壮加成（按表分段线性插值）
+// - hpPercent01: 当前HP比例 (0.0~1.0)
+// - amount: 小/中/大 对应 1/2/3
+// 返回值为小数（如 3% 返回 0.03）
+// ==========================================
+function getLbStaminaStrongBonus(hpPercent01, amount) {
+    const amt = Number(amount) || 0;
+    if (amt !== 1 && amt !== 2 && amt !== 3) return 0;
+
+    let hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
+    // 游戏中的“1HP”应视为 0% 档，避免在 0~25% 区间插值出 2.04%/1.04% 这类值
+    if (hp <= 0.01) {
+        hp = 0;
+    }
+
+    // 5个参考点：100/75/50/25/0（中间按线性插值）
+    const hpBp = [1, 0.75, 0.5, 0.25, 0];
+    const table = {
+        1: [0.03, 0.025, 0.02, 0.015, 0.01],   // 小
+        2: [0.04, 0.0375, 0.03, 0.0225, 0.015],// 中
+        3: [0.06, 0.05, 0.04, 0.03, 0.02]      // 大
+    };
+
+    const values = table[amt];
+    if (!values) return 0;
+
+    // 边界
+    if (hp >= hpBp[0]) return values[0];
+    if (hp <= hpBp[hpBp.length - 1]) return values[values.length - 1];
+
+    // 寻找所在区间并线性插值
+    for (let i = 0; i < hpBp.length - 1; i++) {
+        const hiHp = hpBp[i];
+        const loHp = hpBp[i + 1];
+        if (hp <= hiHp && hp >= loHp) {
+            const hiVal = values[i];
+            const loVal = values[i + 1];
+            const denom = (hiHp - loHp);
+            if (!denom) return loVal;
+            const t = (hp - loHp) / denom; // 0..1
+            return loVal + (hiVal - loVal) * t;
+        }
+    }
+
+    return 0;
+}
+
+// ==========================================
+// 戒指/耳饰浑身 +N → 强壮加成（按表分段线性插值）
+// - hpPercent01: 当前HP比例 (0.0~1.0)
+// - amountPlus: 浑身+N 中的 N（整数）
+// 规则：
+//  - 100%~減少ライン: 维持最大值 max
+//  - 減少ライン~0%: 从 max 线性下降到 min
+//  - 1HP 视为 0% 档，取 min（确保 1血时为整数百分比）
+// ==========================================
+function getRingEarringStaminaStrongBonus(hpPercent01, amountPlus) {
+    const amt = Math.floor(Number(amountPlus) || 0);
+    if (amt <= 0) return 0;
+
+    let hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
+    // 1HP 视为 0% 档，避免 1.04%/2.04% 这类小数
+    if (hp <= 0.01) {
+        hp = 0;
+    }
+
+    // 按网友总结表配置：max 为满血值，line 为減少ライン(HP比例)，min 为 0%HP 值
+    const cfgMap = {
+        1:  { max: 0.03, line: 1.0,     min: 0.01 },          // 渾身+1
+        2:  { max: 0.03, line: 1.0,     min: 0.01 },          // 渾身+2
+        // 3 暂无明确规则，沿用通用强壮曲线
+        4:  { max: 0.06, line: 1.0,     min: 0.02 },          // 渾身+4
+        5:  { max: 0.07, line: 2/3,     min: 0.03 },          // 渾身+5, 減少ライン 66.67%
+        6:  { max: 0.08, line: 5/6,     min: 0.03 },          // 渾身+6, 減少ライン 83.33%
+        7:  { max: 0.09, line: 1.0,     min: 0.03 },          // 渾身+7
+        8:  { max: 0.10, line: 0.75,    min: 0.04 },          // 渾身+8, 減少ライン 75%
+        9:  { max: 0.11, line: 0.875,   min: 0.04 },          // 渾身+9, 減少ライン 87.5%
+        10: { max: 0.12, line: 1.0,     min: 0.04 }           // 渾身+10
+        // 11、12 暂未配置
+    };
+
+    const cfg = cfgMap[amt];
+
+    // 对表内支持的 +N，用表驱动曲线；否则退回旧的强壮曲线（保证兼容性）
+    if (cfg) {
+        const { max, line, min } = cfg;
+        if (hp >= line) return max;
+        if (line <= 0) return min;
+        // 0~line 线性插值：hp=0 → min, hp=line → max
+        const t = hp / line; // 0..1
+        return new Decimal(min)
+            .plus(new Decimal(max).minus(min).times(t))
+            .toDecimalPlaces(10)
+            .toNumber();
+    }
+
+    // 兜底：仍按旧的“强壮通用曲线”处理
+    const cap = (2 + amt) / 100; // 与旧实现一致：max_cap = (2+N)%
+    const hp01 = hp;
+    const minVal = getStrongMinValueForSingleSkill(cap);
+    return calculateStrongBuff(hp01, cap, minVal);
+}
+
+// ==========================================
+// 戒指/耳饰背水 +N → 逆境加成（按表分段线性插值）
+// - hpPercent01: 当前HP比例 (0.0~1.0)
+// - amountPlus: 背水+N 中的 N（整数）
+// 现状参考表（单位：%），小数部分为测试/推测值：
+//   HP%       100~75   75      50      0
+//   +1          1      2      2.26     5
+//   +2          1      2      2.33     6
+//   +3          1      3      3.37     7.5
+//   +4          1      3      3.50     9
+//   +5          1      4      (表中暂无) 10
+//   +6          1      4      4.50    11
+//   +7          1      4      4.67    12
+//   +8          1      5      (表中暂无) 12.5
+//   +9          1      5      5.73    13.75
+//   +10         1      5      (表中暂无) 15
+//
+// 规则：
+//  - 100%~75%: 固定 1%
+//  - 75%~50%: 线性插值 (75% → 50%)
+//  - 50%~0% : 线性插值 (50% → 0%)
+//  - 对于表中未给出 50% 数值的档位，暂时采用「75%→0%」一条直线近似，
+//    后续如有更精确表格可以在曲线表中补上 v50 即可，无需改动插值逻辑。
+//
+// 返回值为小数（如 5% 返回 0.05），用于“逆境乘区”或“总背水（逆境）”汇总。
+// ==========================================
+function getRingEarringEnmityAdversityBonus(hpPercent01, amountPlus) {
+    const amt = Math.floor(Number(amountPlus) || 0);
+    if (amt <= 0) return 0;
+
+    let hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
+    // 1HP 视为 0% 档，避免出现 1.04% 这类小数边界
+    if (hp <= 0.01) {
+        hp = 0;
+    }
+
+    // 曲线表：以小数形式存储
+    const cfgMap = {
+        1:  { v100_75: 0.01, v75: 0.02,   v50: 0.0226,  v0: 0.05   },
+        2:  { v100_75: 0.01, v75: 0.02,   v50: 0.0233,  v0: 0.06   },
+        3:  { v100_75: 0.01, v75: 0.03,   v50: 0.0337,  v0: 0.075  },
+        4:  { v100_75: 0.01, v75: 0.03,   v50: 0.0350,  v0: 0.09   },
+        5:  { v100_75: 0.01, v75: 0.04,   v50: null,    v0: 0.10   },
+        6:  { v100_75: 0.01, v75: 0.04,   v50: 0.0450,  v0: 0.11   },
+        7:  { v100_75: 0.01, v75: 0.04,   v50: 0.0467,  v0: 0.12   },
+        8:  { v100_75: 0.01, v75: 0.05,   v50: null,    v0: 0.125  },
+        9:  { v100_75: 0.01, v75: 0.05,   v50: 0.0573,  v0: 0.1375 },
+        10: { v100_75: 0.01, v75: 0.05,   v50: null,    v0: 0.15   }
+    };
+
+    const cfg = cfgMap[amt];
+    if (!cfg) return 0;
+
+    const { v100_75, v75, v50, v0 } = cfg;
+
+    // 100%~75%: 恒定 v100_75
+    if (hp >= 0.75) {
+        return v100_75;
+    }
+
+    // 若定义了 50% 节点，按 75->50 与 50->0 两段线性插值；
+    // 否则用 75->0 一条线性插值（近似）。
+    if (v50 != null) {
+        if (hp >= 0.5) {
+            // 75% (0.75) → 50% (0.5)
+            const t = (0.75 - hp) / (0.25); // 0..1
+            return new Decimal(v75)
+                .plus(new Decimal(v50).minus(v75).times(t))
+                .toDecimalPlaces(10)
+                .toNumber();
+        } else {
+            // 50% (0.5) → 0% (0)
+            const t = (0.5 - hp) / (0.5); // 0..1
+            return new Decimal(v50)
+                .plus(new Decimal(v0).minus(v50).times(t))
+                .toDecimalPlaces(10)
+                .toNumber();
+        }
+    } else {
+        // 75% (0.75) → 0% (0) 单段线性
+        const t = (0.75 - hp) / 0.75; // 0..1
+        return new Decimal(v75)
+            .plus(new Decimal(v0).minus(v75).times(t))
+            .toDecimalPlaces(10)
+            .toNumber();
+    }
+}
+
+// ==========================================
+// LB背水 小/中/大 → 逆境加成（按官方表分段线性插值）
+// - hpPercent01: 当前HP比例 (0.0~1.0)
+// - amount: 小/中/大 对应 1/2/3 级
+//
+// 对应表（单位：%）：
+//          小(1)   中(2)   大(3)
+//   HP100   1      1       1
+//   HP75    1      2       3
+//   HP50   1.17   2.33     3
+//   HP0     3      6       9
+//
+// 规则：
+//  - 100%~75%: 恒定 1%
+//  - 75%~50%: 线性插值 (75% → 50%)
+//  - 50%~0% : 线性插值 (50% → 0%)
+//
+// 返回值为小数（如 3% 返回 0.03），计入“逆境乘区”与其他逆境 Buff 同框。
+// ==========================================
+function getLbEnmityAdversityBonus(hpPercent01, amount) {
+    const amt = Number(amount) || 0;
+    if (amt !== 1 && amt !== 2 && amt !== 3) return 0;
+
+    let hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
+    // 1HP 视为 0% 档
+    if (hp <= 0.01) {
+        hp = 0;
+    }
+
+    const table = {
+        1: { v100_75: 0.01, v75: 0.01,  v50: 0.0117, v0: 0.03 },
+        2: { v100_75: 0.01, v75: 0.02,  v50: 0.0233, v0: 0.06 },
+        // 大：50% 处应为 3.5%
+        3: { v100_75: 0.01, v75: 0.03,  v50: 0.035,  v0: 0.09 }
+    };
+
+    const cfg = table[amt];
+    if (!cfg) return 0;
+
+    const { v100_75, v75, v50, v0 } = cfg;
+
+    // 100%~75%: 恒定 1%，但 75% 本身按表格值处理，归入下一段
+    // 即：hp > 75% 时为 1%，hp = 75% 时走 75% 档（v75）
+    if (hp > 0.75) {
+        return v100_75;
+    }
+
+    // 75%~50% 区间：v75 → v50
+    if (hp >= 0.5) {
+        const t = (0.75 - hp) / 0.25; // 0..1
+        return new Decimal(v75)
+            .plus(new Decimal(v50).minus(v75).times(t))
+            .toDecimalPlaces(10)
+            .toNumber();
+    }
+
+    // 50%~0% 区间：v50 → v0
+    const t = (0.5 - hp) / 0.5; // 0..1
+    return new Decimal(v50)
+        .plus(new Decimal(v0).minus(v50).times(t))
+        .toDecimalPlaces(10)
+        .toNumber();
+}
+
+// ==========================================
+// 附魔浑身(weapon_ax_stamina) → 强壮加成（按图表分段线性插值）
+// - hpPercent01: 当前HP比例 (0.0~1.0)
+// - baseAtFull: 满血时的附魔浑身值（用来判定曲线类型：0.03/0.04/0.05）
+// 返回值为小数（如 3% 返回 0.03）
+// 参考点：HP=100/75/50/25/0，与戒指/耳饰浑身 +1/+2/+3 曲线一致
+// ==========================================
+function getAxStaminaStrongBonus(hpPercent01, baseAtFull) {
+    const full = Number(baseAtFull) || 0;
+    if (full <= 0) return 0;
+
+    const hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
+
+    // 以满血值判定类型：3%/4%/5% 分别对应 +1/+2/+3
+    let type = 0;
+    if (Math.abs(full - 0.03) <= 0.002) type = 1;
+    else if (Math.abs(full - 0.04) <= 0.002) type = 2;
+    else if (Math.abs(full - 0.05) <= 0.002) type = 3;
+    else return full; // 未识别则按固定值处理，方便你临时测试
+
+    const hpBp = [1, 0.75, 0.5, 0.25, 0];
+    const table = {
+        1: [0.03, 0.025, 0.02, 0.015, 0.01], // +1
+        2: [0.04, 0.04, 0.04, 0.03, 0.02],   // +2
+        3: [0.05, 0.05, 0.04, 0.03, 0.02]    // +3
+    };
+
+    const values = table[type];
+    if (!values) return full;
+
+    if (hp >= hpBp[0]) return values[0];
+    if (hp <= hpBp[hpBp.length - 1]) return values[values.length - 1];
+
+    for (let i = 0; i < hpBp.length - 1; i++) {
+        const hiHp = hpBp[i];
+        const loHp = hpBp[i + 1];
+        if (hp <= hiHp && hp >= loHp) {
+            const hiVal = values[i];
+            const loVal = values[i + 1];
+            const denom = hiHp - loHp;
+            if (!denom) return loVal;
+            const t = (hp - loHp) / denom;
+            return loVal + (hiVal - loVal) * t;
+        }
+    }
+
+    return full;
+}
+
+// ==========================================
 // 数据聚合函数 - 从stats和饰品数据中汇总值 (使用 Decimal.js，保留10位小数)
 // ==========================================
 function aggregateZoneValue(zoneName, stats, teshuStats) {
@@ -108,512 +513,220 @@ function aggregateZoneValue(zoneName, stats, teshuStats) {
     return sum.toDecimalPlaces(10).toNumber();
 }
 
+/**
+ * 耳饰属攻在 currentParty，不在 party.stats；写入 stats 供 aggregateZoneValue('element_atk') 汇总
+ */
+function overlayCharaEarringElementAtkFromParty(stats, charIndex) {
+    if (!stats || typeof currentParty === 'undefined' || !currentParty[charIndex]) return;
+    const v = Number(currentParty[charIndex].chara_earring_element_atk);
+    if (v > 0) stats['chara_earring_element_atk'] = v;
+}
+
+/**
+ * 非主角 LB 属攻在 currentParty，不在 party.stats；写入 stats 供 aggregateZoneValue('element_atk') 汇总。
+ * 主角槽位 0 的 LB 属攻已由 calc.js 计入 party[0].stats.element_atk，此处跳过避免重复。
+ */
+function overlayCharaLbElementAtkFromParty(stats, charIndex) {
+    if (!stats || charIndex <= 0) return;
+    if (typeof currentParty === 'undefined' || !currentParty[charIndex]) return;
+    const v = Number(currentParty[charIndex].chara_lb_element_atk);
+    if (v > 0) stats['chara_lb_element_atk'] = v;
+}
+
+/**
+ * 非主角 LB 奥义伤害在 currentParty，不在 party.stats；写入 stats['chara_lb_ca_dmg']。
+ * 奥义公式中该键归入 CA_DMG_OTHER_KEYS（非武器盘乘区 (1+其余)）。
+ * 主角 LB 奥义伤害已由 calc.js 计入 party[0].stats.mc_ca_passive，此处跳过槽位 0。
+ */
+function overlayCharaLbCaDmgFromParty(stats, charIndex) {
+    if (!stats || charIndex <= 0) return;
+    if (typeof currentParty === 'undefined' || !currentParty[charIndex]) return;
+    const v = Number(currentParty[charIndex].chara_lb_ca_dmg);
+    if (v > 0) stats['chara_lb_ca_dmg'] = v;
+}
+
+/**
+ * 非主角角色的戒指/神器/觉醒奥义伤害加成在 currentParty，不在 party.stats；
+ * 这些键归入 CA_DMG_OTHER_KEYS（非武器盘乘区 (1+其余)）。
+ * 写入 stats 供奥义计算读取。
+ * 主角的相关属性已由 calc.js 计入 party[0].stats，此处跳过槽位 0。
+ */
+function overlayCharaOtherCaDmgFromParty(stats, charIndex) {
+    if (!stats || charIndex <= 0) return;
+    if (typeof currentParty === 'undefined' || !currentParty[charIndex]) return;
+    const c = currentParty[charIndex];
+    const keys = ['chara_ring_ca_dmg', 'chara_artifacts_ca_dmg', 'chara_awakening_ca_dmg'];
+    keys.forEach(key => {
+        const v = Number(c[key]);
+        if (v > 0) stats[key] = v;
+    });
+}
+
+/**
+ * 非主角角色的上限加成（LB、戒指、神器、觉醒、婚戒等）在 currentParty，不在 party.stats；
+ * 写入 stats 供 calculateTotalCap 读取。
+ * 主角的上限已由 calc.js 计入 party[0].stats，此处跳过槽位 0。
+ */
+function overlayCharaCapsFromParty(stats, charIndex) {
+    if (!stats || charIndex <= 0) return;
+    if (typeof currentParty === 'undefined' || !currentParty[charIndex]) return;
+    const c = currentParty[charIndex];
+
+    // 奥义上限（直接赋值，与 overlayCharaLbCaDmgFromParty 一致，避免重复调用导致累加）
+    const caCapKeys = [
+        'chara_lb_ca_dmg_cap',
+        'chara_ring_ca_dmg_cap',
+        'chara_artifacts_ca_dmg_cap',
+        'chara_artifacts_special_ca_dmg_cap',
+        'chara_awakening_ca_dmg_cap'
+    ];
+    caCapKeys.forEach(key => {
+        const v = Number(c[key]);
+        if (v > 0) stats[key] = v;
+    });
+
+    // 全上限（婚戒等，直接赋值）
+    const allCapKeys = [
+        'chara_marriage_dmg_cap'
+    ];
+    allCapKeys.forEach(key => {
+        const v = Number(c[key]);
+        if (v > 0) stats[key] = v;
+    });
+}
+
+// ==========================================
+// 伤害上升分区（予伤）
+// - 耳饰「伤害上升」：仅当耳饰类型选「伤害上升」时才会写入 chara_earring_dmg_supp（词条等级 n，约 5～12）；
+//   予伤固定值 = n × 2000（例：5 级 → 5×2000）。换其他耳饰类型时该键会被清空，无耳饰予伤。
+// - 武器盘：仅武器词条 weapon_dmg_supp / weapon_na_dmg_supp / 奥义侧见 ca_dmg_calc
+// 未来：同区内取高、区与区加算；当前为各区数值直接加总（与现行「全部相加」一致）
+// ==========================================
+const EARRING_DMG_SUPP_PER_LEVEL = 2000;
+
+/** @param {number} level 耳饰伤害上升词条的等级 n（非百分比，与 UI 中 5～12 一致） */
+function getEarringDmgSuppFromLevel(level) {
+    const n = Number(level) || 0;
+    return n > 0 ? EARRING_DMG_SUPP_PER_LEVEL * n : 0;
+}
+
+/** @deprecated 使用 getEarringDmgSuppFromLevel */
+function getEarringDmgSuppFromEffect(effectAmount) {
+    return getEarringDmgSuppFromLevel(effectAmount);
+}
+
+/**
+ * 平 A 用：武器盘区（全伤害上升 + 平 A 予伤 + 对应饰品键）与耳饰区（等级×2000）。
+ * @param {object} stats party[slot].stats
+ * @param {object} teshuStats getTeshuStats()
+ * @param {number} charIndex 队伍槽位
+ */
+function getDmgSuppZonesForNa(stats, teshuStats, charIndex) {
+    const weaponGrid = aggregateZoneValue('dmg_supp', stats, teshuStats)
+        + aggregateZoneValue('na_dmg_supp', stats, teshuStats);
+    let earring = 0;
+    let artifacts = 0;
+    if (typeof currentParty !== 'undefined' && currentParty[charIndex]) {
+        const charData = currentParty[charIndex];
+        earring = getEarringDmgSuppFromLevel(charData.chara_earring_dmg_supp);
+        artifacts = Number(charData.chara_artifacts_na_dmg_supp || 0);
+        if (!Number.isFinite(artifacts)) artifacts = 0;
+    }
+    return {
+        weaponGrid,
+        earring,
+        artifacts,
+        total: weaponGrid + earring + artifacts
+    };
+}
+
+if (typeof window !== 'undefined') {
+    window.overlayCharaEarringElementAtkFromParty = overlayCharaEarringElementAtkFromParty;
+    window.overlayCharaLbElementAtkFromParty = overlayCharaLbElementAtkFromParty;
+    window.overlayCharaLbCaDmgFromParty = overlayCharaLbCaDmgFromParty;
+    window.overlayCharaOtherCaDmgFromParty = overlayCharaOtherCaDmgFromParty;
+    window.overlayCharaCapsFromParty = overlayCharaCapsFromParty;
+    window.EARRING_DMG_SUPP_PER_LEVEL = EARRING_DMG_SUPP_PER_LEVEL;
+    window.EARRING_DMG_SUPP_PER_EFFECT = EARRING_DMG_SUPP_PER_LEVEL;
+    window.getEarringDmgSuppFromLevel = getEarringDmgSuppFromLevel;
+    window.getEarringDmgSuppFromEffect = getEarringDmgSuppFromEffect;
+    window.getDmgSuppZonesForNa = getDmgSuppZonesForNa;
+}
+
+// ==========================================
+// HP 加成汇总 & 实际生命值计算
+// ==========================================
+
+// 计算某个角色的「总HP加成」(小数形式，如 30% = 0.3)
+// stats: party[slot].stats
+// teshuStats: getTeshuStats() 的结果
+function getHpBonusForChar(stats, teshuStats) {
+    if (!stats) return 0;
+    const allTeshu = teshuStats || {};
+
+    // 只会从 DAMAGE_ZONES.hp 里的 key 取值：
+    // weapon_hp, weapon_ax_hp, chara_marriage_hp
+    const total = aggregateZoneValue('hp', stats, allTeshu);
+
+    return new Decimal(total).toDecimalPlaces(10).toNumber();
+}
+
+// 根据 面板HP + 汇总HP加成，计算「实际生命值」
+// 返回值：{ hpBonus, actualHp }
+function getActualHp(panelHp, stats, teshuStats) {
+    const baseHp = Number(panelHp) || 0;
+    const hpBonus = getHpBonusForChar(stats, teshuStats);
+
+    const actualHp = new Decimal(baseHp)
+        .times(new Decimal(1).plus(hpBonus))
+        .ceil()
+        .toNumber();
+
+    return { hpBonus, actualHp };
+}
+
 // ==========================================
 // 获取角色饰品加成
 // ==========================================
 function getTeshuStats() {
-    // 从全局状态获取激活的饰品加成
-    // activeSpecialBuffs 中存储的是已激活的特殊加成ID
-    // 需要根据ID从teshujiacheng.json中获取对应的加成
     const teshuStats = {};
     
     if (typeof activeSpecialBuffs !== 'undefined' && activeSpecialBuffs) {
         activeSpecialBuffs.forEach(id => {
-            // 查找对应的饰品数据
             const teshuItem = specialBuffsData.find(item => item.id === id);
-            if (teshuItem && teshuItem.stats) {
+            if (!teshuItem) return;
+
+            const customMap = (typeof specialBuffCustomValues !== 'undefined' && specialBuffCustomValues)
+                ? (specialBuffCustomValues[teshuItem.id] || null)
+                : null;
+            
+            // 新格式：从 description 数组中提取 effect
+            if (Array.isArray(teshuItem.description)) {
+                teshuItem.description.forEach(item => {
+                    if (!item.effect) return;
+                    Object.keys(item.effect).forEach(key => {
+                        const rawVal = item.effect[key];
+                        const val = (customMap && typeof customMap[key] === 'number' && Number.isFinite(customMap[key]))
+                            ? customMap[key]
+                            : rawVal;
+                        teshuStats[key] = (teshuStats[key] || 0) + val;
+                    });
+                });
+            }
+            // 旧格式：直接使用 stats 对象
+            else if (teshuItem.stats) {
                 Object.keys(teshuItem.stats).forEach(key => {
-                    // 通用加法逻辑：无论 key 是什么 (element_atk, dmg_cap, dmg_amp 等)，都累加到 teshuStats 中
-                    // 这样可以自动支持 teshujiacheng.json 中的所有新属性
-                    teshuStats[key] = (teshuStats[key] || 0) + teshuItem.stats[key];
+                    const rawVal = teshuItem.stats[key];
+                    const val = (customMap && typeof customMap[key] === 'number' && Number.isFinite(customMap[key]))
+                        ? customMap[key]
+                        : rawVal;
+                    teshuStats[key] = (teshuStats[key] || 0) + val;
                 });
             }
         });
     }
     
     return teshuStats;
-}
-
-// ==========================================
-// 核心伤害计算函数
-// ==========================================
-function calculateDamage(panelAtk, stats, hpPercent, options) {
-    // options: { isAdvantage, defense, randomFactor, backups }
-    const defaults = {
-        isAdvantage: false,
-        defense: 10,
-        randomFactor: 1,  // 默认理论值
-        backups: [0, 0, 0, 0, 0]  // 5个备用乘区
-    };
-    const opts = { ...defaults, ...options };
-    
-    let logSteps = []; // 计算步骤日志
-    
-    // Helper to push log
-    const addLog = (name, value, desc = "") => {
-        logSteps.push({ name, value, desc });
-    };
-    
-    // 获取饰品加成
-    const teshuStats = getTeshuStats();
-    
-    // 聚合各乘区值 - 使用 fixPrecision 修正精度
-    const p_mult = fixPrecision(aggregateZoneValue('normal_atk', stats, teshuStats));  // 普刃
-    const e_mult = aggregateZoneValue('ex_atk', stats, teshuStats);       // EX
-    const h_mult = aggregateZoneValue('stamina', stats, teshuStats);      // 浑身
-    const ele_mult = aggregateZoneValue('element_atk', stats, teshuStats); // 属攻
-    const dmg_amp = aggregateZoneValue('dmg_amp', stats, teshuStats);   // 伤害增幅
-    
-    // 弱点补正 (0.5)
-    const weaknessBonus = opts.isAdvantage ? 0.5 : 0;
-    
-    // ====== 调试输出 ======
-    const typeLabel = opts.isAdvantage ? "【对克属】" : "【无克属】";
-    console.groupCollapsed(`伤害计算调试 ${typeLabel}`);
-    console.log("面板ATK:", panelAtk);
-    console.log("防御:", opts.defense);
-    console.log("随机:", opts.randomFactor);
-    console.log("乘区系数:", {
-        p_mult: p_mult.toFixed(4), 
-        e_mult: e_mult.toFixed(4), 
-        stamina_curve: (stats['weapon_normal_stamina'] || 0).toFixed(4), 
-        ele_mult: ele_mult.toFixed(4), 
-        dmg_amp: dmg_amp.toFixed(4)
-    });
-    
-    // Step 1: 面板ATK ÷ 10 (使用 Decimal.js 精确向上取整)
-    let current = new Decimal(panelAtk).div(10).ceil().toNumber();
-    console.log(`Step1 [ATK/10]: ${panelAtk} / 10 = ${panelAtk/10} → ${current}`);
-    addLog("ATK/10", current);
-    
-    // Step 2: 骑空艇 1.1 (使用 Decimal.js 乘法 + 向上取整)
-    let s2 = decimalMultiply(current, 1.1);
-    current = decimalMultiplyCeil(current, 1.1);
-    console.log(`Step2 [骑空艇]: ${s2} → ${current}`);
-    addLog("骑空艇 (x1.1)", current);
-    
-    // Step 3: 支援 1.1 (使用 Decimal.js 乘法 + 向上取整)
-    let s3 = decimalMultiply(current, 1.1);
-    current = decimalMultiplyCeil(current, 1.1);
-    console.log(`Step3 [支援]: ${s3} → ${current}`);
-    addLog("支援 (x1.1)", current);
-    
-    // Step 4: 基准放大 x10 (使用 Decimal.js 乘法，无取整)
-    current = decimalMultiply(current, 10);
-    console.log(`Step4 [基准放大]: ${current}`);
-    addLog("基准放大 (x10)", current);
-    
-    // Step 5: 普刃 (使用 Decimal.js 乘法 + gameRound)
-    let s5 = decimalMultiply(current, new Decimal(1).plus(p_mult).toNumber());
-    current = decimalMultiplyGameRound(current, new Decimal(1).plus(p_mult).toNumber());
-    console.log(`Step5 [普刃]: ${s5} (x${(1+p_mult).toFixed(4)}) → ${current}`);
-    addLog("普刃", current, `x${(1 + p_mult).toFixed(4)}`);
-    
-    // Step 6: EX攻刃 (使用 Decimal.js 乘法 + gameRound)
-    let s6 = decimalMultiply(current, new Decimal(1).plus(e_mult).toNumber());
-    current = decimalMultiplyGameRound(current, new Decimal(1).plus(e_mult).toNumber());
-    console.log(`Step6 [EX攻刃]: ${s6} (x${(1+e_mult).toFixed(4)}) → ${current}`);
-    addLog("EX攻刃", current, `x${(1 + e_mult).toFixed(4)}`);
-    
-    // Step 7: 浑身 - 使用calc.js中已经计算好的曲线值(已包含HP百分比修正)
-    // h_mult 是原始值，stam_real 是从party stats中获取的已计算好的曲线值
-    const stam_real = stats['weapon_normal_stamina'] || 0;
-    let s7 = decimalMultiply(current, new Decimal(1).plus(stam_real).toNumber());
-    current = decimalMultiplyGameRound(current, new Decimal(1).plus(stam_real).toNumber());
-    console.log(`Step7 [浑身]: ${s7} (x${(1+stam_real).toFixed(10)}) → ${current}`);
-    addLog("浑身", current, `x${(1 + stam_real).toFixed(10)}`);
-    
-    // Step 8: 备用乘区 (5个) (使用 Decimal.js 乘法 + gameRound)
-    opts.backups.forEach((bVal, idx) => {
-        if (bVal !== 0) {
-            let sBackup = decimalMultiply(current, new Decimal(1).plus(bVal).toNumber());
-            current = decimalMultiplyGameRound(current, new Decimal(1).plus(bVal).toNumber());
-            console.log(`Step8 [备用${idx+1}]: ${sBackup} (x${(1+bVal).toFixed(4)}) → ${current}`);
-            addLog(`备用乘区 ${idx + 1}`, current, `x${(1 + bVal).toFixed(4)}`);
-        }
-    });
-    
-    // Step 9: 属攻 + 克属固定0.5 (使用 Decimal.js 乘法 + gameRound)
-    const totalEle = new Decimal(1).plus(ele_mult).plus(weaknessBonus).toNumber();
-    let s9 = decimalMultiply(current, totalEle);
-    current = decimalMultiplyGameRound(current, totalEle);
-    console.log(`Step9 [属攻+克属]: ${s9} (x${totalEle.toFixed(4)}) → ${current}`);
-    addLog("属攻+克属", current, `x${totalEle.toFixed(4)}`);
-    
-    // Step 10: 伤害增幅 (Step 10 已移除，改为在衰减后独立乘算)
-    // 原始逻辑中在此处计算 dmg_amp，新逻辑推迟到最后
-    console.log(`Step10 [伤害增幅]: (跳过，移至衰减后)`);
-    addLog("伤害增幅", "-", "移至衰减后");
-    
-    // Step 11: 随机补正 (使用 Decimal.js 乘法 + gameRound)
-    let s11 = decimalMultiply(current, opts.randomFactor);
-    current = decimalMultiplyGameRound(current, opts.randomFactor);
-    console.log(`Step11 [随机补正]: ${s11} (x${opts.randomFactor}) → ${current}`);
-    addLog("随机补正", current, `x${opts.randomFactor}`);
-    
-    // Step 12: 防御计算 (除以防御值，作为"理论面板伤害"的基底)
-    // 注意：这里除以防御后的值，就是进入 Func_Decay 的 "Raw Damage"
-    const rawPostDef = finalRound(current, opts.defense);
-    console.log(`Step12 [防御计算]: ${current} / ${opts.defense} = ${current/opts.defense} → ${rawPostDef}`);
-    console.groupEnd();
-    addLog("防御后伤害", rawPostDef, `/${opts.defense}`, true);
-    
-    return { damage: rawPostDef, logs: logSteps };
-}
-
-// ==========================================
-// 从UI获取计算参数并执行计算
-// ==========================================
-function calculateDamageFromUI(charIndex = 0) {
-    // 获取面板攻击力 (从calc.js的计算结果中获取)
-    const panelAtkKey = `char-panel-atk-${charIndex}`;
-    const panelAtkEl = document.getElementById(panelAtkKey);
-    // 处理可能的逗号格式
-    let panelAtk = 0;
-    if (panelAtkEl) {
-        const atkText = panelAtkEl.innerText.replace(/,/g, '').trim();
-        panelAtk = parseInt(atkText) || 0;
-    }
-    
-    // 获取HP百分比
-    const hpPercent = parseInt(document.getElementById('current-hp-slider')?.value) || 100;
-    
-    // 获取弱点补正
-    const weaknessToggleId = charIndex === 0 ? 'weakness-toggle' : `weakness-toggle-${charIndex}`;
-    const isAdvantage = document.getElementById(weaknessToggleId)?.checked || false;
-    
-    // 获取防御值
-    const defInputId = charIndex === 0 ? 'def-input' : `def-input-${charIndex}`;
-    const defense = parseInt(document.getElementById(defInputId)?.value) || 10;
-    
-    // 获取随机补正
-    const randomBtnGroupId = charIndex === 0 ? 'random-btn-group' : `random-btn-group-${charIndex}`;
-    const randomBtnGroup = document.getElementById(randomBtnGroupId);
-    let randomFactor = 1; // 默认理论值
-    if (randomBtnGroup) {
-        const activeBtn = randomBtnGroup.querySelector('button.active');
-        if (activeBtn) {
-            randomFactor = parseFloat(activeBtn.getAttribute('data-value')) || 1;
-        }
-    }
-    
-    // 获取角色stats (从party中获取)
-    // party[charIndex] 存储了各角色的加成统计
-    const stats = {};
-    if (typeof party !== 'undefined' && party[charIndex]) {
-        STAT_CONFIG.forEach(cfg => {
-            stats[cfg.key] = party[charIndex].stats[cfg.key] || 0;
-        });
-        // 添加 element_atk
-        stats['element_atk'] = party[charIndex].stats['element_atk'] || 0;
-    }
-    
-    // 备用乘区 (目前为0，未来可扩展)
-    const backups = [0, 0, 0, 0, 0];
-    
-    // 执行计算
-    const result = calculateDamage(panelAtk, stats, hpPercent, {
-        isAdvantage: isAdvantage,
-        defense: defense,
-        randomFactor: randomFactor,
-        backups: backups
-    });
-    
-    return result;
-}
-
-// ==========================================
-// 更新UI显示伤害结果
-// ==========================================
-function updateDamageDisplay(charIndex = 0) {
-    // 获取角色stats
-    const stats = {};
-    if (typeof party !== 'undefined' && party[charIndex]) {
-        STAT_CONFIG.forEach(cfg => {
-            stats[cfg.key] = party[charIndex].stats[cfg.key] || 0;
-        });
-        // 添加 element_atk
-        stats['element_atk'] = party[charIndex].stats['element_atk'] || 0;
-        // 添加召唤石伤害上限加成
-        stats['summon_dmg_cap'] = party[charIndex].stats['summon_dmg_cap'] || 0;
-    }
-    
-    // 获取饰品加成
-    const teshuStats = getTeshuStats();
-    
-    // 获取面板攻击力
-    const panelAtkKey = `char-panel-atk-${charIndex}`;
-    const panelAtkEl = document.getElementById(panelAtkKey);
-    let panelAtk = 0;
-    if (panelAtkEl) {
-        const atkText = panelAtkEl.innerText.replace(/,/g, '').trim();
-        panelAtk = parseInt(atkText) || 0;
-    }
-    
-    // 获取HP百分比
-    const hpPercent = parseInt(document.getElementById('current-hp-slider')?.value) || 100;
-    
-    // 获取防御值
-    const defInputId = charIndex === 0 ? 'def-input' : `def-input-${charIndex}`;
-    const defense = parseInt(document.getElementById(defInputId)?.value) || 10;
-    
-    // 获取随机补正
-    const randomBtnGroupId = charIndex === 0 ? 'random-btn-group' : `random-btn-group-${charIndex}`;
-    const randomBtnGroup = document.getElementById(randomBtnGroupId);
-    let randomFactor = 1;
-    if (randomBtnGroup) {
-        const activeBtn = randomBtnGroup.querySelector('button.active');
-        if (activeBtn) {
-            randomFactor = parseFloat(activeBtn.getAttribute('data-value')) || 1;
-        }
-    }
-    
-    // 备用乘区
-    const backups = [0, 0, 0, 0, 0];
-    
-    // 计算普通伤害（不含弱点补正）
-    const resultNormal = calculateDamage(panelAtk, stats, hpPercent, {
-        isAdvantage: false,
-        defense: defense,
-        randomFactor: randomFactor,
-        backups: backups
-    });
-    
-    // 计算对克属伤害（弱点补正 = 0.5）
-    const resultAdvantage = calculateDamage(panelAtk, stats, hpPercent, {
-        isAdvantage: true,
-        defense: defense,
-        randomFactor: randomFactor,
-        backups: backups
-    });
-    
-    // 获取普通基础伤害（属攻后 × 随机补正）
-    let eleLogIndex = -1;
-    for (let i = 0; i < resultNormal.logs.length; i++) {
-        if (resultNormal.logs[i].name === "属攻+克属") {
-            eleLogIndex = i;
-            break;
-        }
-    }
-    const eleDmgNormal = eleLogIndex >= 0 ? resultNormal.logs[eleLogIndex].value : 0;
-    const baseDmgNormal = decimalMultiplyGameRound(eleDmgNormal, randomFactor);
-    
-    // 获取对克属基础伤害
-    let eleLogIndexAdv = -1;
-    for (let i = 0; i < resultAdvantage.logs.length; i++) {
-        if (resultAdvantage.logs[i].name === "属攻+克属") {
-            eleLogIndexAdv = i;
-            break;
-        }
-    }
-    const eleDmgAdv = eleLogIndexAdv >= 0 ? resultAdvantage.logs[eleLogIndexAdv].value : 0;
-    const baseDmgAdv = decimalMultiplyGameRound(eleDmgAdv, randomFactor);
-    
-    // 获取伤害增幅相关数值 (不再在此处聚合总值，改为传给 applyDamageCap)
-    const dmg_amp = aggregateZoneValue('dmg_amp', stats, teshuStats);
-    
-    // 职业增幅 (天司类)
-    const currentJob = allClasses.find(c => c.id === currentMC.jobId);
-    const isClass5 = currentJob && currentJob.type === 'class_5';
-    const job_na_amp = isClass5 ? 0 : 0.03;
-    const char_buff_amp = 0;
-    
-    const normal_dmg_amp = aggregateZoneValue('normal_dmg_amp', stats, teshuStats);
-    const dmg_to_elemental_amp = aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats);
-    
-    // 予伤 (最后加算)
-    const dmg_supp = stats['weapon_dmg_supp'] || 0;
-    const na_dmg_supp = stats['weapon_na_dmg_supp'] || 0; // 普攻予伤
-    const total_supp = dmg_supp + na_dmg_supp; // 总予伤
-    
-    // 准备额外增幅 (职业 + 角色Buff + 普攻增幅)
-    // 注意: weapon_dmg_amp 和 weapon_na_dmg_amp 已经在 damage_cap.js 的 calculateAmp 中处理了
-    // 所以这里只需要传 额外 的部分 (职业, 角色Buff, 或者是 damage_cap 中没涵盖的部分)
-    // damage_cap.js 涵盖了: weapon_dmg_amp, weapon_na_dmg_amp, teshuStats['dmg_amp']
-    // 剩下的: job_na_amp, char_buff_amp, normal_dmg_amp(如果它和weapon_na_dmg_amp不同源?)
-    // aggregateZoneValue('normal_dmg_amp') 聚合了 'weapon_normal_dmg_amp'
-    // damage_cap.js 中 calculateAmp('na') 聚合了 'weapon_na_dmg_amp'.
-    // 需确认这两个key是否重复. constants.js中:
-    // 'weapon_normal_dmg_amp' -> 来源 DAMAGE_ZONES['normal_dmg_amp']
-    // 'weapon_na_dmg_amp' -> STAT_CONFIG key.
-    // 看起来这是两个不同的key，或者是一个别名?
-    // 查看 damage_calc.js: DAMAGE_ZONES['normal_dmg_amp'] = ['weapon_normal_dmg_amp']
-    // 查看 constants.js: STAT_CONFIG 里有 'weapon_na_dmg_amp'
-    // 假设它们是同一个逻辑概念，但 key 不同。为了安全起见，我们将所有非 weapon_dmg_amp 的增幅都算作 extraAmp
-    
-    // 重新计算 Extra Amp
-    const extraAmpNormal = new Decimal(job_na_amp).plus(char_buff_amp).plus(normal_dmg_amp).toNumber();
-    const extraAmpAdvantage = new Decimal(extraAmpNormal).plus(dmg_to_elemental_amp).toNumber();
-
-    console.groupCollapsed(`[Debug Amp Composition]`);
-    console.log(`Job NA Amp: ${job_na_amp}`);
-    console.log(`Char Buff Amp: ${char_buff_amp}`);
-    console.log(`Normal Dmg Amp (Stats): ${normal_dmg_amp}`);
-    console.log(`Dmg to Ele Amp (Seraphic): ${dmg_to_elemental_amp}`);
-    console.log(`Extra Amp Normal: ${extraAmpNormal}`);
-    console.log(`Extra Amp Advantage: ${extraAmpAdvantage}`);
-    console.groupEnd();
-
-    // ====== 上限计算核心逻辑 ======
-
-    // 1. 获取防御后伤害 (Raw Post-Def Damage)
-    // baseDmgNormal 是 Step11 随机补正后的值 (已取整)
-    // calculateDamage 返回的是 Step12 (防御计算) 后的值
-    // resultNormal.damage 就是防御后的值
-    const rawPostDefNormal = resultNormal.damage;
-    const rawPostDefAdv = resultAdvantage.damage;
-
-    // 2. 应用上限衰减 (非暴击)
-    // applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp, options)
-    const capOptions = { isClass5: isClass5 };
-    const capResultNormal = applyDamageCap(rawPostDefNormal, stats, 'na', teshuStats, extraAmpNormal, capOptions);
-    const capResultAdv = applyDamageCap(rawPostDefAdv, stats, 'na', teshuStats, extraAmpAdvantage, capOptions);
-    
-    // 3. 加上予伤
-    const naDmgNormal = capResultNormal.finalDamage + total_supp;
-    const naDmgAdvantage = capResultAdv.finalDamage + total_supp;
-
-    // 4. 暴击计算 (Crit Path)
-    // 暴击伤害 = 衰减((Raw / Defense) * (1 + CritMult)) * Amp
-    // 我们需要重新构建 暴击时的 Raw Damage (防御后)
-    // 由于 resultNormal.damage 已经是除以防御并取整了，精度可能不够。
-    // 理想情况下，我们应该拿到 Pre-Defense 的值。
-    // 在 calculateDamage 中，返回的 logs 里包含 Step11 的值。
-    
-    // 获取 Step11 (随机补正后, 防御前) 的值
-    const getPreDefVal = (result) => {
-        const log = result.logs.find(l => l.name === "随机补正");
-        return log ? log.value : 0;
-    };
-    const preDefNormalVal = getPreDefVal(resultNormal);
-    const preDefAdvVal = getPreDefVal(resultAdvantage);
-    
-    // 获取暴击率和倍率
-    const weaponCritRate = stats['weapon_critical_hit_rate'] || 0;
-    const critRate = Decimal.min(weaponCritRate, 1.0).toNumber();
-    const overflowCritRate = Decimal.max(new Decimal(weaponCritRate).minus(1.0).toNumber(), 0).toNumber();
-    const excessCritDamageUp = Decimal.min(decimalMultiply(overflowCritRate, 0.5), 1.0).toNumber();
-    const critBonus = new Decimal(0.5).plus(decimalMultiply(0.5, excessCritDamageUp)).toNumber();
-    const totalCritMult = 1 + critBonus;
-
-    // 计算暴击时的 防御后伤害 (Raw Crit Post-Def)
-    // 暴击计算: (PreDef * CritMult) / Defense
-    // const defense 已在函数开头定义，直接使用
-    
-    const rawCritPostDefNormal = new Decimal(preDefNormalVal).times(totalCritMult).div(defense).round().toNumber();
-    const rawCritPostDefAdv = new Decimal(preDefAdvVal).times(totalCritMult).div(defense).round().toNumber();
-
-    // 应用上限衰减 (暴击)
-    const capCritResultNormal = applyDamageCap(rawCritPostDefNormal, stats, 'na', teshuStats, extraAmpNormal, capOptions);
-    const capCritResultAdv = applyDamageCap(rawCritPostDefAdv, stats, 'na', teshuStats, extraAmpAdvantage, capOptions);
-    
-    // 加上予伤
-    const critFinalNormal = capCritResultNormal.finalDamage + total_supp;
-    const critFinalAdv = capCritResultAdv.finalDamage + total_supp;
-
-    // ====== 调试日志 ======
-    console.groupCollapsed(`最终伤害详细调试 [Slot ${charIndex}]`);
-    console.log(`Defense: ${defense}, CritMult: ${totalCritMult}, Supp: ${total_supp}`);
-    
-    console.log("【Normal Path】");
-    console.log(`Pre-Def: ${preDefNormalVal}`);
-    console.log(`Post-Def (Raw): ${rawPostDefNormal}`);
-    console.log(`Total Cap Coeff: ${capResultNormal.capCoef}`);
-    console.log(`Decayed: ${capResultNormal.decayedDamage}`);
-    console.log(`Amp Coeff: ${capResultNormal.ampCoef}`);
-    console.log(`Final Non-Crit: ${naDmgNormal}`);
-    console.log(`Post-Def (Crit): ${rawCritPostDefNormal}`);
-    console.log(`Decayed (Crit): ${capCritResultNormal.decayedDamage}`);
-    console.log(`Final Crit: ${critFinalNormal}`);
-
-    console.log("【Advantage Path】");
-    console.log(`Pre-Def: ${preDefAdvVal}`);
-    console.log(`Post-Def (Raw): ${rawPostDefAdv}`);
-    console.log(`Final Non-Crit: ${naDmgAdvantage}`);
-    console.log(`Final Crit: ${critFinalAdv}`);
-    console.groupEnd();
-    
-    // 更新显示
-    const baseDmgEl = document.getElementById(charIndex === 0 ? 'base-dmg' : `base-dmg-${charIndex}`);
-    const naDmgEl = document.getElementById(charIndex === 0 ? 'na-dmg' : `na-dmg-${charIndex}`);
-    const critDmgEl = document.getElementById(charIndex === 0 ? 'crit-dmg' : `crit-dmg-${charIndex}`);
-    
-    if (baseDmgEl) {
-        // 格式: 普通伤害 [对克属] 弱点伤害
-        baseDmgEl.innerHTML = `${baseDmgNormal.toLocaleString()} <span class="advantage-tag">对克属</span> ${baseDmgAdv.toLocaleString()}`;
-    }
-    
-    if (naDmgEl) {
-        // 格式: 普通伤害 [对克属] 弱点伤害
-        naDmgEl.innerHTML = `${naDmgNormal.toLocaleString()} <span class="advantage-tag">对克属</span> ${naDmgAdvantage.toLocaleString()}`;
-    }
-    
-    if (critDmgEl) {
-        // 格式: 暴击伤害(暴击率%) [对克属] 暴击伤害
-        const critRatePercent = (critRate * 100).toFixed(0);
-        critDmgEl.innerHTML = `${critFinalNormal.toLocaleString()} <span class="crit-rate">(${critRatePercent}%)</span> <span class="advantage-tag">对克属</span> ${critFinalAdv.toLocaleString()}`;
-    }
-
-    // 更新详细数据 (折叠区域)
-    const theoryEl = document.getElementById(charIndex === 0 ? 'na-theory-0' : `na-theory-${charIndex}`);
-    const capEl = document.getElementById(charIndex === 0 ? 'na-cap-0' : `na-cap-${charIndex}`);
-    const detailCritEl = document.getElementById(charIndex === 0 ? 'na-crit-0' : `na-crit-${charIndex}`);
-
-    if (theoryEl) {
-        // 理论伤害 = 防御后伤害 * (1 + 伤害增幅) + 予伤
-        const theoryNormal = new Decimal(rawPostDefNormal)
-            .times(new Decimal(1).plus(capResultNormal.ampCoef))
-            .floor()
-            .plus(total_supp)
-            .toNumber();
-        
-        // 非暴击时的理论伤害 (对克属)
-        const theoryAdvNormal = new Decimal(rawPostDefAdv)
-            .times(new Decimal(1).plus(capResultAdv.ampCoef))
-            .floor()
-            .plus(total_supp)
-            .toNumber();
-            
-        let theoryAdvDisplay = theoryAdvNormal.toLocaleString();
-        let critIconHtml = '';
-        
-        // 如果暴击率 > 0，显示暴击/非暴击切换功能
-        if (critRate > 0) {
-            // 暴击时的理论伤害
-            const theoryCritAdv = new Decimal(rawCritPostDefAdv)
-                .times(new Decimal(1).plus(capResultAdv.ampCoef))
-                .floor()
-                .plus(total_supp)
-                .toNumber();
-                
-            // 默认显示暴击伤害
-            theoryAdvDisplay = `<span id="theory-val-adv-${charIndex}" data-crit="${theoryCritAdv.toLocaleString()}" data-normal="${theoryAdvNormal.toLocaleString()}" data-mode="crit">${theoryCritAdv.toLocaleString()}</span>`;
-            
-            // 添加暴击图标 (可点击切换)
-            critIconHtml = `<span class="crit-rate" style="font-size:0.7em; margin-left:4px; margin-right:4px; cursor:pointer;" onclick="toggleCritTheory(this, ${charIndex})" title="点击切换暴击/非暴击显示">暴击</span>`;
-        }
-        
-        theoryEl.innerHTML = `${theoryNormal.toLocaleString()} <span class="advantage-tag" style="font-size:0.7em">对克属</span>${critIconHtml}${theoryAdvDisplay}`;
-    }
-
-    if (capEl) {
-        // 95%衰减阈值 = 500,000 * C (即5%效率起始点)
-        const thresholdNormal = new Decimal(500000)
-            .times(capResultNormal.capCoef)
-            .floor()
-            .toNumber();
-        // 上限阈值通常不区分克属，只显示一个值
-        capEl.innerHTML = `${thresholdNormal.toLocaleString()}`;
-    }
-
-    if (detailCritEl) {
-        const critRatePercent = (critRate * 100).toFixed(0);
-        // 使用非等宽字体并调整字号以匹配平A预测伤害的大小
-        const valStyle = "font-size:1.25em; color:#f1c40f; font-family: 'Microsoft YaHei', sans-serif;";
-        detailCritEl.innerHTML = `<span class="crit-rate" style="font-size:0.8em">(${critRatePercent}%)</span> <span style="${valStyle}">${critFinalNormal.toLocaleString()}</span> <span class="advantage-tag" style="font-size:0.7em">对克属</span> <span style="${valStyle}">${critFinalAdv.toLocaleString()}</span>`;
-    }
-    
-    return resultNormal;
 }
 
 // ==========================================
@@ -630,7 +743,9 @@ function getDamageParamsSummary(charIndex = 0) {
     const isAdvantage = document.getElementById(weaknessToggleId)?.checked || false;
     
     const defInputId = charIndex === 0 ? 'def-input' : `def-input-${charIndex}`;
+    const defDownInputId = charIndex === 0 ? 'def-down-input' : `def-down-input-${charIndex}`;
     const defense = parseInt(document.getElementById(defInputId)?.value) || 10;
+    const defenseDown = Math.min(80, Math.max(0, parseInt(document.getElementById(defDownInputId)?.value) || 0));
     
     const randomBtnGroupId = charIndex === 0 ? 'random-btn-group' : `random-btn-group-${charIndex}`;
     const randomBtnGroup = document.getElementById(randomBtnGroupId);
@@ -642,12 +757,17 @@ function getDamageParamsSummary(charIndex = 0) {
         }
     }
     
-    // 获取stats
     const stats = {};
     if (typeof party !== 'undefined' && party[charIndex]) {
         STAT_CONFIG.forEach(cfg => {
             stats[cfg.key] = party[charIndex].stats[cfg.key] || 0;
         });
+    }
+    if (typeof overlayCharaEarringElementAtkFromParty === 'function') {
+        overlayCharaEarringElementAtkFromParty(stats, charIndex);
+    }
+    if (typeof overlayCharaLbElementAtkFromParty === 'function') {
+        overlayCharaLbElementAtkFromParty(stats, charIndex);
     }
     
     const teshuStats = getTeshuStats();
@@ -657,72 +777,13 @@ function getDamageParamsSummary(charIndex = 0) {
         hpPercent,
         isAdvantage,
         defense,
+        defenseDown,
         randomFactor,
         p_mult: aggregateZoneValue('normal_atk', stats, teshuStats),
         e_mult: aggregateZoneValue('ex_atk', stats, teshuStats),
         h_mult: aggregateZoneValue('stamina', stats, teshuStats),
         ele_mult: aggregateZoneValue('element_atk', stats, teshuStats) + (isAdvantage ? 0.5 : 0),
         dmg_amp: aggregateZoneValue('dmg_amp', stats, teshuStats)
-    };
-}
-
-// 切换理论伤害显示 (暴击/非暴击)
-function toggleCritTheory(btn, charIndex) {
-    const valEl = document.getElementById(`theory-val-adv-${charIndex}`);
-    if (!valEl) return;
-    
-    const mode = valEl.getAttribute('data-mode');
-    
-    if (mode === 'crit') {
-        // 切换到非暴击
-        valEl.textContent = valEl.getAttribute('data-normal');
-        valEl.setAttribute('data-mode', 'normal');
-        
-        // 更新按钮样式
-        btn.textContent = '非暴击';
-        btn.style.background = '#7f8c8d'; // 灰色
-        btn.style.color = '#fff';
-    } else {
-        // 切换到暴击
-        valEl.textContent = valEl.getAttribute('data-crit');
-        valEl.setAttribute('data-mode', 'crit');
-        
-        // 更新按钮样式
-        btn.textContent = '暴击';
-        btn.style.background = ''; // 恢复CSS定义的渐变色
-        btn.style.color = '';
-    }
-}
-
-// ==========================================
-// 暴击伤害计算 (使用 Decimal.js)
-// ==========================================
-
-/**
- * 计算暴击伤害
- @param {Decimal} rawDamageDecimal - 未取整、未加予伤的原始伤害 (Step12之前的浮点数)
- * @param {number} suppDamage - 固定予伤数值 (不参与倍率放大)
- * @param {number} critRate - 暴击率
- * @param {number} critBonus - 暴击倍率加成 (例如 0.5 代表 +50%)
- */
-function calculateCriticalDamage(rawDamageDecimal, suppDamage, critRate, critBonus = 0.5) {
-    // 暴击率上限100%
-    const effectiveRate = Decimal.min(critRate, 1.0).toNumber();
-    
-    // 1. 计算总倍率 (1 + 0.5 + Bonus)
-    const totalMultiplier = new Decimal(1).plus(critBonus);
-    
-    // 2. 用原始浮点数乘以倍率
-    const amplifiedRaw = rawDamageDecimal.times(totalMultiplier);
-    
-    // 3. 四舍五入取整 (GBF暴击伤害通常使用 Round，而非 Ceil，除了部分特殊上限环境)
-    // 使用 Decimal.round() 保持精度，然后加上予伤
-    // 4. 最后加上固定予伤
-    const finalCritDamage = amplifiedRaw.round().plus(suppDamage).toNumber();
-    
-    return {
-        critDamage: finalCritDamage,
-        critRate: effectiveRate
     };
 }
 
@@ -738,12 +799,16 @@ if (typeof module !== 'undefined' && module.exports) {
         ceilFixed,
         calculateStamina,
         aggregateZoneValue,
+        overlayCharaEarringElementAtkFromParty,
+        overlayCharaLbElementAtkFromParty,
+        overlayCharaLbCaDmgFromParty,
+        EARRING_DMG_SUPP_PER_LEVEL,
+        getEarringDmgSuppFromLevel,
+        getEarringDmgSuppFromEffect,
+        getDmgSuppZonesForNa,
         getTeshuStats,
-        calculateDamage,
-        calculateDamageFromUI,
-        updateDamageDisplay,
         getDamageParamsSummary,
-        calculateCriticalDamage,
-        toggleCritTheory
+        getHpBonusForChar,
+        getActualHp
     };
 }

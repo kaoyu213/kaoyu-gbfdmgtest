@@ -100,9 +100,26 @@
     ]
   },
   {
-    "id": "optimus_verity_big2",
-    "name": "神石的技巧2",
+    "id": "optimus_verity_big",
+    "name": "神石的技巧大",
     "description": "属性角色的暴击率up（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_critical_hit_rate",
+        "boost": "optimus",
+        "value": "10:8% 15:10%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_verity_big2",
+    "name": "神石的技巧大2",
+    "description": "属性角色的暴击率up（大2）",
     "image": "",
     "element": "weapon",
     "race": "all",
@@ -183,6 +200,57 @@
     ]
   },
   {
+    "id": "dagger_voltage_medium",
+    "name": "短的增压",
+    "description": "根据装备的「短」武器的数量，提升ex攻击力（特殊）",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_special_ex_atk",
+        "boost": "none",
+        "value": "count_dagger*0.08"
+      }
+    ]
+  },
+  {
+    "id": "gun_voltage_medium",
+    "name": "铳的增压",
+    "description": "根据装备的「铳」武器的数量，提升ex攻击力（特殊）",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_special_ex_atk",
+        "boost": "none",
+        "value": "count_gun*0.08"
+      }
+    ]
+  },
+  {
+    "id": "staff_voltage_medium",
+    "name": "杖的增压",
+    "description": "根据装备的「杖」武器的数量，提升ex攻击力（特殊）",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_special_ex_atk",
+        "boost": "none",
+        "value": "count_staff*0.08"
+      }
+    ]
+  },
+  {
     "id": "all_honing",
     "name": "法武之极技",
     "description": "EX攻击力 +40% /伤害上限 +7% /技能伤害上限（特殊） +30% /技能伤害增幅（特殊） +10%",
@@ -190,7 +258,7 @@
     "element": "weapon",
     "race": "all",
     "position": "all",
-    "condition": "aura_280",
+    "condition": "aura_up_280",
     "effects": [
       {
         "prop": "weapon_ex_atk",
@@ -211,6 +279,262 @@
         "prop": "weapon_special_skill_dmg_amp",
         "boost": "none",
         "value": "0.1"
+      }
+    ],
+    "effects_up_280": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.4"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.07"
+      },
+      {
+        "prop": "weapon_special_skill_dmg_cap",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_special_skill_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_down_280": []
+  },
+  {
+    "id": "all_athos",
+    "name": "法武之极破",
+    "description": "EX攻击力 +40% /伤害上限 +7% /DA、TA +25% /普通攻击伤害增幅（特殊） +10%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "aura_up_280",
+    "effects": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.4"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.07"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.25"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.25"
+      },
+      {
+        "prop": "weapon_special_na_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_up_280": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.4"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.07"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.25"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.25"
+      },
+      {
+        "prop": "weapon_special_na_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_down_280": []
+  },
+  {
+    "id": "element_aramis",
+    "name": "属性的极技",
+    "description": "待修改/技能伤害上限（特殊） +30% /技能伤害增幅（特殊） +10%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "aura_up_280",
+    "effects": [
+      {
+        "prop": "weapon_special_skill_dmg_cap",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_special_skill_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_up_280": [
+      {
+        "prop": "weapon_special_skill_dmg_cap",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_special_skill_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_down_280": [
+      {
+        "prop": "weapon_special_skill_dmg_cap",
+        "boost": "none",
+        "value": "0.15"
+      },
+      {
+        "prop": "weapon_special_skill_dmg_amp",
+        "boost": "none",
+        "value": "0.05"
+      }
+    ]
+  },
+  {
+    "id": "element_porthos",
+    "name": "属性的极奥",
+    "description": "连锁伤害增幅 +50%，奥义伤害增幅（特殊） + 10%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "aura_up_280",
+    "effects": [
+      {
+        "prop": "weapon_cb_dmg_amp",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "prop": "weapon_fc_dmg_amp",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "prop": "weapon_special_ca_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_up_280": [
+      {
+        "prop": "weapon_cb_dmg_amp",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "prop": "weapon_fc_dmg_amp",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "prop": "weapon_special_ca_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_down_280": [
+      {
+        "prop": "weapon_cb_dmg_amp",
+        "boost": "none",
+        "value": "0.25"
+      },
+      {
+        "prop": "weapon_fc_dmg_amp",
+        "boost": "none",
+        "value": "0.25"
+      },
+      {
+        "prop": "weapon_special_ca_dmg_amp",
+        "boost": "none",
+        "value": "0.05"
+      }
+    ]
+  },
+  {
+    "id": "element_athos",
+    "name": "属性的极破",
+    "description": "待修改 /技能伤害上限（特殊） +30% /技能伤害增幅（特殊） +10%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "aura_up_280",
+    "effects": [
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.125"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.125"
+      },
+      {
+        "prop": "weapon_special_na_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_up_280": [
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.125"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.125"
+      },
+      {
+        "prop": "weapon_special_na_dmg_amp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ],
+    "effects_down_280": [
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.0625"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.0625"
+      },
+      {
+        "prop": "weapon_special_na_dmg_amp",
+        "boost": "none",
+        "value": "0.05"
       }
     ]
   },
@@ -488,8 +812,8 @@
     ]
   },
   {
-    "id": "omega_stamina_big3",
-    "name": "方阵的浑身大3",
+    "id": "omega_stamina_big",
+    "name": "方阵的浑身大",
     "description": "属性角色HP越多 攻击力越高（大）",
     "image": "",
     "element": "weapon",
@@ -500,7 +824,7 @@
       {
         "prop": "weapon_omega_stamina",
         "boost": "omega",
-        "value": "curve:stamina_omega_big3"
+        "value": "curve:stamina_omega_big"
       }
     ]
   },
@@ -678,5 +1002,1339 @@
         "value": "10:1.75% 15:2%"
       }
     ]
+  },
+  {
+    "id": "guiding_star_splendor",
+    "name": "极星的光辉",
+    "description": "攻击力+30%、HP +30%、防御力 +25%",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_def",
+        "boost": "none",
+        "value": "0.25"
+      },
+      {
+        "prop": "weapon_hp",
+        "boost": "none",
+        "value": "0.3"
+      }
+    ]
+  },
+  {
+    "id": "destruction_godblade3",
+    "name": "破坏的神刃3",
+    "description": "属性角色的攻击力提升（特大） \n属性角色获得破坏属性追击（特大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.35"
+      },
+      {
+        "prop": "weapon_des_bonus_na",
+        "boost": "none",
+        "value": "0.2"
+      }
+    ]
+  },
+  {
+    "id": "rebirth_godshield3",
+    "name": "再生的神守3",
+    "description": "属性角色的HP最大值提升（特大） \n属性角色发动奥义时，额外造成1次破坏属性伤害（特大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_hp",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_des_bonus_ca",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ]
+  },
+  {
+    "id": "anklet_of_na",
+    "name": "妈武插件-平A",
+    "description": "属性主角普通攻击伤害上限 +10% \n普通攻击伤害上升（特殊）（上限2万）\n对有利属性伤害增幅 +30% \n火属性伤害减轻 +30%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "aura_up_280",
+    "effects": [
+      {
+        "prop": "weapon_dmg_to_elemental_amp",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_element_reduce",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_na_dmg_cap",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_special_na_dmg_supp",
+        "boost": "none",
+        "value": "20000"
+      }
+    ],
+    "effects_up_280": [
+        {
+          "prop": "weapon_dmg_to_elemental_amp",
+          "boost": "none",
+          "value": "0.3"
+        },
+        {
+          "prop": "weapon_element_reduce",
+          "boost": "none",
+          "value": "0.3"
+        },
+        {
+          "prop": "weapon_na_dmg_cap",
+          "boost": "none",
+          "value": "0.1"
+        },
+        {
+          "prop": "weapon_special_na_dmg_supp",
+          "boost": "none",
+          "value": "20000"
+        }
+    ],
+    "effects_down_280": []
+  },
+  {
+    "id": "anklet_of_skill",
+    "name": "妈武插件—技伤",
+    "description": "属性角色技能伤害上限 +50% \n 技能伤害上升（特殊）（上限3万） \n 对有利属性伤害增幅 +30% \n 火属性伤害减轻 +30%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "aura_up_280",
+    "effects": [
+      {
+        "prop": "weapon_dmg_to_elemental_amp",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_element_reduce",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_skill_dmg_cap",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "prop": "weapon_special_skill_dmg_supp",
+        "boost": "none",
+        "value": "30000"
+      }
+    ],
+    "effects_up_280": [
+      {
+        "prop": "weapon_dmg_to_elemental_amp",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_element_reduce",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_skill_dmg_cap",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "prop": "weapon_special_skill_dmg_supp",
+        "boost": "none",
+        "value": "30000"
+      }
+    ],
+    "effects_down_280": []
+  },
+  {
+    "id": "anklet_of_ca",
+    "name": "妈武插件-奥义",
+    "description": "属性角色奥义伤害上限 +50% \n奥义伤害上升（特殊）（上限30万） \n 对有利属性伤害增幅 +30% \n 火属性伤害减轻 +30%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "aura_up_280",
+    "effects": [
+      {
+        "prop": "weapon_dmg_to_elemental_amp",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_element_reduce",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "prop": "weapon_special_ca_dmg_supp",
+        "boost": "none",
+        "value": "300000"
+      }
+    ],
+    "effects_up_280": [
+      {
+        "prop": "weapon_dmg_to_elemental_amp",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_element_reduce",
+        "boost": "none",
+        "value": "0.3"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "prop": "weapon_special_ca_dmg_supp",
+        "boost": "none",
+        "value": "300000"
+      }
+    ],
+    "effects_down_280": []
+  },
+  {
+    "id": "optimus_might_big",
+    "name": "神石的攻刃大",
+    "description": "属性角色的攻击力提升（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "optimus",
+        "value": "0.15"
+      }
+    ]
+  },
+  {
+    "id": "celestial sabre_big",
+    "name": "剑之极星(5突)",
+    "description": "提升ex攻击力、TA、DA、奥义伤害、奥义伤害上限、伤害上限和全属性攻击力,剑得意角色效果额外提升",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.2"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.05"
+      },
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "0.05"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.05"
+      }
+    ],
+    "effects_prof_sabre": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.4"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.15"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "none",
+        "value": "0.2"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "0.15"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_element_atk",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ]
+  },
+  {
+    "id": "celestial gun_big",
+    "name": "铳之极星(5突)",
+    "description": "提升ex攻击力、TA、DA、奥义伤害、奥义伤害上限、伤害上限和全属性攻击力,铳得意角色效果额外提升",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.2"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.05"
+      },
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "0.05"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.05"
+      }
+    ],
+    "effects_prof_gun": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.4"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.15"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "none",
+        "value": "0.2"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "0.15"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_element_atk",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ]
+  },
+  {
+    "id": "celestial staff_big",
+    "name": "杖之极星(5突)",
+    "description": "提升ex攻击力、TA、DA、奥义伤害、奥义伤害上限、伤害上限和全属性攻击力,杖得意角色效果额外提升",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.2"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.05"
+      },
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "0.05"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.05"
+      }
+    ],
+    "effects_prof_staff": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.4"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "0.15"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "none",
+        "value": "0.2"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "0.15"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_element_atk",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ]
+  },
+  {
+    "id": "sword_mastery_boost",
+    "name": "剑得意加成测试",
+    "description": "得意武器为「剑」的角色的攻击力EX攻刃乘区 和HP提升",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [ ],
+    "effects_prof_sabre": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_hp",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ]
+  },
+  {
+    "id": "odious_fandango_medium",
+    "name": "禁咒的乱舞中",
+    "description": "【禁咒】属性角色的攻击力提升（中）\n属性角色的TA几率提升（中）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_odious_atk",
+        "boost": "optimus",
+        "value": "10:14.4% 15:17.4%"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "optimus",
+        "value": "10:0.96% 15:2.58%"
+      }
+    ]
+  },
+  {
+    "id": "omega_might_small",
+    "name": "方阵的攻刃小",
+    "description": "【方阵】属性角色的攻击力提升（小）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_omega_atk",
+        "boost": "omega",
+        "value": "10:10% 15:12.5%"
+      }
+    ]
+  },
+  {
+    "id": "omega_enmity_small",
+    "name": "方阵的背水小",
+    "description": "属性角色HP越少，攻击力越高（小）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_omega_enmity",
+        "boost": "omega",
+        "value": "curve:enmity_omega_small"
+      }
+    ]
+  },
+  {
+    "id": "omega_bloodshed_big",
+    "name": "方阵的修罗大",
+    "description": "待修改",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_omega_atk",
+        "boost": "omega",
+        "value": "10:15% 15:18%"
+      }
+    ]
+  },
+  {
+    "id": "gongjijuexingtest",
+    "name": "攻击觉醒测试",
+    "description": "待修改",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "none",
+        "value": "0.35"
+      },
+      {
+        "prop": "weapon_element_atk",
+        "boost": "none",
+        "value": "0.15"
+      }, {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ]
+  },
+  {
+    "id": "element_stamina_big",
+    "name": "属性的浑身特大",
+    "description": "属性角色HP越多 攻击力越高（特大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_stamina",
+        "boost": "none",
+        "value": "curve:stamina_element_ancestral"
+      }
+    ]
+  },
+  {
+    "id": "ex-stamina",
+    "name": "附魔-浑身2",
+    "description": "属性角色HP越多 攻击力越高（特大）",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ax_stamina",
+        "boost": "none",
+        "value": "curve:ex-stamina2"
+      }
+    ]
+  },
+  {
+    "id": "ex-enmity",
+    "name": "附魔-背水1",
+    "description": "属性角色HP越少 攻击力越高（特大）",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ax_enmity",
+        "boost": "none",
+        "value": "curve:ex-enmity1"
+      }
+    ]
+  },
+  {
+    "id": "optimus_bloodshed_big",
+    "name": "神石的修罗大",
+    "description": "待修改",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "optimus",
+        "value": "10:15% 15:18%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_enmity_small",
+    "name": "神石的背水小",
+    "description": "属性角色HP越少，攻击力越高（小）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_enmity",
+        "boost": "optimus",
+        "value": "curve:enmity_optimus_small"
+      }
+    ]
+  },
+  {
+    "id": "omega_majesty_small",
+    "name": "方阵的神威小",
+    "description": "属性角色的攻击力提升（小）\n属性角色的HP最大值提升（小）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_omega_atk",
+        "boost": "omega",
+        "value": "10:10% 15:12%"
+      },
+      {
+        "prop": "weapon_hp",
+        "boost": "omega",
+        "value": "10:10% 15:12%"
+      }
+    ]
+  },
+  {
+    "id": "omega_majesty_medium",
+    "name": "方阵的神威中",
+    "description": "属性角色的攻击力提升（中）\n属性角色的HP最大值提升（中）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_omega_atk",
+        "boost": "omega",
+        "value": "10:12% 15:14.5%"
+      },
+      {
+        "prop": "weapon_hp",
+        "boost": "omega",
+        "value": "10:12% 15:14.5%"
+      }
+    ]
+  },
+  {
+    "id": "omega_sentence_medium",
+    "name": "方阵的必杀中",
+    "description": "属性角色的奥义伤害提升（中）\n属性角色的奥义伤害上限提升（中）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "omega",
+        "value": "10:7% 15:9.5%"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "omega",
+        "value": "10:7% 15:9.5%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_sentence_medium",
+    "name": "神石的必杀中",
+    "description": "属性角色的奥义伤害提升（中）\n属性角色的奥义伤害上限提升（中）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "optimus",
+        "value": "10:7% 15:9.5%"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "optimus",
+        "value": "10:3.5% 15:5%"
+      }
+    ]
+  },
+  {
+    "id": "omega_restraint_medium",
+    "name": "方阵的克己中",
+    "description": "属性角色的DA几率提升（中）\n属性角色的暴击率提升（中）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_da",
+        "boost": "omega",
+        "value": "10:3.5% 15:5%"
+      },
+      {
+        "prop": "weapon_critical_hit_rate",
+        "boost": "omega",
+        "value": "10:5% 15:6.5%"
+      }
+    ]
+  },
+  {
+    "id": "element_convenant",
+    "name": "属性的誓约",
+    "description": "属性角色的生命值越多，奥义伤害上升越大（60万）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ca_dmg_supp",
+        "boost": "none",
+        "value": "linear_hp:100000:600000"
+      }
+    ]
+  },
+  {
+    "id": "optimus_stratagem_big",
+    "name": "神石的战技大",
+    "description": "属性角色暴击时，属性角色伤害增幅提升（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_critical_hit_amp",
+        "boost": "optimus",
+        "value": "10:1.4% 15:1.8%"
+      }
+      
+    ]
+  },
+  {
+    "id": "mikill las",
+    "name": "诸神黄昏",
+    "description": "属性角色的伤害上升（上限10万）\n伤害上限 +10%\n水属性角色的DA -100%\n水属性角色的TA -100%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "main_hand",
+    "effects": [
+      {
+        "prop": "weapon_dmg_supp",
+        "boost": "none",
+        "value": "100000"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.1"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "-100%"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "-100%"
+      }
+      
+    ]
+  },
+  {
+    "id": "geisa ari",
+    "name": "狂怒之鹰",
+    "description": "主角普通攻击无法获得奥义值 / 普通攻击伤害增幅 +30% / 乱击（4段）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "mc",
+    "condition": "main_hand",
+    "effects": [
+      {
+        "prop": "weapon_na_dmg_amp",
+        "boost": "none",
+        "value": "30%"
+      },
+      {
+        "prop": "weapon_na_ranshu",
+        "boost": "none",
+        "value": "4"
+      }
+    ]
+  },
+  {
+    "id": "optimus_spearhead_small",
+    "name": "神石的锐锋小",
+    "description": "属性角色的TA几率提升（小）\n属性角色的暴击率提升（小）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ta",
+        "boost": "optimus",
+        "value": "10:1.35% 15:2%"
+      },
+      {
+        "prop": "weapon_critical_hit_rate",
+        "boost": "optimus",
+        "value": "10:2% 15:3%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_fandango_big",
+    "name": "神石的乱舞大",
+    "description": "属性角色的攻击力提升（大）\n属性角色的TA几率提升（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "optimus",
+        "value": "10:15% 15:18%"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "optimus",
+        "value": "10:3.45% 15:4.2%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_fandango_medium",
+    "name": "神石的乱舞中",
+    "description": "属性角色的攻击力提升（中）\n属性角色的TA几率提升（中）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "optimus",
+        "value": "10:12% 15:14.5%"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "optimus",
+        "value": "10:2.15% 15:2.9%"
+      }
+    ]
+  },
+  {
+    "id": "element_strike",
+    "name": "属性的打击",
+    "description": "属性角色的普通攻击伤害上限提升",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_na_dmg_cap",
+        "boost": "none",
+        "value": "10:5% 15:7.5%"
+      }
+    ]
+  },
+  {
+    "id": "omega_apotheosis_big",
+    "name": "方阵的神醒大",
+    "description": "属性角色的攻击力提升（大）\n属性角色的HP最大值提升（大）\n属性角色的伤害增幅提升（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_omega_atk",
+        "boost": "omega",
+        "value": "20:22% 25:24%"
+      },
+      {
+        "prop": "weapon_hp",
+        "boost": "omega",
+        "value": "20:22% 25:24%"
+      },
+      {
+        "prop": "weapon_dmg_amp",
+        "boost": "optimus",
+        "value": "20:1.75% 25:2%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_celere_big",
+    "name": "神石的刹那大",
+    "description": "属性角色的攻击力提升（大）\n属性角色暴击率UP（50%额外伤害）（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "optimus",
+        "value": "10:15% 15:18%"
+      },
+      {
+        "prop": "weapon_critical_hit_rate",
+        "boost": "optimus",
+        "value": "10:8% 15:10%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_might_small",
+    "name": "神石的攻刃小",
+    "description": "属性角色的攻击力提升（小）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "optimus",
+        "value": "10:10% 15:12%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_deathstrike_test",
+    "name": "神石的袭刃大",
+    "description": "属性角色获得属性追击 E类（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_elem_bonus_na",
+        "boost": "none",
+        "value": "80%"
+      }
+    ]
+  },
+  {
+    "id": "cyclonic strike",
+    "name": "荒岚之乱突",
+    "description": "主角必定TA / 奥义值上升量 - 35% / 乱击（3段）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "mc",
+    "condition": "main_hand",
+    "effects": [
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "1000%"
+      },
+      {
+        "prop": "weapon_charge_gain",
+        "boost": "none",
+        "value": "-35%"
+      },
+      {
+        "prop": "weapon_na_ranshu",
+        "boost": "none",
+        "value": "3"
+      }
+    ]
+  },
+  {
+    "id": "optimus_majesty_big",
+    "name": "神石的神威大",
+    "description": "属性角色的攻击力提升（大）\n属性角色的HP最大值提升（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "optimus",
+        "value": "10:15% 15:18% 20:20% 25:22%"
+      },
+      {
+        "prop": "weapon_hp",
+        "boost": "optimus",
+        "value": "10:15% 15:18% 20:20% 25:22%"
+      }
+    ]
+  },
+  {
+    "id": "awakening_celestial_attack",
+    "name": "极星觉醒-攻击",
+    "description": "",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+     "effects": [],
+     "effects_prof_weapon":[
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "none",
+        "value": "10%"
+      },
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "10%"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "none",
+        "value": "5%"
+      },
+      {
+        "prop": "weapon_na_dmg_cap",
+        "boost": "none",
+        "value": "5%"
+      }
+    ]
+  },
+  {
+    "id": "awakening_celestial_ca",
+    "name": "极星觉醒-奥义",
+    "description": "",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [],
+     "effects_prof_weapon":[
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "none",
+        "value": "10%"
+      },
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "10%"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "none",
+        "value": "10%"
+      },
+      {
+        "prop": "weapon_special_ca_dmg_cap",
+        "boost": "none",
+        "value": "5%"
+      }
+    ]
+  },
+  {
+    "id": "awakening_celestial_skill",
+    "name": "极星觉醒-技伤",
+    "description": "",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [],
+    "effects_prof_weapon":[
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "none",
+        "value": "10%"
+      },
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "10%"
+      },
+      {
+        "prop": "weapon_skill_dmg_cap",
+        "boost": "none",
+        "value": "10%"
+      },
+      {
+        "prop": "weapon_skill_dmg_supp",
+        "boost": "none",
+        "value": 20000
+      }
+    ]
+  },
+  {
+    "id": "einar",
+    "name": "一人成军",
+    "description": "",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_shuichong_bonus_na",
+        "boost": "none",
+        "value": "80%"
+      }
+    ]
+  },
+  {
+    "id": "test_guanpo",
+    "name": "贯鸡测试",
+    "description": "",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_def_ignore",
+        "boost": "none",
+        "value": "20%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_glory_big",
+    "name": "神石的英杰大",
+    "description": "属性角色的奥义伤害提升（大）\n属性角色的奥义连锁伤害提升（大）\n属性角色的奥义连锁伤害上限提升（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ca_dmg",
+        "boost": "optimus",
+        "value": "10:10% 15:12.5%"
+      },
+      {
+        "prop": "weapon_ca_dmg_cap",
+        "boost": "optimus",
+        "value": "10:4.8% 15:6.8%"
+      },
+      {
+        "prop": "weapon_cb_dmg",
+        "boost": "optimus",
+        "value": "10:12% 15:14.5%"
+      },
+      {
+        "prop": "weapon_cb_dmg_cap",
+        "boost": "optimus",
+        "value": "10:4.8% 15:6.8%"
+      }
+    ]
+  },
+  {
+    "id": "element_ascendancy",
+    "name": "属性的雄飞",
+    "description": "属性角色奥义伤害特殊上限 +10%",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_special_ca_dmg_cap",
+        "boost": "none",
+        "value": "10%"
+      }
+    ]
+  },
+  {
+    "id": "omega_haunt_medium",
+    "name": "方阵的罗刹中",
+    "description": "属性角色的攻击力提升（中）\n属性角色的DA -10%",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_omega_atk",
+        "boost": "omega",
+        "value": "10:12% 15:14.5%"
+      },
+      {
+        "prop": "weapon_da",
+        "boost": "none",
+        "value": "-10%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_stamina_Excalibur",
+    "name": "测试咖喱剑浑身",
+    "description": "",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_stamina",
+        "boost": "optimus",
+        "value": "10.5%"
+      }
+    ]
   }
+  
 ]

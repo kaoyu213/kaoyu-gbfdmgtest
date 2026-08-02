@@ -5,14 +5,22 @@
 // 初始化应用
 async function init() {
     try {
-        // === FETCH 增加 teshujiacheng.json ===
-        const [wRes, sRes, cRes, charaRes, specialRes, summonRes] = await Promise.all([
-            fetch('./weapons.json'), 
+        // 恢复上次选中的用户（用户1/用户2）
+        if (typeof CURRENT_USER_STORAGE_KEY !== 'undefined') {
+            const savedUser = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+            if (savedUser === 'user2') currentUserId = 'user2';
+        }
+        // === FETCH wonders.json（特殊加成 / wonders）===
+        const [wRes, sRes, cRes, charaRes, specialRes, summonRes, charaSkillsRes, buffIconsRes, charaBuffRes] = await Promise.all([
+            fetch('./weapons.json'),
             fetch('./skills.json'),
             fetch('./classes.json'),
             fetch('./chara.json'),
-            fetch('./teshujiacheng.json'),
-            fetch('./summons.json') 
+            fetch('./wonders.json'),
+            fetch('./summons.json'),
+            fetch('./charaskills.json'),
+            fetch('./buff_icons.json'),
+            fetch('./charabuff.json')
         ]);
 
         const wRaw = await wRes.json();
@@ -21,6 +29,43 @@ async function init() {
         const charaRaw = await charaRes.json();
         const specialRaw = await specialRes.json();
         const summonRaw = await summonRes.json();
+        const charaSkillsRaw = await charaSkillsRes.json();
+        let buffIconsRaw = {};
+        if (buffIconsRes.ok) {
+            try {
+                buffIconsRaw = await buffIconsRes.json();
+            } catch (e) {
+                console.warn('buff_icons.json 解析失败', e);
+            }
+        } else {
+            console.warn('buff_icons.json 未找到或无法加载，将仅用 constants 内兜底配置');
+        }
+
+        globalBuffIconsMap = (buffIconsRaw && buffIconsRaw.buffs && typeof buffIconsRaw.buffs === 'object')
+            ? buffIconsRaw.buffs
+            : {};
+
+        let charaBuffRaw = [];
+        if (charaBuffRes.ok) {
+            try {
+                charaBuffRaw = await charaBuffRes.json();
+            } catch (e) {
+                console.warn('charabuff.json 解析失败', e);
+            }
+        } else {
+            console.warn('charabuff.json 未找到或无法加载');
+        }
+        allCharaBuffs = Array.isArray(charaBuffRaw) ? charaBuffRaw : [];
+
+        globalCharaSkillMap = {};
+        const charaSkillsList = (charaSkillsRaw && charaSkillsRaw.skills) ? charaSkillsRaw.skills : [];
+        charaSkillsList.forEach(s => {
+            if (!s || !s.id) return;
+            globalCharaSkillMap[s.id] = s;
+            // id 为 skill_{角色数字ID}_{1~4} 时，同步注册 {角色ID}_{位次}，与角色槽位 sid 一致
+            const m = String(s.id).match(/^skill_(\d+)_(\d+)$/);
+            if (m) globalCharaSkillMap[`${m[1]}_${m[2]}`] = s;
+        });
         
         sRaw.forEach(s => globalSkillMap[s.id] = s);
         allClasses = cRaw;
@@ -73,21 +118,35 @@ async function init() {
         renderInventory();
         renderCharacters();
         renderSummons();
+        if (typeof renderCharaBuffCatalog === 'function') renderCharaBuffCatalog();
         renderGrid();
         
         if(allClasses.length > 0) updateMCJob(allClasses[0].id);
         else recalculate();
 
-        // 检查是否有保存的配置
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            const data = JSON.parse(saved);
-            console.log('发现保存的配置:', data.version || '未知版本');
-            
-            // 可选：自动加载（注释掉下面这行，如果你不希望自动加载）
-            // setTimeout(() => loadFromLocal(), 500);
+        // 按当前用户恢复选项卡高亮，并自动加载该用户已保存的配置（含等级）
+        document.querySelectorAll('.user-tab').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-user') === currentUserId);
+        });
+        const userKey = typeof getUserStorageKey === 'function' ? getUserStorageKey() : STORAGE_KEY;
+        if (localStorage.getItem(userKey) && typeof loadFromLocal === 'function') {
+            loadFromLocal(true);
         }
-        
+
+        // 等级修改后自动保存到当前用户，并同步所有等级输入框
+        document.querySelectorAll('[id="mc-rank-input"]').forEach(input => {
+            input.addEventListener('change', function() {
+                const v = this.value;
+                document.querySelectorAll('[id="mc-rank-input"]').forEach(el => { if (el !== this) el.value = v; });
+                if (typeof saveToLocal === 'function') saveToLocal(true);
+            });
+        });
+
+        // 特殊加成勾选状态变更时自动保存到当前用户
+        window.addEventListener('specialBuffsChanged', function() {
+            if (typeof saveToLocal === 'function') saveToLocal(true);
+        });
+
         // 添加键盘快捷键
         document.addEventListener('keydown', function(e) {
             // Ctrl+S 保存配置
@@ -119,6 +178,23 @@ async function init() {
         console.error("初始化失败:", e); 
         document.getElementById('character-list-container').innerHTML = "加载失败，请检查文件是否存在并确保通过服务器运行";
     }
+}
+
+// 切换用户（用户1 / 用户2）：先保存当前用户配置，再加载对应用户的配置（含等级）
+function switchUser(userId) {
+    if (typeof currentUserId === 'undefined') return;
+    if (userId === currentUserId) return;
+    if (typeof saveToLocal === 'function') saveToLocal(true);
+    currentUserId = userId;
+    if (typeof CURRENT_USER_STORAGE_KEY !== 'undefined') {
+        localStorage.setItem(CURRENT_USER_STORAGE_KEY, currentUserId);
+    }
+    document.querySelectorAll('.user-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-user') === userId);
+    });
+    if (typeof loadFromLocal === 'function') loadFromLocal(true);
+    if (typeof renderGlobalMastery === 'function') renderGlobalMastery();
+    if (typeof recalculate === 'function') recalculate();
 }
 
 // 左侧手风琴面板切换函数

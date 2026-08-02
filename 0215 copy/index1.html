@@ -7,16 +7,486 @@
     
     <!-- 引入CSS样式模块 -->
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* 婚戒图标样式 */
+        .marriage-ring-icon {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            filter: grayscale(100%) opacity(50%);
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            border: 1px solid transparent;
+        }
+        .marriage-ring-icon.active {
+            filter: grayscale(0%) opacity(100%);
+            border-color: #f1c40f;
+            box-shadow: 0 0 5px rgba(241, 196, 15, 0.5);
+        }
+        .marriage-ring-icon:hover {
+            filter: grayscale(50%) opacity(80%);
+        }
+
+        /* testbuff 面板样式 */
+        .testbuff-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .testbuff-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+        }
+
+        .testbuff-row label {
+            width: 160px;
+        }
+
+        .testbuff-row input[type="number"] {
+            width: 80px;
+            padding: 2px 4px;
+        }
+
+        .testbuff-unit {
+            color: #666;
+        }
+
+        .testbuff-summary {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #555;
+        }
+
+        /* 用户切换选项卡 */
+        .user-tab {
+            padding: 6px 14px;
+            font-size: 0.95em;
+            border: 1px solid #555;
+            background: #2a2a2a;
+            color: #aaa;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
+        }
+        .user-tab:hover {
+            background: #333;
+            color: #fff;
+        }
+        .user-tab.active {
+            background: #3498db;
+            color: #fff;
+            border-color: #3498db;
+        }
+
+        /* 世界上限衰减拨片按钮样式 - 尺寸匹配防御值输入框 */
+        .world-cap-btn {
+            display: inline-block;
+            padding: 2px 4px;
+            font-size: 0.85em;
+            white-space: nowrap;
+            margin-left: 4px;
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #aaa;
+            cursor: pointer;
+            line-height: normal;
+            min-width: 50px;
+            text-align: center;
+        }
+        .world-cap-btn:hover {
+            background: #444;
+            color: #fff;
+        }
+        .world-cap-btn.active {
+            background: #3498db;
+            color: #fff;
+            border-color: #3498db;
+        }
+    </style>
 </head>
 <body>
 
-    <div class="left-panel">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h1>GBF 模拟器 <span style="font-size:0.5em; color:#666;">v5.0 Detailed</span></h1>
+    <!-- ==================== 左侧：角色与召唤石设定 ==================== -->
+    <div class="layout-left">
+        <!-- 为了尽量不破坏原来的 JS，把右侧面板容器的 class 加上，有些 JS 可能用到 .right-panel -->
+        <div class="right-panel" style="border:none; height:auto; overflow:visible;">
+            <div class="tab-header">
+                <div class="tab-btn active" onclick="switchTab('mc', this)">角色设定</div>
+                <div class="tab-btn" onclick="switchTab('summon-panel', this)">召唤石设定</div>
+                <div class="tab-btn" onclick="switchTab('testbuff', this)">testbuff</div>
+            </div>
+
+            <!-- ===== 角色设定 Tab ===== -->
+            <div id="tab-mc" class="tab-content active">
+                <!-- 角色槽选择 -->
+                <div class="char-slot-selector">
+                    <div class="char-slot-btn active" data-slot="0" onclick="switchCharSlot(this)">
+                        <span class="char-slot-icon">MC</span>
+                        <span class="char-slot-label">主角</span>
+                    </div>
+                    <div class="char-slot-btn" data-slot="1" onclick="switchCharSlot(this)">
+                        <span class="char-slot-icon">+</span>
+                        <span class="char-slot-label">角色2</span>
+                    </div>
+                    <div class="char-slot-btn" data-slot="2" onclick="switchCharSlot(this)">
+                        <span class="char-slot-icon">+</span>
+                        <span class="char-slot-label">角色3</span>
+                    </div>
+                    <div class="char-slot-btn" data-slot="3" onclick="switchCharSlot(this)">
+                        <span class="char-slot-icon">+</span>
+                        <span class="char-slot-label">角色4</span>
+                    </div>
+                    <div class="char-slot-btn" data-slot="4" onclick="switchCharSlot(this)">
+                        <span class="char-slot-icon">+</span>
+                        <span class="char-slot-label">角色5</span>
+                    </div>
+                    <div class="char-slot-btn" data-slot="5" onclick="switchCharSlot(this)">
+                        <span class="char-slot-icon">+</span>
+                        <span class="char-slot-label">角色6</span>
+                    </div>
+                </div>
+
+                <!-- 角色1 (MC) 内容 -->
+                <div class="char-slot-content active" id="char-slot-0">
+                    <!-- 面板数据和伤害预测现在移到了右边！ 这里只保留设置。 -->
+                    <!-- 二级菜单 (简化为直接显示基础设定，或者保留原本的tab结构但不显示面板数据) -->
+                    <div class="sub-tab-header">
+                        <div class="sub-tab-btn active" onclick="switchSubTab(0, 'basic', this)">基础设定</div>
+                    </div>
+                    
+                    <!-- 基础设定 -->
+                    <div class="sub-tab-content active" id="char-slot-0-basic">
+                        <div style="border-bottom:1px solid #444; padding-bottom:10px; margin-bottom:10px;">
+                            <h4 style="margin:0 0 10px 0; color:#fff;">基础设定</h4>
+                            
+                            <div class="mc-form-group">
+                                <label class="mc-form-label">主角等级 (Rank)</label>
+                                <div style="display:flex; gap:10px; align-items:center;">
+                                    <input type="number" class="mc-form-control" id="mc-rank-input" value="406" min="1" max="425" step="1" onchange="recalculate()">
+                                    <span id="mc-rank-stats" style="font-size:0.8em; color:#3498db; white-space:nowrap;">(HP: - / ATK: -)</span>
+                                </div>
+                            </div>
+
+                            <div class="mc-form-group" style="display:flex; align-items:center; gap:10px;">
+                                <label class="mc-form-label" style="margin-bottom:0;">职业选择</label>
+                                <select class="mc-form-control" id="mc-job-select" onchange="updateMCJob()" style="width:50%;">
+                                    <option value="">加载中...</option>
+                                </select>
+                                <div id="mc-prof-display" style="display:flex; align-items:center; gap:4px;">-</div>
+                            </div>
+                        </div>
+
+                        <div class="theme-active">
+                            <div class="section-title toggle-header" onclick="toggleSection(this)">当前职业加成 (Active Job)</div>
+                            <div class="toggle-content" style="display:none;">
+                                <div class="bonus-box-container" style="flex-direction:column;">
+                                    <div class="bonus-box">
+                                        <div class="bonus-box-header">数值加成汇总</div>
+                                        <div id="mc-bonuses-display"><div class="empty-data">加载中...</div></div>
+                                    </div>
+                                    <div class="bonus-box">
+                                        <div class="bonus-box-header">战斗效果描述</div>
+                                        <div id="mc-battle-bonuses-display"><div class="empty-data">暂无描述</div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="theme-mastery" style="margin-top: 15px;">
+                            <div class="section-title toggle-header" onclick="toggleSection(this)">全职业常驻汇总 (Global Mastery)</div>
+                            <div class="toggle-content" style="display:none;">
+                                <div class="bonus-box">
+                                    <div id="mc-mastery-display"><div class="empty-data">正在计算...</div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="theme-custom" style="margin-top: 25px;">
+                            <div class="section-title">LB 加成</div>
+                            <div class="custom-input-area">
+                                <div style="font-size: 12px; color: #999; margin-bottom: 8px;">20个LB槽位，可重复选择同一项</div>
+                                <div class="mc-lb-slot-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 角色2 内容 -->
+                <div class="char-slot-content" id="char-slot-1">
+                    <div class="sub-tab-header">
+                        <div class="sub-tab-btn active">基础设定</div>
+                    </div>
+<div class="sub-tab-content active" id="char-slot-1-basic">
+                        <div class="empty-char-slot" id="char-1-empty">
+                            <div class="empty-char-icon">+</div>
+                            <div class="empty-char-text">点击选择角色</div>
+                        </div>
+                        <div class="char-config-panel" id="char-1-config" style="display:none;">
+                            <div class="theme-custom" style="margin-top: 15px;">
+                                <!-- Section Toggle Header -->
+                                <div class="section-title toggle-header" onclick="toggleSection(this)">
+                                    戒指/耳环/圣遗物 加成
+                                </div>
+
+                                <!-- Collapsible Content -->
+                                <div class="toggle-content" style="display: block;">
+                                    
+                                    <!-- Ring Configuration Section -->
+                                    <div class="ring-config-section">
+                                        <h5 style="color: #e67e22; margin-bottom: 10px;">戒指 (Ring)</h5>
+                                        
+                                        <!-- Group A: Fixed ATK and HP -->
+                                        <div class="ring-form-group">
+                                            <label>攻击力 (1500-3000)</label>
+                                            <input type="number" class="mc-form-control" id="ring-atk-1" min="1500" max="3000" placeholder="输入数值...">
+                                        </div>
+                                        <div class="ring-form-group">
+                                            <label>HP (750-1500)</label>
+                                            <input type="number" class="mc-form-control" id="ring-hp-1" min="750" max="1500" placeholder="输入数值...">
+                                        </div>
+
+                                        <!-- Group B: Selectable Bonus -->
+                                        <div class="ring-form-group">
+                                            <label>追加属性 B</label>
+                                            <div style="display: flex; gap: 10px;">
+                                                <select class="mc-form-control" id="ring-b-type-1" style="flex: 2;">
+                                                    <option value="none">-- 请选择 --</option>
+                                                    <option value="crit_rate">暴击率 (18-30%)</option>
+                                                    <option value="skill_dmg_cap">技能伤害上限 (10-15%)</option>
+                                                    <option value="ca_dmg">奥义伤害 (18-30%)</option>
+                                                    <option value="ca_dmg_cap">奥义伤害上限 (10-15%)</option>
+                                                    <option value="enmity">背水 (5-10)</option>
+                                                    <option value="stamina">浑身 (5-10)</option>
+                                                    <option value="debuff_success">弱体成功率 (10-15%)</option>
+                                                </select>
+                                                <input type="number" class="mc-form-control" id="ring-b-value-1" style="flex: 1;" placeholder="数值">
+                                            </div>
+                                        </div>
+
+                                        <!-- Group C: Selectable Bonus -->
+                                        <div class="ring-form-group">
+                                            <label>追加属性 C</label>
+                                            <div style="display: flex; gap: 10px;">
+                                                <select class="mc-form-control" id="ring-c-type-1" style="flex: 2;">
+                                                    <option value="none">-- 请选择 --</option>
+                                                    <option value="da_rate">DA概率 (10-15%)</option>
+                                                    <option value="ta_rate">TA概率 (5-10%)</option>
+                                                    <option value="def">防御 (10-20%)</option>
+                                                    <option value="dodge_rate">回避 (5-10%)</option>
+                                                    <option value="debuff_resist">弱体耐性 (10-15%)</option>
+                                                    <option value="healing_boost">回复性能 (15-30%)</option>
+                                                </select>
+                                                <input type="number" class="mc-form-control" id="ring-c-value-1" style="flex: 1;" placeholder="数值">
+                                            </div>
+                                        </div>
+
+                                        <button class="btn-save" style="width: 100%; margin-top: 10px;" onclick="saveRingConfig(1)">💾 保存戒指配置</button>
+                                    </div>
+                                    
+                                    <!-- 耳环和圣遗物的区域可以先留空 -->
+                                    <hr style="border-color:#444; margin: 20px 0;">
+                                    <!-- Earring placeholder -->
+                                    <!-- Artifacts placeholder -->
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 角色3 内容 -->
+                <div class="char-slot-content" id="char-slot-2">
+                    <div class="sub-tab-header">
+                        <div class="sub-tab-btn active">基础设定</div>
+                    </div>
+                    <div class="sub-tab-content active" id="char-slot-2-basic">
+                        <div class="empty-char-slot">
+                            <div class="empty-char-icon">+</div>
+                            <div class="empty-char-text">点击选择角色</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 角色4 内容 -->
+                <div class="char-slot-content" id="char-slot-3">
+                    <div class="sub-tab-header">
+                        <div class="sub-tab-btn active">基础设定</div>
+                    </div>
+                    <div class="sub-tab-content active" id="char-slot-3-basic">
+                        <div class="empty-char-slot">
+                            <div class="empty-char-icon">+</div>
+                            <div class="empty-char-text">点击选择角色</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 角色5 内容 -->
+                <div class="char-slot-content" id="char-slot-4">
+                    <div class="sub-tab-header">
+                        <div class="sub-tab-btn active">基础设定</div>
+                    </div>
+                    <div class="sub-tab-content active" id="char-slot-4-basic">
+                        <div class="empty-char-slot">
+                            <div class="empty-char-icon">+</div>
+                            <div class="empty-char-text">点击选择角色</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 角色6 内容 -->
+                <div class="char-slot-content" id="char-slot-5">
+                    <div class="sub-tab-header">
+                        <div class="sub-tab-btn active">基础设定</div>
+                    </div>
+                    <div class="sub-tab-content active" id="char-slot-5-basic">
+                        <div class="empty-char-slot">
+                            <div class="empty-char-icon">+</div>
+                            <div class="empty-char-text">点击选择角色</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div> <!-- end #tab-mc -->
+
+            <!-- ===== 召唤石设定 Tab ===== -->
+            <div id="tab-summon-panel" class="tab-content">
+                <div class="result-board" style="margin-bottom: 15px;">
+                    <h3>召唤石数据</h3>
+                    <div id="summon-data-container">
+                        <div style="padding:10px;text-align:center;color:#666;">召唤石数据填写区域</div>
+                    </div>
+                </div>
+                <div class="result-board">
+                    <h3>召唤石设定</h3>
+                    <div id="summon-settings-container">
+                        <div style="padding:20px;text-align:center;color:#888;">召唤石设定功能开发中...</div>
+                    </div>
+                </div>
+            </div> <!-- end #tab-summon-panel -->
+
+            <!-- ===== testbuff Tab ===== -->
+            <div id="tab-testbuff" class="tab-content">
+                <div class="result-board">
+                    <h3>testbuff</h3>
+                    <div class="testbuff-grid">
+                        <div class="testbuff-row">
+                            <label>普刃 (step5)</label>
+                            <input type="number" data-buff-key="normal" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>浑身 (step7)</label>
+                            <input type="number" data-buff-key="stamina" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>背水 (step7.1)</label>
+                            <input type="number" data-buff-key="enmity" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>强壮 (step7.3)</label>
+                            <input type="number" data-buff-key="strong" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>逆境 (step7.4)</label>
+                            <input type="number" data-buff-key="adversity" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>属攻 (step9)</label>
+                            <input type="number" data-buff-key="element" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>独立攻刃【久远】 (step10)</label>
+                            <input type="number" data-buff-key="marriage" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>独立攻刃【累积】 (step10.x)</label>
+                            <input type="number" data-buff-key="indepCumulative" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>独立攻刃【未判定】 (step10.x)</label>
+                            <input type="number" data-buff-key="indepUnjudged" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>独立攻刃【特殊背水】 (step10.x)</label>
+                            <input type="number" data-buff-key="indepSpecialEnmity" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>独立攻刃【特殊】 (step10.x)</label>
+                            <input type="number" data-buff-key="indepSpecial" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>伤害上限 (all cap)</label>
+                            <input type="number" data-buff-key="dmgCap" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>伤害增幅 (dmg amp)</label>
+                            <input type="number" data-buff-key="dmgAmp" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>武器盘奥义伤害加成</label>
+                            <input type="number" data-buff-key="caWeaponDmg" value="0" step="1" min="-100" max="1000">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>奥义伤害加成</label>
+                            <input type="number" data-buff-key="caDmg" value="0" step="1" min="-100" max="1000">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>奥义上限加成</label>
+                            <input type="number" data-buff-key="caCap" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>伤害上升</label>
+                            <input type="number" data-buff-key="dmgSupp" value="0" step="1000" min="-99999999" max="99999999">
+                            <span class="testbuff-unit">固定值</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>奥义伤害上升效果</label>
+                            <input type="number" data-buff-key="caDmgSupp" value="0" step="1000" min="-99999999" max="99999999">
+                            <span class="testbuff-unit">固定值</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>承受伤害增幅</label>
+                            <input type="number" data-buff-key="takenDmgAmp" value="0" step="1" min="-100" max="100">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                    </div>
+                    <div id="testbuff-summary" class="testbuff-summary">
+                        当前所有 buff 为 0%（未额外修正）
+                    </div>
+                </div>
+            </div> <!-- end #tab-testbuff -->
         </div>
-        
-        <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-            <button class="btn-save" onclick="saveToLocal()">💾 保存配置</button>
+    </div>
+
+    <!-- ==================== 中间：武器盘与图鉴区 ==================== -->
+    <div class="layout-center">
+        <!-- 保持原来left-panel的class以兼容JS查询 -->
+        <div class="left-panel" style="flex:1; border:none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <h1 style="margin: 0;">GBF 模拟器 <span style="font-size:0.5em; color:#666;">v5.0 Detailed</span></h1>
+                <div class="user-switch-tabs" style="display: flex; gap: 4px;">
+                    <button type="button" class="user-tab active" data-user="user1" id="user-tab-1" onclick="switchUser('user1')">用户1</button>
+                    <button type="button" class="user-tab" data-user="user2" id="user-tab-2" onclick="switchUser('user2')">用户2</button>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn-save" onclick="saveToLocal()">💾 保存配置</button>
             <button class="btn-load" onclick="loadFromLocal()">📂 加载配置</button>
             <button class="btn-reset" onclick="exportToClipboard()">📋 复制配置</button>
             <button class="btn-export" onclick="exportConfig()">📤 导出配置</button>
@@ -27,9 +497,9 @@
             <div class="settings-group">
                 <label>神石:</label><input type="number" id="aura-optimus" value="0" step="10" class="aura-input" onchange="recalculate(); renderGrid();"> % (+<span id="aura-optimus-passive">0</span>%)
             </div>
-            <div class="settings-group"><label>方阵:</label><input type="number" id="aura-magna" value="0" step="10" class="aura-input" onchange="recalculate(); renderGrid();"> %</div>
-            <div class="settings-group"><label>禁咒:</label><input type="number" id="aura-jinzhou" value="0" step="10" class="aura-input" onchange="recalculate(); renderGrid();"> %</div>
-            <div class="settings-group"><label>属攻:</label><input type="number" id="aura-elemental" value="0" step="10" class="aura-input" onchange="recalculate(); renderGrid();"> %</div>
+            <div class="settings-group"><label>方阵:</label><input type="number" id="aura-magna" value="0" step="10" class="aura-input" onchange="recalculate(); renderGrid();"> % <span style="font-size:0.8em;color:#aaa">(+<span id="aura-magna-passive">0</span>%)</span></div>
+            <div class="settings-group"><label>禁咒:</label><input type="number" id="aura-jinzhou" value="0" step="10" class="aura-input" onchange="recalculate(); renderGrid();"> % <span style="font-size:0.8em;color:#aaa">(+<span id="aura-jinzhou-passive">0</span>%)</span></div>
+            <div class="settings-group"><label>属攻:</label><input type="number" id="aura-elemental" value="0" step="10" class="aura-input" onchange="recalculate(); renderGrid();"> % <span style="font-size:0.8em;color:#aaa">(+<span id="aura-elemental-passive">0</span>%)</span></div>
         </div>
 
         <div class="grid-layout">
@@ -43,7 +513,7 @@
                 <div class="summon-stats-input">
                     <div class="summon-stat-group">
                         <label>召唤石合计ATK</label>
-                        <input type="number" id="summon-atk" value="4652" step="100" onchange="syncSummonStatsFromMain(); recalculate()">
+                        <input type="number" id="summon-atk" value="4651" step="5" onchange="syncSummonStatsFromMain(); recalculate()">
                     </div>
                     <div class="summon-stat-group">
                         <label>召唤石合计HP</label>
@@ -70,9 +540,12 @@
                     <div class="grid-slot sub" id="extra-slot-12" onclick="alert('请在右侧武器仓库选择武器')"><div class="empty-text">+</div></div>
                 </div>
                 <!-- 召唤石下方新增内容区域 (移至额外武器栏下方) -->
-                <div class="extra-content-area" id="extra-content-area">
-                    <button class="btn-import" onclick="addAllPlusMarks()" style="width:100%; padding:8px; font-size:0.9em;">
+                <div class="extra-content-area" id="extra-content-area" style="display:flex; gap:10px; align-items:center;">
+                    <button class="btn-import" onclick="addAllPlusMarks()" style="flex:1; padding:8px; font-size:0.9em;">
                         <span style="font-weight:bold;">✨ 一键武器+99</span>
+                    </button>
+                    <button class="btn-reset" onclick="clearAllWeapons()" style="flex:1; padding:8px; font-size:0.9em;">
+                        <span style="font-weight:bold;">🗑️ 清空武器盘</span>
                     </button>
                 </div>
             </div>
@@ -80,6 +553,13 @@
         
         <!-- 切换额外武器栏的JS函数 -->
         <script>
+            // 清空所有武器
+            function clearAllWeapons() {
+                currentGrid.fill(null);
+                renderGrid();
+                recalculate();
+            }
+            
             function toggleExtraSlots() {
                 // 关闭时清空11、12、13格武器
                 if (extraSlotsEnabled) {
@@ -102,22 +582,28 @@
             }
         </script>
 
-        <!-- 左侧面板Tab切换：武器仓库、角色图鉴、召唤图鉴、特殊加成 -->
+        <!-- 左侧面板Tab切换：武器仓库、角色图鉴、召唤图鉴、技能图鉴、特殊加成 -->
         <div class="left-panel-tabs">
             <div class="left-tab-header">
                 <div class="left-tab-btn active" onclick="switchLeftTab('weapons', this)">武器仓库</div>
                 <div class="left-tab-btn" onclick="switchLeftTab('characters', this)">角色图鉴</div>
                 <div class="left-tab-btn" onclick="switchLeftTab('summons', this)">召唤图鉴</div>
+                <div class="left-tab-btn" onclick="switchLeftTab('buffcodex', this)">Buff图鉴</div>
                 <div class="left-tab-btn" onclick="switchLeftTab('special', this)">特殊加成</div>
             </div>
             <div class="left-tab-content active" id="left-tab-weapons">
+                <div class="left-element-filter-bar" id="weapon-element-filter-bar" aria-label="武器属性筛选"></div>
                 <div id="inventory-list">正在加载...</div>
             </div>
             <div class="left-tab-content" id="left-tab-characters">
+                <div class="left-element-filter-bar" id="character-element-filter-bar" aria-label="角色属性筛选"></div>
                 <div id="character-list-container">正在加载角色...</div>
             </div>
             <div class="left-tab-content" id="left-tab-summons">
                 <div id="summons-list-container" style="padding:10px;"></div>
+            </div>
+            <div class="left-tab-content" id="left-tab-buffcodex">
+                <div id="charabuff-catalog-list" class="charabuff-catalog-list">正在加载 Buff 图鉴...</div>
             </div>
             <div class="left-tab-content" id="left-tab-special">
                 <div id="special-buffs-list" style="padding:10px; color:#aaa; text-align:center;">正在加载特殊加成...</div>
@@ -134,9 +620,570 @@
                 btnElement.classList.add('active');
             }
         </script>
-    </div>
+        </div> <!-- end 内部left-panel -->
+    </div> <!-- end layout-center -->
 
-    <div class="right-panel">
+    <!-- ==================== 右侧：数据与加成面板 ==================== -->
+    <div class="layout-right">
+        <!-- 为了不修改太多JS逻辑，我们把之前各个角色的面板都放在这里，随着角色切换通过JS来控制显示/隐藏 -->
+        <div id="right-data-container" class="right-panel" style="border:none; height:100%; overflow-y:auto; background:transparent;">
+            
+            <h3 style="color:#f39c12; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom:10px;">📊 数据监控中心</h3>
+
+            <div class="char-data-slot active" id="data-slot-0">
+                <div class="char-panel-stats" id="char-panel-0">
+                    <div class="char-panel-title">主角面板</div>
+                    <div class="char-panel-grid">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">武器盘基础HP</span>
+                            <span class="char-panel-value" id="char-grid-hp-0">-</span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">武器盘基础ATK</span>
+                            <span class="char-panel-value" id="char-grid-atk-0">-</span>
+                        </div>
+                        <div class="char-panel-item highlight">
+                            <span class="char-panel-label">主角面板HP</span>
+                            <span class="char-panel-value" id="char-panel-hp-0">-</span>
+                        </div>
+                        <div class="char-panel-item highlight">
+                            <span class="char-panel-label">主角面板ATK</span>
+                            <span class="char-panel-value" id="char-panel-atk-0">-</span>
+                        </div>
+                    </div>
+
+                    <!-- 基础值显示区域 -->
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">基础值</span>
+                            <span class="char-panel-value" id="char-base-value-0">-</span>
+                            <span style="display: inline-flex; gap: 2px; margin-left: 6px;">
+                                <button type="button" onclick="adjustBaseValue(0, 1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">+1</button>
+                                <button type="button" onclick="adjustBaseValue(0, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
+                                <button type="button" onclick="resetBaseValue(0)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 实际生命值显示区域 -->
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">实际生命值</span>
+                            <span class="char-panel-value" id="char-actual-hp-0">-</span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">当前生命值</span>
+                            <span class="char-panel-value" id="char-current-hp-0">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="dmg-predict-section">
+                        <div class="dmg-section-header" onclick="toggleDmgSection(this)">
+                            <span>▼ 伤害预测</span>
+                        </div>
+                        <div class="dmg-section-content">
+                            <div class="dmg-controls">
+                                <div class="dmg-input-group">
+                                    <label>防御值</label>
+                                    <input type="number" id="def-input" value="10" min="0" onchange="recalculate()">
+                                </div>
+                                <div class="dmg-input-group dmg-input-small">
+                                    <label title="对boss的防御力down效果">防down%</label>
+                                    <input type="number" id="def-down-input" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)">
+                                </div>
+                                <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 0)">660万</button>
+                                <div class="dmg-btn-group">
+                                    <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 0)">理论值</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 0)">非克属</button>
+                                    <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 0)">非暴击</button>
+                                    <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 0)">显示乱击</button>
+                                </div>
+                            </div>
+                            <div class="dmg-results">
+                                <div class="dmg-result-item">
+                                    <span class="dmg-label">角色基础伤害</span>
+                                    <span class="dmg-value" id="base-dmg-display-0">-</span>
+                                </div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('na-details-0')" style="cursor: pointer;">
+                                    <span class="dmg-label">平A预测伤害 <span style="font-size: 0.8em;">▼</span></span>
+                                    <span class="dmg-value" id="na-dmg-display-0">-</span>
+                                </div>
+                                <div id="na-details-0" class="dmg-details hidden">
+                                    <div class="dmg-detail-row">
+                                        <span class="label">理论伤害:</span>
+                                        <span class="value" id="na-theory-0">-</span>
+                                    </div>
+                                    <div class="dmg-detail-row">
+                                        <span class="label">衰减阈值:</span>
+                                        <span class="value" id="na-cap-0">-</span>
+                                    </div>
+                                    <!-- 删除了原有的“暴击伤害”行 -->
+                                </div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('ca-details-0')" style="cursor: pointer;">
+                                    <span class="dmg-label">奥义预测伤害 <span style="font-size: 0.8em;">▼</span></span>
+                                    <span class="dmg-value" id="ca-dmg-display-0">-</span>
+                                </div>
+                                <div id="ca-details-0" class="dmg-details hidden">
+                                    <div class="dmg-detail-row">
+                                        <span class="label">理论伤害:</span>
+                                        <span class="value" id="ca-theory-0">-</span>
+                                    </div>
+                                    <div class="dmg-detail-row">
+                                        <span class="label">衰减阈值:</span>
+                                        <span class="value" id="ca-cap-0">-</span>
+                                    </div>
+                                </div>
+                                <div class="dmg-result-item">
+                                    <div class="dmg-skill-label-input">
+                                        <span class="dmg-label">技能预测伤害</span>
+                                        <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-0" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
+                                    </div>
+                                    <span class="dmg-value" id="skill-dmg-display-0">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 其他角色的数据占位槽 -->
+            <div class="char-data-slot" id="data-slot-1" style="display:none;">
+                <div class="char-panel-stats" id="char-panel-1">
+                    <div class="char-panel-title">角色2面板</div>
+                    <div class="char-panel-grid">
+                        <div class="char-panel-item"><span class="char-panel-label">基础HP</span><span class="char-panel-value" id="char-grid-hp-1">-</span></div>
+                        <div class="char-panel-item"><span class="char-panel-label">基础ATK</span><span class="char-panel-value" id="char-grid-atk-1">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板HP</span><span class="char-panel-value" id="char-panel-hp-1">-</span></div>
+                    <div class="char-panel-item highlight"><span class="char-panel-label">面板ATK</span><span class="char-panel-value" id="char-panel-atk-1">-</span></div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">基础值</span>
+                            <span class="char-panel-value" id="char-base-value-1">-</span>
+                            <span style="display: inline-flex; gap: 2px; margin-left: 6px;">
+                                <button type="button" onclick="adjustBaseValue(1, 1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">+1</button>
+                                <button type="button" onclick="adjustBaseValue(1, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
+                                <button type="button" onclick="resetBaseValue(1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">实际生命值</span>
+                            <span class="char-panel-value" id="char-actual-hp-1">-</span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">当前生命值</span>
+                            <span class="char-panel-value" id="char-current-hp-1">-</span>
+                        </div>
+                    </div>
+                    <div class="dmg-predict-section">
+                        <div class="dmg-section-header" onclick="toggleDmgSection(this)"><span>▼ 伤害预测</span></div>
+                        <div class="dmg-section-content">
+                            <div class="dmg-controls">
+                                <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-1" value="10" min="0" onchange="recalculate()"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-1" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 1)">660万</button>
+                                <div class="dmg-btn-group">
+                                    <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 1)">理论值</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 1)">非克属</button>
+                                    <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 1)">非暴击</button>
+                                    <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 1)">显示乱击</button>
+                                </div>
+                            </div>
+                            <div class="dmg-results">
+                                <div class="dmg-result-item"><span class="dmg-label">基础伤害</span><span class="dmg-value" id="base-dmg-display-1">-</span></div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('na-details-1')" style="cursor: pointer;"><span class="dmg-label">平A预测伤害 ▼</span><span class="dmg-value" id="na-dmg-display-1">-</span></div>
+                                <div id="na-details-1" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="na-theory-1">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="na-cap-1">-</span></div>
+                                </div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('ca-details-1')" style="cursor: pointer;">
+                                    <span class="dmg-label">奥义预测伤害 <span style="font-size: 0.8em;">▼</span></span>
+                                    <span class="dmg-value" id="ca-dmg-display-1">-</span>
+                                </div>
+                                <div id="ca-details-1" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="ca-theory-1">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="ca-cap-1">-</span></div>
+                                </div>
+                                <div class="dmg-result-item">
+                                    <div class="dmg-skill-label-input">
+                                        <span class="dmg-label">技能预测伤害</span>
+                                        <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-1" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
+                                    </div>
+                                    <span class="dmg-value" id="skill-dmg-display-1">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="char-data-slot" id="data-slot-2" style="display:none;">
+                <div class="char-panel-stats" id="char-panel-2">
+                    <div class="char-panel-title">角色3面板</div>
+                    <div class="char-panel-grid">
+                        <div class="char-panel-item"><span class="char-panel-label">基础HP</span><span class="char-panel-value" id="char-grid-hp-2">-</span></div>
+                        <div class="char-panel-item"><span class="char-panel-label">基础ATK</span><span class="char-panel-value" id="char-grid-atk-2">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板HP</span><span class="char-panel-value" id="char-panel-hp-2">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板ATK</span><span class="char-panel-value" id="char-panel-atk-2">-</span></div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">基础值</span>
+                            <span class="char-panel-value" id="char-base-value-2">-</span>
+                            <span style="display: inline-flex; gap: 2px; margin-left: 6px;">
+                                <button type="button" onclick="adjustBaseValue(2, 1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">+1</button>
+                                <button type="button" onclick="adjustBaseValue(2, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
+                                <button type="button" onclick="resetBaseValue(2)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">实际生命值</span>
+                            <span class="char-panel-value" id="char-actual-hp-2">-</span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">当前生命值</span>
+                            <span class="char-panel-value" id="char-current-hp-2">-</span>
+                        </div>
+                    </div>
+                    <div class="dmg-predict-section">
+                        <div class="dmg-section-header" onclick="toggleDmgSection(this)"><span>▼ 伤害预测</span></div>
+                        <div class="dmg-section-content">
+                            <div class="dmg-controls">
+                                <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-2" value="10" min="0" onchange="recalculate()"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-2" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 2)">660万</button>
+                                <div class="dmg-btn-group">
+                                    <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 2)">理论值</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 2)">非克属</button>
+                                    <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 2)">非暴击</button>
+                                    <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 2)">显示乱击</button>
+                                </div>
+                            </div>
+                            <div class="dmg-results">
+                                <div class="dmg-result-item"><span class="dmg-label">基础伤害</span><span class="dmg-value" id="base-dmg-display-2">-</span></div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('na-details-2')" style="cursor: pointer;"><span class="dmg-label">平A预测伤害 ▼</span><span class="dmg-value" id="na-dmg-display-2">-</span></div>
+                                <div id="na-details-2" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="na-theory-2">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="na-cap-2">-</span></div>
+                                </div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('ca-details-2')" style="cursor: pointer;">
+                                    <span class="dmg-label">奥义预测伤害 <span style="font-size: 0.8em;">▼</span></span>
+                                    <span class="dmg-value" id="ca-dmg-display-2">-</span>
+                                </div>
+                                <div id="ca-details-2" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="ca-theory-2">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="ca-cap-2">-</span></div>
+                                </div>
+                                <div class="dmg-result-item">
+                                    <div class="dmg-skill-label-input">
+                                        <span class="dmg-label">技能预测伤害</span>
+                                        <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-2" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
+                                    </div>
+                                    <span class="dmg-value" id="skill-dmg-display-2">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="char-data-slot" id="data-slot-3" style="display:none;">
+                <div class="char-panel-stats" id="char-panel-3">
+                    <div class="char-panel-title">角色4面板</div>
+                    <div class="char-panel-grid">
+                        <div class="char-panel-item"><span class="char-panel-label">基础HP</span><span class="char-panel-value" id="char-grid-hp-3">-</span></div>
+                        <div class="char-panel-item"><span class="char-panel-label">基础ATK</span><span class="char-panel-value" id="char-grid-atk-3">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板HP</span><span class="char-panel-value" id="char-panel-hp-3">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板ATK</span><span class="char-panel-value" id="char-panel-atk-3">-</span></div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">基础值</span>
+                            <span class="char-panel-value" id="char-base-value-3">-</span>
+                            <span style="display: inline-flex; gap: 2px; margin-left: 6px;">
+                                <button type="button" onclick="adjustBaseValue(3, 1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">+1</button>
+                                <button type="button" onclick="adjustBaseValue(3, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
+                                <button type="button" onclick="resetBaseValue(3)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">实际生命值</span>
+                            <span class="char-panel-value" id="char-actual-hp-3">-</span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">当前生命值</span>
+                            <span class="char-panel-value" id="char-current-hp-3">-</span>
+                        </div>
+                    </div>
+                    <div class="dmg-predict-section">
+                        <div class="dmg-section-header" onclick="toggleDmgSection(this)"><span>▼ 伤害预测</span></div>
+                        <div class="dmg-section-content">
+                            <div class="dmg-controls">
+                                <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-3" value="10" min="0" onchange="recalculate()"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-3" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 3)">660万</button>
+                                <div class="dmg-btn-group">
+                                    <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 3)">理论值</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 3)">非克属</button>
+                                    <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 3)">非暴击</button>
+                                    <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 3)">显示乱击</button>
+                                </div>
+                            </div>
+                            <div class="dmg-results">
+                                <div class="dmg-result-item"><span class="dmg-label">基础伤害</span><span class="dmg-value" id="base-dmg-display-3">-</span></div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('na-details-3')" style="cursor: pointer;"><span class="dmg-label">平A预测伤害 ▼</span><span class="dmg-value" id="na-dmg-display-3">-</span></div>
+                                <div id="na-details-3" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="na-theory-3">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="na-cap-3">-</span></div>
+                                </div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('ca-details-3')" style="cursor: pointer;">
+                                    <span class="dmg-label">奥义预测伤害 <span style="font-size: 0.8em;">▼</span></span>
+                                    <span class="dmg-value" id="ca-dmg-display-3">-</span>
+                                </div>
+                                <div id="ca-details-3" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="ca-theory-3">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="ca-cap-3">-</span></div>
+                                </div>
+                                <div class="dmg-result-item">
+                                    <div class="dmg-skill-label-input">
+                                        <span class="dmg-label">技能预测伤害</span>
+                                        <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-3" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
+                                    </div>
+                                    <span class="dmg-value" id="skill-dmg-display-3">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="char-data-slot" id="data-slot-4" style="display:none;">
+                <div class="char-panel-stats" id="char-panel-4">
+                    <div class="char-panel-title">角色5面板</div>
+                    <div class="char-panel-grid">
+                        <div class="char-panel-item"><span class="char-panel-label">基础HP</span><span class="char-panel-value" id="char-grid-hp-4">-</span></div>
+                        <div class="char-panel-item"><span class="char-panel-label">基础ATK</span><span class="char-panel-value" id="char-grid-atk-4">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板HP</span><span class="char-panel-value" id="char-panel-hp-4">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板ATK</span><span class="char-panel-value" id="char-panel-atk-4">-</span></div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">基础值</span>
+                            <span class="char-panel-value" id="char-base-value-4">-</span>
+                            <span style="display: inline-flex; gap: 2px; margin-left: 6px;">
+                                <button type="button" onclick="adjustBaseValue(4, 1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">+1</button>
+                                <button type="button" onclick="adjustBaseValue(4, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
+                                <button type="button" onclick="resetBaseValue(4)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">实际生命值</span>
+                            <span class="char-panel-value" id="char-actual-hp-4">-</span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">当前生命值</span>
+                            <span class="char-panel-value" id="char-current-hp-4">-</span>
+                        </div>
+                    </div>
+                    <div class="dmg-predict-section">
+                        <div class="dmg-section-header" onclick="toggleDmgSection(this)"><span>▼ 伤害预测</span></div>
+                        <div class="dmg-section-content">
+                            <div class="dmg-controls">
+                                <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-4" value="10" min="0" onchange="recalculate()"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-4" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 4)">660万</button>
+                                <div class="dmg-btn-group">
+                                    <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 4)">理论值</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 4)">非克属</button>
+                                    <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 4)">非暴击</button>
+                                    <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 4)">显示乱击</button>
+                                </div>
+                            </div>
+                            <div class="dmg-results">
+                                <div class="dmg-result-item"><span class="dmg-label">基础伤害</span><span class="dmg-value" id="base-dmg-display-4">-</span></div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('na-details-4')" style="cursor: pointer;"><span class="dmg-label">平A预测伤害 ▼</span><span class="dmg-value" id="na-dmg-display-4">-</span></div>
+                                <div id="na-details-4" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="na-theory-4">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="na-cap-4">-</span></div>
+                                </div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('ca-details-4')" style="cursor: pointer;">
+                                    <span class="dmg-label">奥义预测伤害 <span style="font-size: 0.8em;">▼</span></span>
+                                    <span class="dmg-value" id="ca-dmg-display-4">-</span>
+                                </div>
+                                <div id="ca-details-4" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="ca-theory-4">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="ca-cap-4">-</span></div>
+                                </div>
+                                <div class="dmg-result-item">
+                                    <div class="dmg-skill-label-input">
+                                        <span class="dmg-label">技能预测伤害</span>
+                                        <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-4" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
+                                    </div>
+                                    <span class="dmg-value" id="skill-dmg-display-4">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="char-data-slot" id="data-slot-5" style="display:none;">
+                <div class="char-panel-stats" id="char-panel-5">
+                    <div class="char-panel-title">角色6面板</div>
+                    <div class="char-panel-grid">
+                        <div class="char-panel-item"><span class="char-panel-label">基础HP</span><span class="char-panel-value" id="char-grid-hp-5">-</span></div>
+                        <div class="char-panel-item"><span class="char-panel-label">基础ATK</span><span class="char-panel-value" id="char-grid-atk-5">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板HP</span><span class="char-panel-value" id="char-panel-hp-5">-</span></div>
+                        <div class="char-panel-item highlight"><span class="char-panel-label">面板ATK</span><span class="char-panel-value" id="char-panel-atk-5">-</span></div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">基础值</span>
+                            <span class="char-panel-value" id="char-base-value-5">-</span>
+                            <span style="display: inline-flex; gap: 2px; margin-left: 6px;">
+                                <button type="button" onclick="adjustBaseValue(5, 1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">+1</button>
+                                <button type="button" onclick="adjustBaseValue(5, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
+                                <button type="button" onclick="resetBaseValue(5)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="char-panel-grid" style="margin-top: 10px;">
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">实际生命值</span>
+                            <span class="char-panel-value" id="char-actual-hp-5">-</span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">当前生命值</span>
+                            <span class="char-panel-value" id="char-current-hp-5">-</span>
+                        </div>
+                    </div>
+                    <div class="dmg-predict-section">
+                        <div class="dmg-section-header" onclick="toggleDmgSection(this)"><span>▼ 伤害预测</span></div>
+                        <div class="dmg-section-content">
+                            <div class="dmg-controls">
+                                <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-5" value="10" min="0" onchange="recalculate()"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-5" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 5)">660万</button>
+                                <div class="dmg-btn-group">
+                                    <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 5)">理论值</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 5)">非克属</button>
+                                    <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 5)">非暴击</button>
+                                    <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 5)">显示乱击</button>
+                                </div>
+                            </div>
+                            <div class="dmg-results">
+                                <div class="dmg-result-item"><span class="dmg-label">基础伤害</span><span class="dmg-value" id="base-dmg-display-5">-</span></div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('na-details-5')" style="cursor: pointer;"><span class="dmg-label">平A预测伤害 ▼</span><span class="dmg-value" id="na-dmg-display-5">-</span></div>
+                                <div id="na-details-5" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="na-theory-5">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="na-cap-5">-</span></div>
+                                </div>
+                                <div class="dmg-result-item" onclick="toggleDamageDetails('ca-details-5')" style="cursor: pointer;">
+                                    <span class="dmg-label">奥义预测伤害 <span style="font-size: 0.8em;">▼</span></span>
+                                    <span class="dmg-value" id="ca-dmg-display-5">-</span>
+                                </div>
+                                <div id="ca-details-5" class="dmg-details hidden">
+                                    <div class="dmg-detail-row"><span class="label">理论伤害:</span><span class="value" id="ca-theory-5">-</span></div>
+                                    <div class="dmg-detail-row"><span class="label">衰减阈值:</span><span class="value" id="ca-cap-5">-</span></div>
+                                </div>
+                                <div class="dmg-result-item">
+                                    <div class="dmg-skill-label-input">
+                                        <span class="dmg-label">技能预测伤害</span>
+                                        <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-5" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
+                                    </div>
+                                    <span class="dmg-value" id="skill-dmg-display-5">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 理论总伤：位于各槽「伤害预测」下方、「角色 Buff」上方；内容后续填充 -->
+            <div class="theoretical-total-dmg-board result-board" id="theoretical-total-dmg-section">
+                <h3 class="theoretical-total-dmg-heading">理论总伤</h3>
+                <div id="theoretical-total-dmg-content" class="theoretical-total-dmg-rows" aria-label="理论总伤">
+                    <div class="theoretical-total-dmg-row theoretical-total-dmg-row--na">
+                        <div class="theoretical-total-dmg-label-with-toggle">
+                            <span class="theoretical-total-dmg-label">理论平A输出</span>
+                            <button type="button" class="theoretical-na-toggle" id="theoretical-na-toggle" onclick="toggleTheoreticalNaSum(this)" aria-expanded="false" aria-controls="theoretical-na-sum-panel" title="展开/收起总和伤害">
+                                <span class="theoretical-na-arrow">▶</span>
+                            </button>
+                        </div>
+                        <div class="theoretical-na-wrap">
+                            <div class="theoretical-na-formula-line">
+                                <span id="theoretical-na-base" class="theoretical-na-base">-</span>
+                                <span id="theoretical-na-mult-combined" class="theoretical-na-mult-combined" aria-label="每段×(3×乱击段数)">× 3</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="theoretical-na-chase-e-row" class="theoretical-total-dmg-row" hidden>
+                        <span id="theoretical-na-chase-e-label" class="theoretical-total-dmg-label">属性追击（E类 0%）</span>
+                        <span id="theoretical-na-chase-e-value" class="theoretical-total-dmg-value">-</span>
+                    </div>
+                    <div id="theoretical-na-chase-des-row" class="theoretical-total-dmg-row" hidden>
+                        <span id="theoretical-na-chase-des-label" class="theoretical-total-dmg-label">破坏属性追击（0%）</span>
+                        <span id="theoretical-na-chase-des-value" class="theoretical-total-dmg-value">-</span>
+                    </div>
+                    <div id="theoretical-na-sum-panel" class="theoretical-na-sum-panel" hidden>
+                        <span class="theoretical-na-sum-label">总和伤害</span>
+                        <span id="theoretical-na-sum" class="theoretical-na-sum-value">-</span>
+                    </div>
+                    <div class="theoretical-total-dmg-row">
+                        <span class="theoretical-total-dmg-label">理论奥义输出</span>
+                        <span class="theoretical-total-dmg-value" id="theoretical-ca-total">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 角色 Buff：随左侧/右侧当前选中槽位切换，仅显示该角色的 Buff -->
+            <div class="party-buff-icons-board result-board" id="party-buff-icons-board">
+                <h3 class="party-buff-icons-heading">角色 Buff <span class="party-buff-for-name" id="party-buff-active-label">主角</span></h3>
+                <div class="party-buff-char-block party-buff-char-block--single">
+                    <div class="party-buff-char-panel">
+                        <div class="party-buff-icon-list party-buff-icon-list--stacked" id="party-buff-icon-list" aria-live="polite">
+                            <div id="party-buff-codex-rows" class="party-buff-codex-rows"></div>
+                            <div id="party-buff-skill-icons" class="party-buff-skill-icons-row"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="party-buff-charabuff-stats" class="party-buff-charabuff-stats" aria-live="polite"></div>
+            </div>
+
+            <!-- 在右侧加成面板下方，保留原来的全局加成结果 -->
+            <div style="margin-top: 20px;">
+                <div class="result-board">
+                    <h3 id="panel-title" style="color: #3498db;">武器盘全局面板</h3>
+                    <div class="hp-slider-container">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <label>当前 HP 百分比</label>
+                            <span id="hp-display">100%</span>
+                        </div>
+                        <input type="range" id="current-hp-slider" min="1" max="100" value="100" oninput="updateHpDisplay(this.value); recalculate();">
+                    </div>
+                    <div id="stats-output"></div>
+                </div>
+            </div>
+
+            <!-- 常驻加成栏目 -->
+            <div class="result-board" style="margin-top: 15px;">
+                <h3>常驻加成</h3>
+                <div id="resident-bonuses-output"></div>
+            </div>
+            
+        </div>
+    </div> <!-- end layout-right -->
+
+    <!-- ==================== JS & 杂项隐藏区 (防止影响布局，但保留 DOM 给 JS 调用) ==================== -->
+    <div class="right-panel" style="display:none;">
         <div class="tab-header">
             <div class="tab-btn active" onclick="switchTab('mc', this)">角色设定</div>
             <div class="tab-btn" onclick="switchTab('weapon-panel', this)">加成面板</div>
@@ -306,7 +1353,7 @@
                         <div class="mc-form-group">
                             <label class="mc-form-label">主角等级 (Rank)</label>
                             <div style="display:flex; gap:10px; align-items:center;">
-                                <input type="number" class="mc-form-control" id="mc-rank-input" value="400" min="1" max="400" step="1" onchange="recalculate()">
+                                <input type="number" class="mc-form-control" id="mc-rank-input" value="406" min="1" max="425" step="1" onchange="recalculate()">
                                 <span id="mc-rank-stats" style="font-size:0.8em; color:#3498db; white-space:nowrap;">(HP: - / ATK: -)</span>
                             </div>
                         </div>
@@ -348,33 +1395,8 @@
                     <div class="theme-custom" style="margin-top: 25px;">
                         <div class="section-title">LB 加成</div>
                         <div class="custom-input-area">
-                            <div style="display: flex; gap: 10px;">
-                                <div class="mc-form-group" style="flex: 1;">
-                                    <label class="mc-form-label">LB 攻击力</label>
-                                    <select class="mc-form-control" id="mc-lb-atk" onchange="recalculate()">
-                                        <option value="0">0</option>
-                                        <option value="3000">3000</option>
-                                    </select>
-                                </div>
-                                <div class="mc-form-group" style="flex: 1;">
-                                    <label class="mc-form-label">LB 生命值</label>
-                                    <select class="mc-form-control" id="mc-lb-hp" onchange="recalculate()">
-                                        <option value="0">0</option>
-                                        <option value="5000" selected>5000</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div style="display: flex; gap: 10px;">
-                                <div class="mc-form-group" style="flex: 1; margin-bottom: 0;">
-                                    <label class="mc-form-label">得意武器1系数 (%)</label>
-                                    <input type="number" class="mc-form-control" id="prof1-extra" value="0" step="1" onchange="recalculate()">
-                                </div>
-                                <div class="mc-form-group" style="flex: 1; margin-bottom: 0;">
-                                    <label class="mc-form-label">得意武器2系数 (%)</label>
-                                    <input type="number" class="mc-form-control" id="prof2-extra" value="0" step="1" onchange="recalculate()">
-                                </div>
-                            </div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 8px;">20个LB槽位，可重复选择同一项</div>
+                            <div class="mc-lb-slot-list"></div>
                         </div>
                     </div>
                 </div>
@@ -1107,10 +2129,21 @@
     <script src="js/constants.js"></script>
     <script src="js/state.js"></script>
     <script src="js/storage.js"></script>
-    <script src="js/render.js"></script>
+    <script src="js/render/utils.js"></script>
+<script src="js/render/mc.js"></script>
+<script src="js/render/summon.js"></script>
+<script src="js/render/grid.js"></script>
+<script src="js/render/character.js"></script>
+    <script src="js/render/charabuff.js"></script>
+    <script src="js/render/bonus.js"></script>
+<script src="js/render/index.js"></script>
     <script src="js/calc.js"></script>
     <script src="js/damage_cap.js"></script>
     <script src="js/damage_calc.js"></script>
+    <script src="js/bonus_dmg.js"></script>
+    <script src="js/na_dmg_calc.js"></script>
+    <script src="js/ca_dmg_calc.js"></script>
+    <script src="js/skill_dmg_calc.js"></script>
     <script src="js/init.js"></script>
     
     <!-- 伤害预测相关函数 -->
@@ -1121,6 +2154,26 @@
             if (el) {
                 el.classList.toggle('hidden');
             }
+        }
+
+        // 理论平A：默认仅显示「伤害×3」，点击箭头展开总和伤害
+        function toggleTheoreticalNaSum(btn) {
+            const panel = document.getElementById('theoretical-na-sum-panel');
+            const arrow = btn && btn.querySelector('.theoretical-na-arrow');
+            if (!panel || !arrow) return;
+            const willShow = panel.hidden;
+            panel.hidden = !willShow;
+            arrow.textContent = willShow ? '▼' : '▶';
+            btn.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+        }
+
+        // 防down同步：修改任意角色的防down时，同步到所有角色
+        function syncDefDownAndRecalculate(inputEl) {
+            const val = inputEl.value;
+            document.querySelectorAll('[id^="def-down-input"]').forEach(el => {
+                el.value = val;
+            });
+            recalculate();
         }
 
         // 切换伤害预测区域折叠状态
@@ -1136,16 +2189,117 @@
             }
         }
         
-        // 设置随机乱数
-        function setRandomFactor(btn, charIndex) {
-            // charIndex 为可选参数，不传时默认为0（主角）
-            const index = charIndex || 0;
-            const btnGroupId = index === 0 ? 'random-btn-group' : 'random-btn-group-' + index;
-            const btnGroup = document.getElementById(btnGroupId);
-            if (btnGroup) {
-                btnGroup.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
+        // 全局状态管理对象，记录每个角色的视图拨片状态
+        window.damageViewStates = {
+            0: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' },
+            1: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' },
+            2: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' },
+            3: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' },
+            4: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' },
+            5: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' }
+        };
+
+        /** 乱击显示：同一按钮在「乱击」/「不显示乱击」间切换；不显示时按乱击=1 计算与展示 */
+        function toggleRanshuDisplay(btn, charIndex) {
+            const state = window.damageViewStates[charIndex];
+            if (!state) return;
+            state.hideRanshuDisplay = !state.hideRanshuDisplay;
+            if (btn) {
+                if (state.hideRanshuDisplay) {
+                    btn.textContent = '不显示乱击';
+                    btn.classList.remove('active');
+                } else {
+                    btn.textContent = '显示乱击';
+                    btn.classList.add('active');
+                }
             }
+            recalculate();
+        }
+
+        function toggleRandomFactor(btn, charIndex) {
+            const state = window.damageViewStates[charIndex];
+            if (!state.randomMode) state.randomMode = 'theory';
+            
+            // 循环切换：理论值 -> 最小值 -> 最大值 -> 理论值
+            if (state.randomMode === 'theory') {
+                state.randomMode = 'min';
+                btn.classList.add('active');
+                btn.textContent = '最低值';
+            } else if (state.randomMode === 'min') {
+                state.randomMode = 'max';
+                btn.classList.add('active');
+                btn.textContent = '最大值';
+            } else {
+                state.randomMode = 'theory';
+                btn.classList.remove('active');
+                btn.textContent = '理论值';
+            }
+            recalculate();
+        }
+
+        function toggleAdvantage(btn, charIndex) {
+            const state = window.damageViewStates[charIndex];
+            state.isAdvantage = !state.isAdvantage;
+            if (state.isAdvantage) {
+                btn.classList.add('active');
+                btn.textContent = '对克属';
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '非克属';
+            }
+            recalculate();
+        }
+
+        function toggleCrit(btn, charIndex) {
+            const state = window.damageViewStates[charIndex];
+            if (!state.critMode) state.critMode = 'expected';
+            if (state.critMode === 'non_crit') {
+                state.critMode = 'lower_bound';
+            } else if (state.critMode === 'lower_bound') {
+                state.critMode = 'expected';
+            } else if (state.critMode === 'expected') {
+                state.critMode = 'upper_bound';
+            } else {
+                state.critMode = 'non_crit';
+            }
+            recalculate();
+        }
+
+        /** 世界上限衰减拨片：660万 → 1310万 → 不生效，所有角色槽状态同步切换 */
+        function toggleWorldCap(btn, charIndex) {
+            const state = window.damageViewStates[charIndex];
+            if (!state) return;
+            if (!state.worldCapMode) state.worldCapMode = '660';
+
+            // 计算下一个模式
+            let nextMode, nextText;
+            if (state.worldCapMode === '660') {
+                nextMode = '1310'; nextText = '1310万';
+            } else if (state.worldCapMode === '1310') {
+                nextMode = 'none'; nextText = '不生效';
+            } else {
+                nextMode = '660'; nextText = '660万';
+            }
+
+            const isActive = nextMode !== '660';
+
+            // 同步所有槽位的状态
+            for (let i = 0; i < 6; i++) {
+                if (window.damageViewStates[i]) {
+                    window.damageViewStates[i].worldCapMode = nextMode;
+                }
+            }
+
+            // 同步更新所有按钮的文字和active状态
+            document.querySelectorAll('.world-cap-btn').forEach(function(b) {
+                b.textContent = nextText;
+                if (isActive) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+            });
+
             recalculate();
         }
 
@@ -1170,6 +2324,124 @@
         }
     </script>
 
+    <!-- testbuff 面板逻辑 -->
+    <script>
+        (function () {
+            // 全局测试用 buff 状态（百分比形式的小数，如 0.1 表示 +10%）
+            window.buffSettings = Object.assign({
+                normal: 0,    // 普刃 → step5
+                stamina: 0,   // 浑身 → step7
+                enmity: 0,    // 背水 → step7.1
+                strong: 0,    // 强壮 → step7.3
+                adversity: 0, // 逆境 → step7.4
+                element: 0,   // 属攻 → step9
+                marriage: 0,  // 独立攻刃【久远】 → step10
+                indepCumulative: 0,    // 独立攻刃【累积】 → step10.x
+                indepUnjudged: 0,      // 独立攻刃【未判定】 → step10.x
+                indepSpecialEnmity: 0, // 独立攻刃【特殊背水】 → step10.x
+                indepSpecial: 0,       // 独立攻刃【特殊】 → step10.x
+                dmgCap: 0,    // 伤害上限 → all cap
+                dmgAmp: 0,    // 伤害增幅 → dmg amp
+                caWeaponDmg: 0, // 武器盘奥义伤害加成
+                caDmg: 0,       // 奥义伤害加成
+                caCap: 0,       // 奥义上限加成
+                dmgSupp: 0,     // 伤害上升（固定值）
+                caDmgSupp: 0,   // 奥义伤害上升效果（固定值）
+                takenDmgAmp: 0  // 承受伤害增幅
+            }, window.buffSettings || {});
+
+            const LABEL_MAP = {
+                normal: '普刃',
+                stamina: '浑身',
+                enmity: '背水',
+                strong: '强壮',
+                adversity: '逆境',
+                element: '属攻',
+                marriage: '独立攻刃【久远】',
+                indepCumulative: '独立攻刃【累积】',
+                indepUnjudged: '独立攻刃【未判定】',
+                indepSpecialEnmity: '独立攻刃【特殊背水】',
+                indepSpecial: '独立攻刃【特殊】',
+                dmgCap: '伤害上限',
+                dmgAmp: '伤害增幅',
+                caWeaponDmg: '武器盘奥义伤害加成',
+                caDmg: '奥义伤害加成',
+                caCap: '奥义上限加成',
+                dmgSupp: '伤害上升',
+                caDmgSupp: '奥义伤害上升效果',
+                takenDmgAmp: '承受伤害增幅'
+            };
+
+            function formatPercent(p) {
+                const v = p * 100;
+                if (!v) return '0%';
+                const sign = v > 0 ? '+' : '';
+                const text = v.toFixed(1).replace(/\.0$/, '');
+                return sign + text + '%';
+            }
+
+            function updateTestBuffSummary() {
+                const summaryEl = document.getElementById('testbuff-summary');
+                if (!summaryEl) return;
+
+                const parts = [];
+                Object.keys(LABEL_MAP).forEach(key => {
+                    const v = window.buffSettings[key] || 0;
+                    if (v !== 0) {
+                        parts.push(LABEL_MAP[key] + (key === 'dmgSupp' || key === 'caDmgSupp' ? (v > 0 ? '+' : '') + v : formatPercent(v)));
+                    }
+                });
+
+                if (parts.length === 0) {
+                    summaryEl.textContent = '当前所有 buff 为 0%（未额外修正）';
+                } else {
+                    summaryEl.textContent = '当前生效 buff：' + parts.join(' / ');
+                }
+            }
+
+            window.initTestBuffPanel = function () {
+                const panel = document.getElementById('tab-testbuff');
+                if (!panel) return;
+
+                const inputs = panel.querySelectorAll('[data-buff-key]');
+                inputs.forEach(input => {
+                    const key = input.getAttribute('data-buff-key');
+                    if (!key) return;
+
+                    const cur = window.buffSettings[key] || 0;
+                    input.value = key === 'dmgSupp'|| key === 'caDmgSupp' ? cur.toString() : (cur * 100).toString();
+
+                    input.addEventListener('input', function () {
+                        const raw = parseFloat(this.value);
+                        if (isNaN(raw)) {
+                            window.buffSettings[key] = 0;
+                        } else if (key === 'dmgSupp'|| key === 'caDmgSupp') {
+                            window.buffSettings[key] = raw;
+                        } else {
+                            window.buffSettings[key] = raw / 100;
+                        }
+                        updateTestBuffSummary();
+
+                        if (typeof recalculate === 'function') {
+                            recalculate();
+                        }
+
+                        // 方便你在控制台直接看到当前 buff 情况
+                        console.log('[testbuff] 当前 buff 设定：', window.buffSettings);
+                    });
+                });
+
+                updateTestBuffSummary();
+            };
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', window.initTestBuffPanel);
+            } else {
+                window.initTestBuffPanel();
+            }
+        })();
+    </script>
+
     <!-- 角色槽切换功能 -->
     <script>
         // 切换角色槽
@@ -1182,11 +2454,40 @@
             });
             element.classList.add('active');
             
-            // 更新内容显示
+            // 更新左侧内容显示
             document.querySelectorAll('.char-slot-content').forEach(content => {
                 content.classList.remove('active');
             });
-            document.getElementById('char-slot-' + slotIndex).classList.add('active');
+            const slotContent = document.getElementById('char-slot-' + slotIndex);
+            if (slotContent) {
+                slotContent.classList.add('active');
+            }
+            
+            // 同步更新右侧数据面板显示
+            document.querySelectorAll('.char-data-slot').forEach(dataSlot => {
+                dataSlot.style.display = 'none';
+                dataSlot.classList.remove('active');
+            });
+            const rightDataSlot = document.getElementById('data-slot-' + slotIndex);
+            if (rightDataSlot) {
+                rightDataSlot.style.display = 'block';
+                rightDataSlot.classList.add('active');
+            }
+
+            // 同步更新数据监控中心显示
+            document.querySelectorAll('.monitor-stats-block').forEach(el => el.style.display = 'none');
+            const monitorSlot = document.getElementById('monitor-stats-char-' + slotIndex);
+            if (monitorSlot) monitorSlot.style.display = 'block';
+
+            // 更新常驻加成显示（切换到当前角色的加成）
+            if (typeof renderResidentBonuses === 'function') {
+                renderResidentBonuses(slotIndex);
+            }
+
+            // 右侧「角色 Buff」仅显示当前选中槽位
+            if (typeof renderPartyBuffPanel === 'function') {
+                renderPartyBuffPanel(slotIndex);
+            }
         }
         
         // 切换二级菜单（基础设定/面板数据）

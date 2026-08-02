@@ -11,13 +11,75 @@ const THRESHOLD_TABLE = [
     { limit: Infinity, slope: 0.01 } // >60w: 1%
 ];
 
+// 世界上限衰减分段（第二段衰减，在增幅乘算之后应用）
+// 阈值为固定值，不受总上限系数 C 影响
+// 奥义(ca)类型：阈值会乘以 (1 + weapon_special_ca_dmg_cap + chara_artifacts_special_ca_dmg_cap) 系数
+const WORLD_CAP_THRESHOLD_TABLE = [
+    { limit: 6000000,  slope: 1.0 },    // 0~600万: 0%衰减
+    { limit: 7000000,  slope: 0.5 },    // 600万~700万: 50%衰减
+    { limit: 8000000,  slope: 0.1 },    // 700万~800万: 90%衰减
+    { limit: Infinity,  slope: 0.001 }   // 800万以上: 99.999%衰减
+];
+
+// 世界上限衰减分段（1310万版本）
+// 衰减前伤害	本级衰减率	衰减后伤害
+// 0~1200万	0%	1200万
+// 1200万~1400万	50%	1300万（1200万＋200万×0.5）
+// 1400万~1500万	90%	1310万（1300万＋100万×0.1）
+// 1500万以上	99.999%	-
+const WORLD_CAP_THRESHOLD_TABLE_1310 = [
+    { limit: 12000000, slope: 1.0 },   // 0~1200万: 0%衰减
+    { limit: 14000000, slope: 0.5 },   // 1200万~1400万: 50%衰减
+    { limit: 15000000, slope: 0.1 },   // 1400万~1500万: 90%衰减
+    { limit: Infinity,  slope: 0.001 }  // 1500万以上: 99.999%衰减
+];
+
+// 奥义倍率=4.5 时的上限衰减分段（非主角角色默认奥义倍率）
+// 说明：
+// - 0~150万：本级衰减率 0% => 余量系数 1.0
+// - 150万~170万：本级衰减率 40% => 余量系数 0.6
+// - 170万~180万：本级衰减率 70% => 余量系数 0.3
+// - 180万~250万：本级衰减率 95% => 余量系数 0.05
+// - 250万以上：本级衰减率 99% => 余量系数 0.01
+const THRESHOLD_TABLE_CA_OUGI_4_5 = [
+    { limit: 1500000, slope: 1.0 },
+    { limit: 1700000, slope: 0.6 },
+    { limit: 1800000, slope: 0.3 },
+    { limit: 2500000, slope: 0.05 },
+    { limit: Infinity, slope: 0.01 }
+];
+const THRESHOLD_TABLE_CA_OUGI_test = [
+    { limit: 1800000, slope: 1.0 },
+    { limit: 2000000, slope: 0.6 },
+    { limit: 2200000, slope: 0.3 },
+    { limit: 3000000, slope: 0.05 },
+    { limit: Infinity, slope: 0.01 }
+];
+
+
+// 奥义倍率=5 时的上限衰减分段（临时，仅先覆盖 caMultiplier=5）
+// 说明：
+// - 0~150万：本级衰减率 0% => 余量系数 1.0
+// - 150万~170万：本级衰减率 40% => 余量系数 0.6
+// - 170万~180万：本级衰减率 70% => 余量系数 0.3
+// - 180万~250万：本级衰减率 95% => 余量系数 0.05
+// - 250万以上：本级衰减率 99% => 余量系数 0.01
+const THRESHOLD_TABLE_CA_OUGI_5 = [
+    { limit: 1500000, slope: 1.0 },
+    { limit: 1700000, slope: 0.6 },
+    { limit: 1800000, slope: 0.3 },
+    { limit: 2500000, slope: 0.05 },
+    { limit: Infinity, slope: 0.01 }
+];
+
 /**
  * 核心衰减函数 (Func_Decay)
  * @param {number} rawDamage - 理论面板伤害 (未衰减, 已除防御)
  * @param {number} totalCap - 总上限系数 (1.0 + sum(caps))
+ * @param {Array<{limit:number,slope:number}>} thresholdTable - 分段阈值表
  * @returns {number} 衰减后的伤害
  */
-function funcDecay(rawDamage, totalCap) {
+function funcDecay(rawDamage, totalCap, thresholdTable = THRESHOLD_TABLE) {
     // 确保使用 Decimal 进行高精度计算
     let damage = new Decimal(rawDamage);
     const cap = new Decimal(totalCap);
@@ -25,8 +87,8 @@ function funcDecay(rawDamage, totalCap) {
     let decayedDamage = new Decimal(0);
     let previousThreshold = new Decimal(0);
     
-    for (let i = 0; i < THRESHOLD_TABLE.length; i++) {
-        const stage = THRESHOLD_TABLE[i];
+    for (let i = 0; i < thresholdTable.length; i++) {
+        const stage = thresholdTable[i];
         
         // 当前阶段的实际判定阈值 = 基础阈值 * 总上限系数
         let currentThreshold = stage.limit === Infinity 
@@ -59,8 +121,36 @@ function funcDecay(rawDamage, totalCap) {
         previousThreshold = currentThreshold;
     }
     
-    // 返回结果，向下取整 (GBF通常是取整)
-    return decayedDamage.floor().toNumber();
+    // 重构目标：不在衰减阶段做任何取整，保留 Decimal 精度到最终增幅阶段统一 ceil
+    return decayedDamage;
+}
+
+function getDisplayCapBaseFromThresholdTable(thresholdTable) {
+    if (!Array.isArray(thresholdTable) || thresholdTable.length === 0) return null;
+
+    let targetLimit = null;
+    for (let i = thresholdTable.length - 1; i >= 0; i--) {
+        if (thresholdTable[i].limit !== Infinity) {
+            targetLimit = thresholdTable[i].limit;
+            break;
+        }
+    }
+    if (targetLimit == null) return null;
+
+    return funcDecay(targetLimit, 1, thresholdTable).floor().toNumber();
+}
+
+function getCaDisplayCapBase(caMultiplier) {
+    const mult = Number(caMultiplier);
+    if (Number.isFinite(mult)) {
+        if (Math.abs(mult - 4.5) < 1e-6) {
+            return getDisplayCapBaseFromThresholdTable(THRESHOLD_TABLE_CA_OUGI_4_5);
+        }
+        if (Math.abs(mult - 5) < 1e-6) {
+            return getDisplayCapBaseFromThresholdTable(THRESHOLD_TABLE_CA_OUGI_5);
+        }
+    }
+    return null;
 }
 
 /**
@@ -73,28 +163,19 @@ function funcDecay(rawDamage, totalCap) {
  */
 function calculateTotalCap(stats, capType, teshuStats, options = {}) {
     let totalCap = new Decimal(1.0);
-    
-    // 0. 全职业常驻汇总 (Global Mastery Fixed) - 1.0%
-    totalCap = totalCap.plus(0.01);
 
-    // 1. 非C5职业判定 (Non-C5 Class Bonus) - 3.0%
-    // 只有当明确传入 isClass5=false 时才生效 (排除 undefined 情况，虽然默认 options={}，但调用方应传值)
-    if (options.isClass5 === false) {
-        totalCap = totalCap.plus(0.03);
-    }
-
-    // 2. 全上限 (All Cap)
+    // 1. 全上限 (All Cap)
     // 来源: 武器盘全上限(浩劫/法武), 职业精通(Mastery), 角色LB(Over Mastery), 饰品, 特殊系统
     // 武器盘全上限独立受20%上限限制
     const weaponCap = Math.min(stats['weapon_dmg_cap'] || 0, 0.2);
     const allCap = new Decimal(weaponCap)
-        .plus(stats['chara_all_cap_passive'] || 0)
+        .plus(stats['mc_all_cap_passive'] || 0)             // 包含全职业常驻的 1%
+        .plus(stats['mc_all_cap_passive_non_c5'] || 0)      // 包含非C5加成的 3%
         .plus(stats['summon_dmg_cap'] || 0)
-        .plus(stats['weapon_special_dmg_cap'] || 0);
-    
-    // totalCap = totalCap.plus(allCap); // 已移除：避免重复计算，最后统一加算
+        .plus(stats['weapon_special_dmg_cap'] || 0)
+        .plus(stats['chara_marriage_dmg_cap'] || 0);        // 婚戒全上限+5%
 
-    // 3. 特殊物品全上限 (teshuStats['dmg_cap']) - 如 0.03
+    // 2. 特殊物品全上限 (teshuStats['dmg_cap']) - 如 0.03
     if (teshuStats && teshuStats['dmg_cap']) {
         totalCap = totalCap.plus(teshuStats['dmg_cap']);
     }
@@ -113,18 +194,31 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
             
     } else if (capType === 'skill') { // 技能伤害 (Skill Damage)
         specificCap = new Decimal(stats['weapon_skill_dmg_cap'] || 0)
-            .plus(stats['chara_skill_dmg_cap_passive'] || 0)
+            .plus(stats['mc_skill_dmg_cap_passive'] || 0)
             .plus(stats['weapon_special_skill_dmg_cap'] || 0)
             .plus(stats['weapon_ax_skill_dmg_cap'] || 0);
             
     } else if (capType === 'ca') { // 奥义伤害 (Chain Burst / CA)
+        // weapon_special_ca_dmg_cap 和 chara_artifacts_special_ca_dmg_cap 已移至世界上限阈值扩展，不再作用于普通上限
         specificCap = new Decimal(stats['weapon_ca_dmg_cap'] || 0)
-            .plus(stats['weapon_special_ca_dmg_cap'] || 0)
-            .plus(stats['weapon_ax_ca_dmg_cap'] || 0);
+            .plus(stats['weapon_ax_ca_dmg_cap'] || 0)
+            // 角色个人奥义上限（LB、戒指、神器、觉醒等，需先 overlay 进 stats）
+            .plus(stats['chara_lb_ca_dmg_cap'] || 0)
+            .plus(stats['chara_ring_ca_dmg_cap'] || 0)
+            .plus(stats['chara_artifacts_ca_dmg_cap'] || 0)
+            .plus(stats['chara_awakening_ca_dmg_cap'] || 0);
+            
+        // 特殊饰品：奥义伤害上限（teshuStats['ca_dmg_cap']）
+        if (teshuStats && teshuStats['ca_dmg_cap']) {
+            specificCap = specificCap.plus(teshuStats['ca_dmg_cap']);
+        }
+        if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.caCap) {
+            specificCap = specificCap.plus(window.buffSettings.caCap);
+        }
             
     } else if (capType === 'cb') { // 奥义连锁 (Chain Burst)
         specificCap = new Decimal(stats['weapon_cb_dmg_cap'] || 0)
-            .plus(stats['chara_cb_cap_passive'] || 0);
+            .plus(stats['mc_cb_cap_passive'] || 0);
     }
     
     // 汇总: 1.0 + All Cap + Specific Cap
@@ -134,17 +228,22 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
     // 根据 calc.js 的逻辑，stats 里的值已经是 sum(weapons) 并经过 cap 处理的。
     
     totalCap = totalCap.plus(allCap).plus(specificCap);
+
+    // testbuff：伤害上限乘区修正 (all cap)
+    if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.dmgCap) {
+        totalCap = totalCap.plus(window.buffSettings.dmgCap);
+    }
     
     console.log(`[Cap Debug ${capType}]`, {
-        fixed_global: 0.01,
-        non_c5: options.isClass5 === false ? 0.03 : 0,
         weapon_dmg_cap: stats['weapon_dmg_cap'],
-        chara_all_cap: stats['chara_all_cap_passive'],
+        job_all_cap: stats['mc_all_cap_passive'],
+        job_non_c5_cap: stats['mc_all_cap_passive_non_c5'],
         summon_dmg_cap: stats['summon_dmg_cap'],
         weapon_special_cap: stats['weapon_special_dmg_cap'],
         teshu_dmg_cap: teshuStats ? teshuStats['dmg_cap'] : 0,
         weapon_na_cap: capType === 'na' ? stats['weapon_na_dmg_cap'] : 'N/A',
         teshu_na_cap: (capType === 'na' && teshuStats) ? teshuStats['na_dmg_cap'] : 'N/A',
+        teshu_ca_cap: (capType === 'ca' && teshuStats) ? teshuStats['ca_dmg_cap'] : 'N/A',
         final_total: totalCap.toNumber()
     });
 
@@ -187,8 +286,62 @@ function calculateAmp(stats, ampType, teshuStats) {
     } else if (ampType === 'cb') {
         amp = amp.plus(stats['weapon_cb_dmg_amp'] || 0);
     }
-    
+
+    // testbuff：伤害增幅乘区修正 (dmg amp)
+    if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.dmgAmp) {
+        amp = amp.plus(window.buffSettings.dmgAmp);
+    }
+
     return amp.toNumber();
+}
+
+function calculateTakenDamageAmp() {
+    if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.takenDmgAmp) {
+        return Number(window.buffSettings.takenDmgAmp) || 0;
+    }
+    return 0;
+}
+
+/**
+ * 世界上限衰减 (第二段衰减)
+ * 在增幅乘算之后应用，对 na/skill/ca 类型生效，cb 不生效
+ * 奥义(ca)类型：阈值乘以 (1 + weapon_special_ca_dmg_cap + chara_artifacts_special_ca_dmg_cap) 系数
+ * 其他类型：阈值为固定值 (totalCap = 1.0)
+ * @param {number} ampedDamage - 增幅后的伤害
+ * @param {string} type - 伤害类型 ('na', 'skill', 'ca', 'cb')
+ * @param {object} stats - 统计对象
+ * @returns {Decimal} 世界上限衰减后的伤害 (Decimal 精度)
+ */
+function applyWorldCap(ampedDamage, type, stats, worldCapMode) {
+    // cb (连锁奥义) 不应用世界上限
+    if (type === 'cb') {
+        return new Decimal(ampedDamage);
+    }
+
+    // worldCapMode: "660" | "1310" | "none"
+    // "none" 表示不应用世界上限衰减
+    if (worldCapMode === 'none') {
+        return new Decimal(ampedDamage);
+    }
+    
+    // 计算世界上限的总上限系数
+    // 奥义(ca): 阈值乘以 (1 + weapon_special_ca_dmg_cap + chara_artifacts_special_ca_dmg_cap)
+    // 其他类型: 阈值固定，系数为 1.0
+    let worldCapC = 1.0;
+    if (type === 'ca') {
+        const weaponSpecialCaCap = Number(stats['weapon_special_ca_dmg_cap'] || 0);
+        const charaSpecialCaCap = Number(stats['chara_artifacts_special_ca_dmg_cap'] || 0);
+        worldCapC = 1 + weaponSpecialCaCap + charaSpecialCaCap;
+    }
+
+    // 根据 worldCapMode 选择阈值表
+    let worldTable = WORLD_CAP_THRESHOLD_TABLE; // 默认660万
+    if (worldCapMode === '1310') {
+        worldTable = WORLD_CAP_THRESHOLD_TABLE_1310;
+    }
+    
+    const worldCappedDamage = funcDecay(ampedDamage, worldCapC, worldTable);
+    return worldCappedDamage;
 }
 
 /**
@@ -199,32 +352,54 @@ function calculateAmp(stats, ampType, teshuStats) {
  * @param {object} teshuStats - 特殊加成
  * @param {number} extraAmp - 额外的增幅系数
  * @param {object} options - 额外选项 ({ isClass5: boolean })
- * @returns {number} 最终伤害
+ * @returns {object} { finalDamage, decayedDamage, capCoef, ampCoef, worldCappedDamage }
  */
 function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, options = {}) {
     // 1. 计算总上限系数 C
     const C = calculateTotalCap(stats, type, teshuStats, options);
     
     // 2. 执行衰减 (Func_Decay)
-    const decayedDamage = funcDecay(rawDamage, C);
+    // 奥义上限：根据奥义倍率选择不同的阈值表
+    let thresholdTable = THRESHOLD_TABLE;
+    if (type === 'ca') {
+        const caMultiplier = options && options.caMultiplier != null ? Number(options.caMultiplier) : null;
+        // 容差放宽：避免浮点/字符串转数导致 4.999999 之类无法匹配
+        if (caMultiplier != null && Math.abs(caMultiplier - 5) < 1e-6) {
+            thresholdTable = THRESHOLD_TABLE_CA_OUGI_5;
+        } else if (caMultiplier != null && Math.abs(caMultiplier - 4.5) < 1e-6) {
+            thresholdTable = THRESHOLD_TABLE_CA_OUGI_4_5;
+        }
+    }
+    const decayedDamage = funcDecay(rawDamage, C, thresholdTable);
     
     // 3. 计算增幅系数 Amp
     const baseAmp = calculateAmp(stats, type, teshuStats);
     const totalAmp = new Decimal(baseAmp).plus(extraAmp).toNumber();
     
-    // 4. 执行增幅乘算: 衰减后 * (1 + Amp)
-    // 使用 Decimal 避免精度问题
-    const preFloorDamage = new Decimal(decayedDamage).times(new Decimal(1).plus(totalAmp));
-    const finalDamage = preFloorDamage.floor().toNumber();
+    // 4. 执行增幅乘算: 衰减后 * (1 + Amp) (不取整，保留精度)
+    const ampedDamage = new Decimal(decayedDamage).times(new Decimal(1).plus(totalAmp));
+
+    // 4.5 承受伤害增幅：敌方 debuff 独立乘区，在伤害增幅之后、世界上限之前
+    const takenDmgAmp = calculateTakenDamageAmp();
+    const takenAmpedDamage = ampedDamage.times(new Decimal(1).plus(takenDmgAmp));
+    
+    // 5. 世界上限衰减 (第二段衰减，在增幅乘算之后)
+    const worldCapMode = options && options.worldCapMode ? options.worldCapMode : '660';
+    const worldCappedDamage = applyWorldCap(takenAmpedDamage, type, stats, worldCapMode);
+    
+    // 6. 最终向上取整
+    const finalDamage = worldCappedDamage.ceil().toNumber();
     
     // 调试日志 (可选)
-    console.log(`[Cap Debug ${type}] Raw: ${rawDamage}, C: ${C.toFixed(4)}, Decayed: ${decayedDamage}, Amp: ${totalAmp.toFixed(6)}, PreFloor: ${preFloorDamage.toNumber()}, Final: ${finalDamage}`);
+    console.log(`[Cap Debug ${type}] Raw: ${rawDamage}, C: ${C.toFixed(4)}, Decayed: ${new Decimal(decayedDamage).toNumber()}, Amp: ${totalAmp.toFixed(6)}, TakenAmp: ${takenDmgAmp.toFixed(6)}, Amped: ${ampedDamage.toNumber()}, TakenAmped: ${takenAmpedDamage.toNumber()}, WorldCapped: ${worldCappedDamage.toNumber()}, Final: ${finalDamage}`);
     
     return {
         finalDamage: finalDamage,
-        decayedDamage: decayedDamage,
+        decayedDamage: new Decimal(decayedDamage).toNumber(),
+        worldCappedDamage: worldCappedDamage.toNumber(),
         capCoef: C,
-        ampCoef: totalAmp
+        ampCoef: totalAmp,
+        takenDmgAmpCoef: takenDmgAmp
     };
 }
 
@@ -232,9 +407,14 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         THRESHOLD_TABLE,
+        WORLD_CAP_THRESHOLD_TABLE,
+        THRESHOLD_TABLE_CA_OUGI_4_5,
+        THRESHOLD_TABLE_CA_OUGI_5,
         funcDecay,
         calculateTotalCap,
         calculateAmp,
+        calculateTakenDamageAmp,
+        applyWorldCap,
         applyDamageCap
     };
 }

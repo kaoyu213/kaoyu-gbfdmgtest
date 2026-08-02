@@ -2,8 +2,8 @@
 //  GBF 模拟器 - 存储管理模块
 // ==========================================
 
-// 保存配置到本地存储
-function saveToLocal() {
+// 保存配置到本地存储（silent 为 true 时不显示“已保存”提示，用于等级等自动保存）
+function saveToLocal(silent) {
     try {
         const saveData = {
             version: CONFIG_VERSION,
@@ -29,11 +29,8 @@ function saveToLocal() {
             // 2. 主角配置
             mc: {
                 jobId: currentMC.jobId,
-                rank: parseInt(document.getElementById('mc-rank-input')?.value) || 400,
-                lbAtk: document.getElementById('mc-lb-atk')?.value || '0',
-                lbHp: document.getElementById('mc-lb-hp')?.value || '5000',
-                prof1: document.getElementById('prof1-extra')?.value || '0',
-                prof2: document.getElementById('prof2-extra')?.value || '0'
+                rank: parseInt(document.getElementById('mc-rank-input')?.value) || 406,
+                lbSlots: (typeof getMcLbSelections === 'function') ? getMcLbSelections() : []
             },
             
             // 3. 神石设置
@@ -53,6 +50,11 @@ function saveToLocal() {
             
             // 5. 特殊加成
             specialBuffs: Array.from(activeSpecialBuffs),
+
+            // 5.1 特殊道具自定义加成（如：友谊象征 dmg_amp 可输入）
+            specialBuffCustomValues: (typeof specialBuffCustomValues !== 'undefined' && specialBuffCustomValues)
+                ? specialBuffCustomValues
+                : {},
             
             // 6. HP百分比设置
             hpPercent: document.getElementById('current-hp-slider')?.value || '100',
@@ -61,17 +63,20 @@ function saveToLocal() {
             activeTab: document.querySelector('.tab-btn.active')?.innerText || '角色设定',
             
             // 8. 额外武器栏开关状态
-            extraSlotsEnabled: extraSlotsEnabled
+            extraSlotsEnabled: extraSlotsEnabled,
+            
+            // 9. 队伍角色编成 (仅保存角色名称以便重建)
+            party: typeof currentParty !== 'undefined' ? currentParty.map(c => c ? c['名称'] : null) : Array(6).fill(null)
         };
         
         // 压缩数据（去除undefined和null值）
         const compressedData = JSON.parse(JSON.stringify(saveData));
         
-        // 存储到localStorage
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(compressedData, null, 2));
+        // 存储到当前用户对应的 key
+        const key = typeof getUserStorageKey === 'function' ? getUserStorageKey() : STORAGE_KEY;
+        localStorage.setItem(key, JSON.stringify(compressedData, null, 2));
         
-        // 显示成功消息
-        showNotification('配置已保存到本地！', 'success');
+        if (!silent) showNotification('配置已保存到本地！', 'success');
         console.log('配置已保存:', compressedData);
         
         return true;
@@ -82,12 +87,13 @@ function saveToLocal() {
     }
 }
 
-// 从本地存储加载配置
-function loadFromLocal() {
+// 从本地存储加载配置（silent 为 true 时不弹确认、不提示未找到，用于切换用户/首次打开时自动加载）
+function loadFromLocal(silent) {
     try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const key = typeof getUserStorageKey === 'function' ? getUserStorageKey() : STORAGE_KEY;
+        const saved = localStorage.getItem(key);
         if (!saved) {
-            showNotification('未找到保存的配置', 'warning');
+            if (!silent) showNotification('未找到保存的配置', 'warning');
             return false;
         }
         
@@ -95,12 +101,11 @@ function loadFromLocal() {
         try {
             data = JSON.parse(saved);
         } catch (e) {
-            showNotification('配置文件格式错误', 'error');
+            if (!silent) showNotification('配置文件格式错误', 'error');
             return false;
         }
         
-        // 检查版本兼容性
-        if (!confirm(`发现保存的配置 (版本: ${data.version || '未知'})\n是否加载？`)) {
+        if (!silent && !confirm(`发现保存的配置 (版本: ${data.version || '未知'})\n是否加载？`)) {
             return false;
         }
         
@@ -139,20 +144,18 @@ function loadFromLocal() {
         
         // 2. 恢复主角配置
         if (data.mc) {
-            const mcRankInput = document.getElementById('mc-rank-input');
-            if (mcRankInput) mcRankInput.value = data.mc.rank || 400;
+            const rankVal = data.mc.rank || 406;
+            document.querySelectorAll('[id="mc-rank-input"]').forEach(el => { el.value = rankVal; });
             
-            const mcLbAtk = document.getElementById('mc-lb-atk');
-            if (mcLbAtk) mcLbAtk.value = data.mc.lbAtk || '0';
-            
-            const mcLbHp = document.getElementById('mc-lb-hp');
-            if (mcLbHp) mcLbHp.value = data.mc.lbHp || '5000';
-            
-            const prof1Extra = document.getElementById('prof1-extra');
-            if (prof1Extra) prof1Extra.value = data.mc.prof1 || '0';
-            
-            const prof2Extra = document.getElementById('prof2-extra');
-            if (prof2Extra) prof2Extra.value = data.mc.prof2 || '0';
+            if (typeof ensureMcLbUI === 'function') ensureMcLbUI();
+            if (Array.isArray(data.mc.lbSlots)) {
+                data.mc.lbSlots.forEach((slot, i) => {
+                    const typeEl = document.getElementById(`mc-lb-type-${i}`);
+                    const lvlEl = document.getElementById(`mc-lb-lvl-${i}`);
+                    if (typeEl) typeEl.value = slot.type || 'none';
+                    if (lvlEl) lvlEl.value = String(slot.lvl || 0);
+                });
+            }
             
             // 恢复职业
             if (data.mc.jobId) {
@@ -200,8 +203,8 @@ function loadFromLocal() {
             }
         }
         
-        // 5. 恢复特殊加成
-        if (data.specialBuffs && data.specialBuffs.length > 0) {
+        // 5. 恢复特殊加成（按用户独立：空数组表示该用户全部未勾选）
+        if (Array.isArray(data.specialBuffs)) {
             activeSpecialBuffs.clear();
             if (specialBuffsData && Array.isArray(specialBuffsData)) {
                 data.specialBuffs.forEach(id => {
@@ -210,6 +213,17 @@ function loadFromLocal() {
                     }
                 });
             }
+        }
+
+        // 5.1 恢复特殊道具自定义加成（按用户独立存档）
+        if (typeof specialBuffCustomValues === 'undefined') {
+            window.specialBuffCustomValues = {};
+        }
+        if (data.specialBuffCustomValues && typeof data.specialBuffCustomValues === 'object') {
+            // 深拷贝避免引用问题
+            specialBuffCustomValues = JSON.parse(JSON.stringify(data.specialBuffCustomValues));
+        } else {
+            specialBuffCustomValues = {};
         }
         
         // 6. 恢复HP百分比
@@ -245,27 +259,56 @@ function loadFromLocal() {
             }
         }
         
+        // 9. 恢复队伍编成（槽位 1～5）：按存档中的角色名称在 chara 中匹配；戒指/LB 等仍按角色名+用户独立 key 在 loadCharacterBonusFromLocal 中加载
+        if (typeof currentParty === 'undefined') {
+            window.currentParty = Array(6).fill(null);
+        }
+        for (let i = 1; i <= 5; i++) {
+            currentParty[i] = null;
+        }
+        const partyNames = (data.party && Array.isArray(data.party)) ? data.party : null;
+        if (partyNames && typeof allCharacters !== 'undefined' && Array.isArray(allCharacters)) {
+            for (let i = 1; i <= 5 && i < partyNames.length; i++) {
+                const nm = partyNames[i];
+                if (nm == null || nm === '') continue;
+                const found = allCharacters.find(c => c && c['名称'] === nm);
+                if (found) {
+                    currentParty[i] = found;
+                }
+            }
+        }
+        for (let i = 1; i <= 5; i++) {
+            try { if (typeof updateCharSlotUI === 'function') updateCharSlotUI(i); } catch(e) {}
+        }
+        
         // 重新渲染并计算
         try { renderGrid(); } catch(e) { console.error('renderGrid error:', e); }
         try { renderSpecialTab(); } catch(e) { console.error('renderSpecialTab error:', e); }
         try { recalculate(); } catch(e) { console.error('recalculate error:', e); }
         
-        // 显示上次修改时间
-        const lastModified = data.lastModified || data.timestamp;
-        showNotification(`配置已加载 (最后修改: ${lastModified})`, 'success');
+        // 加载后始终选中主角槽，避免误显示为角色2等
+        const slot0Btn = document.querySelector('.char-slot-btn[data-slot="0"]');
+        if (slot0Btn && typeof slot0Btn.click === 'function') {
+            slot0Btn.click();
+        }
         
+        if (!silent) {
+            const lastModified = data.lastModified || data.timestamp;
+            showNotification(`配置已加载 (最后修改: ${lastModified})`, 'success');
+        }
         return true;
     } catch (error) {
         console.error('加载配置时出错:', error);
-        showNotification('加载失败: ' + error.message, 'error');
+        if (!silent) showNotification('加载失败: ' + error.message, 'error');
         return false;
     }
 }
 
-// 导出配置为JSON文件
+// 导出配置为JSON文件（导出当前用户的配置）
 function exportConfig() {
     try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const key = typeof getUserStorageKey === 'function' ? getUserStorageKey() : STORAGE_KEY;
+        const saved = localStorage.getItem(key);
         if (!saved) {
             showNotification('没有可导出的配置，请先保存', 'warning');
             return;
@@ -326,13 +369,10 @@ function importConfig() {
                     }
                     
                     // 询问用户是否导入
-                    if (confirm(`发现配置文件 (版本: ${importedData.version || '未知'})\n是否导入并覆盖当前配置？`)) {
-                        // 保存到localStorage
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData, null, 2));
-                        
-                        // 重新加载配置
-                        loadFromLocal();
-                        
+                    if (confirm(`发现配置文件 (版本: ${importedData.version || '未知'})\n是否导入并覆盖当前用户配置？`)) {
+                        const key = typeof getUserStorageKey === 'function' ? getUserStorageKey() : STORAGE_KEY;
+                        localStorage.setItem(key, JSON.stringify(importedData, null, 2));
+                        loadFromLocal(true);
                         showNotification('配置已成功导入', 'success');
                     }
                 } catch (error) {
@@ -379,8 +419,10 @@ function exportToClipboard() {
             }
         }
         
-        // 获取防御值
+        // 获取防御值与防down
         const defense = parseInt(defInput?.value) || 10;
+        const defDownInput = document.getElementById('def-down-input');
+        const defenseDown = Math.min(80, Math.max(0, parseInt(defDownInput?.value) || 0));
         
         // 获取角色stats
         const stats = {};
@@ -389,6 +431,14 @@ function exportToClipboard() {
                 stats[cfg.key] = party[0].stats[cfg.key] || 0;
             });
         }
+        if (typeof overlayCharaEarringElementAtkFromParty === 'function') {
+            overlayCharaEarringElementAtkFromParty(stats, 0);
+        }
+        if (typeof overlayCharaLbElementAtkFromParty === 'function') {
+            overlayCharaLbElementAtkFromParty(stats, 0);
+        }
+        const weaponDefIgnore = Math.min(0.3, Math.max(0, Number(stats['weapon_def_ignore']) || 0));
+        const effectiveDefense = defense * (1 - defenseDown / 100) * (1 - weaponDefIgnore);
         
         // 获取饰品加成
         const teshuStats = getTeshuStats();
@@ -406,7 +456,7 @@ function exportToClipboard() {
                 parseInt(panelAtkEl?.innerText.replace(/,/g, '') || '0'),
                 stats,
                 parseInt(document.getElementById('current-hp-slider')?.value || 100),
-                { isAdvantage: false, defense: defense, randomFactor: randomFactor }
+                { isAdvantage: false, defense: defense, defenseDown: defenseDown, randomFactor: randomFactor }
             );
             
             // 获取基础伤害（不含防御）
@@ -422,16 +472,16 @@ function exportToClipboard() {
             // 获取伤害增幅
             const dmg_amp = aggregateZoneValue('dmg_amp', stats, teshuStats);
             const normal_dmg_amp = aggregateZoneValue('normal_dmg_amp', stats, teshuStats);
-            // c5职业job_na_amp为0，其他职业为0.03
+            // c5职业job_na_amp为0，非C5 使用当前用户的 defaultMastery（用户2 可为 0）
             const currentJob = allClasses.find(c => c.id === currentMC.jobId);
             const isClass5 = currentJob && currentJob.type === 'class_5';
-            const job_na_amp = isClass5 ? 0 : 0.03;
+            const job_na_amp = isClass5 ? 0 : (typeof getDefaultMastery === 'function' ? (getDefaultMastery()['mc_na_dmg_amp_passive_non_c5'] || 0) : 0.03);
             const total_amp = 1 + dmg_amp + job_na_amp + normal_dmg_amp;
             
             debugInfo.noWeakness = {
                 logs: resultNoWeakness.logs,
                 baseDmg: baseDmgNoWeakness,
-                finalNA: finalRound(baseDmgNoWeakness * total_amp, defense)
+                finalNA: finalRound(baseDmgNoWeakness * total_amp, effectiveDefense)
             };
             
             debugInfo.multipliers.noWeakness = {
@@ -448,7 +498,7 @@ function exportToClipboard() {
                 parseInt(panelAtkEl?.innerText.replace(/,/g, '') || '0'),
                 stats,
                 parseInt(document.getElementById('current-hp-slider')?.value || 100),
-                { isAdvantage: true, defense: defense, randomFactor: randomFactor }
+                { isAdvantage: true, defense: defense, defenseDown: defenseDown, randomFactor: randomFactor }
             );
             
             // 获取基础伤害（不含防御）
@@ -465,16 +515,16 @@ function exportToClipboard() {
             const dmg_amp = aggregateZoneValue('dmg_amp', stats, teshuStats);
             const normal_dmg_amp = aggregateZoneValue('normal_dmg_amp', stats, teshuStats);
             const dmg_to_elemental_amp = aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats);
-            // c5职业job_na_amp为0，其他职业为0.03
+            // c5职业job_na_amp为0，非C5 使用当前用户的 defaultMastery（用户2 可为 0）
             const currentJob = allClasses.find(c => c.id === currentMC.jobId);
             const isClass5 = currentJob && currentJob.type === 'class_5';
-            const job_na_amp = isClass5 ? 0 : 0.03;
+            const job_na_amp = isClass5 ? 0 : (typeof getDefaultMastery === 'function' ? (getDefaultMastery()['mc_na_dmg_amp_passive_non_c5'] || 0) : 0.03);
             const total_amp = 1 + dmg_amp + job_na_amp + normal_dmg_amp + dmg_to_elemental_amp;
             
             debugInfo.withWeakness = {
                 logs: resultWithWeakness.logs,
                 baseDmg: baseDmgWithWeakness,
-                finalNA: finalRound(baseDmgWithWeakness * total_amp, defense)
+                finalNA: finalRound(baseDmgWithWeakness * total_amp, effectiveDefense)
             };
 
             debugInfo.multipliers.withWeakness = {
@@ -508,11 +558,8 @@ function exportToClipboard() {
             // 主角配置
             mc: {
                 jobId: currentMC.jobId,
-                rank: parseInt(document.getElementById('mc-rank-input')?.value) || 400,
-                lbAtk: document.getElementById('mc-lb-atk')?.value || '0',
-                lbHp: document.getElementById('mc-lb-hp')?.value || '5000',
-                prof1: document.getElementById('prof1-extra')?.value || '0',
-                prof2: document.getElementById('prof2-extra')?.value || '0'
+                rank: parseInt(document.getElementById('mc-rank-input')?.value) || 404,
+                lbSlots: (typeof getMcLbSelections === 'function') ? getMcLbSelections() : []
             },
             
             // 神石设置
@@ -555,6 +602,7 @@ function exportToClipboard() {
             damageSettings: {
                 weakness: weaknessToggle?.checked || false,
                 defense: defense.toString(),
+                defenseDown: defenseDown,
                 randomFactor: randomFactor
             },
             
@@ -590,15 +638,14 @@ function resetConfig() {
         
         // 重置主角设置
         const mcRankInput = document.getElementById('mc-rank-input');
-        const mcLbAtk = document.getElementById('mc-lb-atk');
-        const mcLbHp = document.getElementById('mc-lb-hp');
-        const prof1Extra = document.getElementById('prof1-extra');
-        const prof2Extra = document.getElementById('prof2-extra');
-        if (mcRankInput) mcRankInput.value = '400';
-        if (mcLbAtk) mcLbAtk.value = '0';
-        if (mcLbHp) mcLbHp.value = '5000';
-        if (prof1Extra) prof1Extra.value = '0';
-        if (prof2Extra) prof2Extra.value = '0';
+        if (mcRankInput) mcRankInput.value = '404';
+        if (typeof ensureMcLbUI === 'function') ensureMcLbUI();
+        for (let i = 0; i < 20; i++) {
+            const typeEl = document.getElementById(`mc-lb-type-${i}`);
+            const lvlEl = document.getElementById(`mc-lb-lvl-${i}`);
+            if (typeEl) typeEl.value = 'none';
+            if (lvlEl) lvlEl.value = '0';
+        }
         
         // 重置神石设置
         const auraOptimus = document.getElementById('aura-optimus');
@@ -630,8 +677,9 @@ function resetConfig() {
             updateMCJob(allClasses[0].id);
         }
         
-        // 清空本地存储
-        localStorage.removeItem(STORAGE_KEY);
+        // 清空当前用户的本地存储
+        const key = typeof getUserStorageKey === 'function' ? getUserStorageKey() : STORAGE_KEY;
+        localStorage.removeItem(key);
         
         // 重新渲染
         renderGrid();
@@ -650,7 +698,7 @@ function setupAutoSave() {
     // 监听重要变化事件
     const autoSaveElements = [
         'aura-optimus', 'aura-magna', 'aura-jinzhou', 'aura-elemental',
-        'mc-rank-input', 'mc-lb-atk', 'mc-lb-hp', 'prof1-extra', 'prof2-extra',
+        'mc-rank-input',
         'summon-atk', 'summon-hp', 'current-hp-slider'
     ];
     
@@ -663,6 +711,14 @@ function setupAutoSave() {
                 }
             });
         }
+    });
+
+    document.querySelectorAll('.mc-lb-type-select, .mc-lb-level-select').forEach(element => {
+        element.addEventListener('change', function() {
+            if (autoSaveEnabled) {
+                setTimeout(saveToLocal, 100);
+            }
+        });
     });
     
     // 监听武器盘变化（通过自定义事件）

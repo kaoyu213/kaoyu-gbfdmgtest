@@ -5,14 +5,14 @@
     "type": "spear",
     "element": "暗",
     "category": "lm",
-    "image": "M_1040216900.webp",
+    "image": "weapons/M_1040216900.webp",
     "stats": {
       "hp": 339,
       "atk": 3074,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -33,14 +33,14 @@
     "type": "axe",
     "element": "暗",
     "category": "lm",
-    "image": "M_1040311600.webp",
+    "image": "weapons/M_1040311600.webp",
     "stats": {
       "hp": 251,
       "atk": 3518,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -61,14 +61,14 @@
     "type": "axe",
     "element": "暗",
     "category": "lm",
-    "image": "M_1040314300.webp",
+    "image": "weapons/M_1040314300.webp",
     "stats": {
       "hp": 500,
       "atk": 2260,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -94,7 +94,7 @@
     "type": "katana",
     "element": "暗",
     "category": "fawu",
-    "image": "1040911000_03.jpg",
+    "image": "weapons/1040911000_03.jpg",
     "stats": {
       "hp": 309,
       "atk": 4490,
@@ -132,14 +132,14 @@
     "type": "sabre",
     "element": "土",
     "category": "lm",
-    "image": "M_1040020900.webp",
+    "image": "weapons/M_1040020900.webp",
     "stats": {
       "hp": 286,
       "atk": 3336,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -160,14 +160,14 @@
     "type": "spear",
     "element": "火",
     "category": "lm",
-    "image": "M_1040218900.webp",
+    "image": "weapons/M_1040218900.webp",
     "stats": {
       "hp": 331,
       "atk": 3114,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -193,14 +193,14 @@
     "type": "sabre",
     "element": "火",
     "category": "lm",
-    "image": "M_1040023700.webp",
+    "image": "weapons/M_1040023700.webp",
     "stats": {
       "hp": 285,
       "atk": 3350,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -221,14 +221,14 @@
     "type": "katana",
     "element": "暗",
     "category": "lm",
-    "image": "M_1040916700.webp",
+    "image": "weapons/M_1040916700.webp",
     "stats": {
       "hp": 234,
       "atk": 3628,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -254,14 +254,14 @@
     "type": "dagger",
     "element": "暗",
     "category": "lm",
-    "image": "M_1040116600.webp",
+    "image": "weapons/M_1040116600.webp",
     "stats": {
       "hp": 314,
       "atk": 3200,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -282,7 +282,7 @@
     "type": "staff",
     "element": "火",
     "category": "方阵",
-    "image": "M_1040417900.webp",
+    "image": "weapons/M_1040417900.webp",
     "stats": {
       "hp": 260,
       "atk": 2590,
@@ -294,7 +294,7 @@
     "skill_slots": [
       {
         "is_slot": false,
-        "skill_id": "omega_stamina_big3",
+        "skill_id": "omega_stamina_big",
         "unlock_level": 0
       },
       {
@@ -310,14 +310,14 @@
     "type": "katana",
     "element": "火",
     "category": "lm",
-    "image": "M_1040906400.webp",
+    "image": "weapons/M_1040906400.webp",
     "stats": {
       "hp": 236,
       "atk": 3620,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -338,14 +338,14 @@
     "type": "sabre",
     "element": "暗",
     "category": "lm",
-    "image": "M_1040014300.webp",
+    "image": "weapons/M_1040014300.webp",
     "stats": {
       "hp": 292,
       "atk": 3319,
       "max_level": 150,
       "allow_extra": false,
-      "weapon_multiplier": 1.0,
-      "ca_fixed": 0
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
     },
     "skill_slots": [
       {
@@ -366,7 +366,7 @@
     "type": "axe",
     "element": "暗",
     "category": "lm",
-    "image": "M_1040116600.webp",
+    "image": "weapons/M_1040116600.webp",
     "stats": {
       "hp": 230,
       "atk": 3200,
@@ -383,7 +383,7 @@
     "type": "sabre",
     "element": "暗",
     "category": "test",
-    "image": "M_1040014300.webp",
+    "image": "weapons/M_1040014300.webp",
     "stats": {
       "hp": 200,
       "atk": 3000,
@@ -400,7 +400,7 @@
     "type": "spear",
     "element": "水",
     "category": "test",
-    "image": "",
+    "image": "weapons/",
     "stats": {
       "hp": 313,
       "atk": 2748,
@@ -425,14 +425,14 @@
   },
   {
     "id": "test_extra_weapon",
-    "name": "测试暴击武器2",
-    "type": "spear",
-    "element": "水",
+    "name": "测试背水武器1",
+    "type": "fist",
+    "element": "火",
     "category": "test",
-    "image": "",
+    "image": "weapons/",
     "stats": {
-      "hp": 45,
-      "atk": 373,
+      "hp": 297,
+      "atk": 2825,
       "max_level": 150,
       "allow_extra": false,
       "weapon_multiplier": 1.0,
@@ -441,12 +441,12 @@
     "skill_slots": [
       {
         "is_slot": false,
-        "skill_id": "test_baoji",
+        "skill_id": "ex-enmity",
         "unlock_level": 0
       },
         {
           "is_slot": false,
-          "skill_id": "element_pact",
+          "skill_id": "",
           "unlock_level": 0
         }
       
@@ -475,10 +475,1216 @@
       },
         {
           "is_slot": false,
-          "skill_id": "element_spectacle",
+          "skill_id": "celestial sabre_big",
           "unlock_level": 0
         }
       
+    ]
+  },
+  {
+    "id": "Seven-Star Sword Sterling",
+    "name": "七星剣・真",
+    "type": "sabre",
+    "element": "光",
+    "category": "test",
+    "image": "weapons/M_1040002400.webp",
+    "stats": {
+      "hp": 216,
+      "atk": 2520,
+      "max_level": 100,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_big",
+        "unlock_level": 0
+      },
+        {
+          "is_slot": false,
+          "skill_id": "",
+          "unlock_level": 0
+        }
+      
+      
+    ]
+  },
+  {
+    "id": "Colossus Bomber Ira",
+    "name": "科罗萨斯爆弹·烬怒",
+    "type": "axe",
+    "element": "火",
+    "category": "test",
+    "image": "weapons/M_1040317400.webp",
+    "stats": {
+      "hp": 26,
+      "atk": 410,
+      "max_level": 100,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "omega_might_small",
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Blazefist of Prosperity Verboten",
+    "name": "禁荣之灼拳",
+    "type": "melee",
+    "element": "火",
+    "category": "test",
+    "image": "weapons/M_1040621400.webp",
+    "stats": {
+      "hp": 40,
+      "atk": 337,
+      "max_level": 100,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "odious_fandango_medium",
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Godsworn Edge",
+    "name": "极神剑",
+    "type": "sabre",
+    "element": "土",
+    "category": "test",
+    "image": "weapons/M_1040020600.webp",
+    "stats": {
+      "hp": 230,
+      "atk": 2690,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "omega_enmity_small",
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Executioner",
+    "name": "行刑者",
+    "type": "katana",
+    "element": "暗",
+    "category": "lm",
+    "image": "weapons/M_1040918100.webp",
+    "stats": {
+      "hp": 233,
+      "atk": 3632,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "element_maneuver",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_impalement_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_athos",
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Forbidden Agastia Mk II",
+    "name": "禁忌阿加斯提亚·重铸",
+    "type": "staff",
+    "element": "暗",
+    "category": "六属高难",
+    "image": "weapons/M_1040422300.webp",
+    "stats": {
+      "hp": 384,
+      "atk": 3431,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "omega_bloodshed_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "omega_restraint_medium",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "gongjijuexingtest",
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Fediel's Spine",
+    "name": "菲迪埃尔之脊",
+    "type": "sabre",
+    "element": "暗",
+    "category": "六龙",
+    "image": "weapons/M_1040020300.webp",
+    "stats": {
+      "hp": 257,
+      "atk": 3037,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "element_stamina_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "ex-stamina",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_convenant",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Fediel's Spine",
+    "name": "无附魔菲迪埃尔之脊",
+    "type": "sabre",
+    "element": "暗",
+    "category": "六龙",
+    "image": "weapons/M_1040020300.webp",
+    "stats": {
+      "hp": 257,
+      "atk": 3037,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "element_stamina_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_convenant",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "test修罗",
+    "name": "修罗test",
+    "type": "bow",
+    "element": "土",
+    "category": "六龙",
+    "image": "weapons/M_1040712600.webp",
+    "stats": {
+      "hp": 40,
+      "atk": 407,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_bloodshed_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "test修罗2",
+    "name": "修罗test2",
+    "type": "dagger",
+    "element": "土",
+    "category": "六龙",
+    "image": "weapons/M_1040116000.webp",
+    "stats": {
+      "hp": 39,
+      "atk": 403,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_bloodshed_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_enmity_small",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Seven-Star Sword Sterling-test",
+    "name": "七星剣・转属",
+    "type": "sabre",
+    "element": "暗",
+    "category": "test",
+    "image": "weapons/M_1040002400.webp",
+    "stats": {
+      "hp": 220,
+      "atk": 2550,
+      "max_level": 100,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_big",
+        "unlock_level": 0
+      },
+        {
+          "is_slot": false,
+          "skill_id": "",
+          "unlock_level": 0
+        }
+      
+      
+    ]
+  },
+  {
+    "id": "Abyss Spine",
+    "name": "阿凡达杖",
+    "type": "staff",
+    "element": "暗",
+    "category": "方阵",
+    "image": "weapons/M_1040414200.webp",
+    "stats": {
+      "hp": 310,
+      "atk": 2350,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 1.0,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "omega_majesty_medium",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "omega_sentence_medium",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "150Hraesvelgr",
+    "name": "150水铳",
+    "type": "gun",
+    "element": "水",
+    "category": "辉耀",
+    "image": "weapons/M_1040515200.webp",
+    "stats": {
+      "hp": 246,
+      "atk": 3654,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "geisa ari",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "mikill las",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "einar",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Clockwork Blade Kumogakure",
+    "name": "绿骑刀",
+    "type": "katana",
+    "element": "水",
+    "category": "lm",
+    "image": "weapons/M_1040918400.webp",
+    "stats": {
+      "hp": 237,
+      "atk": 3612,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_fandango_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_spearhead_small",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_deathstrike_big",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Rubea Stiria",
+    "name": "yqm弓",
+    "type": "bow",
+    "element": "水",
+    "category": "lm",
+    "image": "weapons/M_1040713800.webp",
+    "stats": {
+      "hp": 272,
+      "atk": 3488,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_exalto",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_celere_small",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_stratagem_big",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Bridekeeper",
+    "name": "花铳",
+    "type": "gun",
+    "element": "水",
+    "category": "辉耀",
+    "image": "weapons/M_1040518100.webp",
+    "stats": {
+      "hp": 201,
+      "atk": 3330,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_fandango_medium",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_strike",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_maneuver",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Staff of Repudiation",
+    "name": "250水老王法武",
+    "type": "staff",
+    "element": "水",
+    "category": "fawu",
+    "image": "weapons/1040415000_03.jpg",
+    "stats": {
+      "hp": 482,
+      "atk": 3605,
+      "max_level": 250,
+      "allow_extra": false,
+      "weapon_multiplier": 9.5,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_apotheosis_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+          "na_albus2",
+          "skill_albus2",
+          "ca_albus2",
+          "cb_albus2"
+        ],
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": ["all_athos",
+        "all_honing"],
+
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Staff of Renunciation",
+    "name": "250水方阵法武",
+    "type": "staff",
+    "element": "水",
+    "category": "fawu",
+    "image": "weapons/1040415100_03.jpg",
+    "stats": {
+      "hp": 482,
+      "atk": 3605,
+      "max_level": 250,
+      "allow_extra": false,
+      "weapon_multiplier": 9.5,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "omega_apotheosis_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+          "na_albus2",
+          "skill_albus2",
+          "ca_albus2",
+          "cb_albus2"
+        ],
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": ["all_athos",
+        "all_honing"],
+
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Taisai Spirit Bow",
+    "name": "真扎弓",
+    "type": "bow",
+    "element": "水",
+    "category": "lm",
+    "image": "weapons/M_1040708700.webp",
+    "stats": {
+      "hp": 263,
+      "atk": 3020,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_celere_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_small",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Rhomphaia",
+    "name": "雷霆破碎200",
+    "type": "spear",
+    "element": "风",
+    "category": "辉耀",
+    "image": "weapons/M_1040217400.webp",
+    "stats": {
+      "hp": 401,
+      "atk": 3579,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "cyclonic strike",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_majesty_big",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Twinpain-Wolf Gun",
+    "name": "极星铳",
+    "type": "gun",
+    "element": "火",
+    "category": "极星器",
+    "image": "weapons/M_1040517100.webp",
+    "stats": {
+      "hp": 274,
+      "atk": 4129,
+      "max_level": 200,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "celestial gun_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "gun_voltage_medium",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "guiding_star_splendor",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": ["awakening_celestial_attack",
+        "awakening_celestial_ca",
+        "awakening_celestial_skill"],
+        
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Twinpain-Wolf staff",
+    "name": "极星杖",
+    "type": "staff",
+    "element": "光",
+    "category": "极星器",
+    "image": "weapons/M_1040423300.jpg",
+    "stats": {
+      "hp": 440,
+      "atk": 3297,
+      "max_level": 200,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "celestial staff_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "staff_voltage_medium",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "guiding_star_splendor",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": ["awakening_celestial_attack",
+        "awakening_celestial_ca",
+        "awakening_celestial_skill"],
+        
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Doombringer Edge",
+    "name": "妈短",
+    "type": "dagger",
+    "element": "水",
+    "category": "妈武",
+    "image": "weapons/M_1040122300.webp",
+    "stats": {
+      "hp": 353,
+      "atk": 3728,
+      "max_level": 200,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "destruction_godblade3",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "rebirth_godshield3",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+        "anklet_of_na",
+        "anklet_of_ca",
+        "anklet_of_skill"],
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Doombringer Bow",
+    "name": "妈拳",
+    "type": "fist",
+    "element": "风",
+    "category": "妈武",
+    "image": "weapons/M_1040621200.webp",
+    "stats": {
+      "hp": 364,
+      "atk": 3669,
+      "max_level": 200,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "destruction_godblade3",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "rebirth_godshield3",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+        "anklet_of_na",
+        "anklet_of_ca",
+        "anklet_of_skill"],
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Rhomphaia250",
+    "name": "雷霆破碎250",
+    "type": "spear",
+    "element": "风",
+    "category": "辉耀",
+    "image": "weapons/M_1040217400.webp",
+    "stats": {
+      "hp": 451,
+      "atk": 4026,
+      "max_level": 250,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "cyclonic strike",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_majesty_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "test_guanpo",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Aetherial Maverick test",
+    "name": "大姐弓",
+    "type": "bow",
+    "element": "风",
+    "category": "lm",
+    "image": "weapons/M_1040714800.webp",
+    "stats": {
+      "hp": 273,
+      "atk": 3479,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      
+      {
+        "is_slot": false,
+        "skill_id": "optimus_impalement_big",
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Harp of Repudiation",
+    "name": "250土老王法武",
+    "type": "harp",
+    "element": "土",
+    "category": "fawu",
+    "image": "weapons/1040809400_03.jpg",
+    "stats": {
+      "hp": 385,
+      "atk": 3690,
+      "max_level": 250,
+      "allow_extra": false,
+      "weapon_multiplier": 9.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_apotheosis_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+          "na_albus2",
+          "skill_albus2",
+          "ca_albus2",
+          "cb_albus2"
+        ],
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": ["all_athos",
+        "all_honing"],
+
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Piercing Galewing",
+    "name": "猫短",
+    "type": "dagger",
+    "element": "风",
+    "category": "lm",
+    "image": "weapons/M_1040116800.jpg",
+    "stats": {
+      "hp": 317,
+      "atk": 3185,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "element_pact",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "dagger_voltage_medium",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_quintessence",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
+    "id": "Staff of the Medicinal Master",
+    "name": "药师杖",
+    "type": "staff",
+    "element": "土",
+    "category": "lm",
+    "image": "weapons/M_1040425600.jpg",
+    "stats": {
+      "hp": 399,
+      "atk": 2775,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+       {
+        "is_slot": false,
+        "skill_id": "optimus_onslaught_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_impalement_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_porthos",
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },
+  {
+    "id": "Bloodwrought Coral",
+    "name": "小美刀",
+    "type": "katana",
+    "element": "土",
+    "category": "lm",
+    "image": "weapons/M_1040916800.jpg",
+    "stats": {
+      "hp": 222,
+      "atk": 3687,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_exalto",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_majesty_small",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_demolishment_big",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Bab-Bell Rendezvous",
+    "name": "土奶嘴琴",
+    "type": "harp",
+    "element": "土",
+    "category": "jixian",
+    "image": "weapons/M_1040816200.jpg",
+    "stats": {
+      "hp": 305,
+      "atk": 2810,
+      "max_level": 150,
+      "allow_extra": true,
+      "weapon_multiplier": 1.0,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_glory_big",
+        "unlock_level": 0
+      },
+        {
+          "is_slot": false,
+          "skill_id": "element_ascendancy",
+          "unlock_level": 0
+        }
+      
+    ]
+  },
+  {
+    "id": "Ichigo Hitofuri",
+    "name": "一期一振",
+    "type": "katana",
+    "element": "土",
+    "category": "lm",
+    "image": "weapons/M_1040910000.jpg",
+    "stats": {
+      "hp": 257,
+      "atk": 3512,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_big3",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_stamina_medium",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
+    "id": "Ancient Perseus",
+    "name": "方阵小美琴",
+    "type": "harp",
+    "element": "土",
+    "category": "方阵",
+    "image": "weapons/M_1040803500.jpg",
+    "stats": {
+      "hp": 270,
+      "atk": 2470,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "omega_majesty_small",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "omega_haunt_medium",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
+    "id": "Cerastes",
+    "name": "金骑枪",
+    "type": "spear",
+    "element": "土",
+    "category": "lm",
+    "image": "weapons/M_1040215300.jpg",
+    "stats": {
+      "hp": 344,
+      "atk": 3049,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_verity_big2",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_sentence_medium",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
+    "id": "Doombringer Trident",
+    "name": "妈枪",
+    "type": "spear",
+    "element": "土",
+    "category": "妈武",
+    "image": "weapons/M_1040220300.jpg",
+    "stats": {
+      "hp": 383,
+      "atk": 3585,
+      "max_level": 200,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "destruction_godblade3",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "rebirth_godshield3",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+        "anklet_of_na",
+        "anklet_of_ca",
+        "anklet_of_skill"],
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Luminiera Sword Omega",
+    "name": "150方阵光剑",
+    "type": "sabre",
+    "element": "光",
+    "category": "方阵",
+    "image": "weapons/M_1040007200.jpg",
+    "stats": {
+      "hp": 228,
+      "atk": 2660,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "omega_majesty_small",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_small",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Excalibur",
+    "name": "暗咖喱剑",
+    "type": "sabre",
+    "element": "暗",
+    "category": "老石油",
+    "image": "weapons/M_1040007900.jpg",
+    "stats": {
+      "hp": 316,
+      "atk": 3792,
+      "max_level": 200,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      
+      {
+        "is_slot": false,
+        "skill_id": "optimus_stamina_Excalibur",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Forbidden Silence",
+    "name": "圣诞狐书",
+    "type": "staff",
+    "element": "土",
+    "category": "季限",
+    "image": "weapons/M_1040419400.jpg",
+    "stats": {
+      "hp": 360,
+      "atk": 2536,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      
+      {
+        "is_slot": false,
+        "skill_id": "optimus_stamina_medium",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_verity_big",
+        "unlock_level": 0
+      }
     ]
   }
 ]

@@ -1,0 +1,107 @@
+[
+  {
+    "id": "charabuff_3040616000_1",
+    "name": "珍爱人偶",
+    "source": "",
+   "image": "chara skill/icon_skill_3040616000_1.webp",
+   "element": "暗",
+   "level": 1,
+   "maxlevel": 1,
+    "cd": "1",
+    "description": "自身获得以下强化，持续1回合：必定TA，暗属性追击 A2类（50%）",
+    "effects": [
+      {
+        "prop": "charabuff_ta",
+        "type": "must",
+        "value": "1000"
+      },
+      {
+        "prop": "charabuff_bonus_na_dmg",
+        "type": "A2",
+        "value": "50%"
+      }
+    ]
+
+  
+  },
+  {
+    "id": "charabuff_3040616000_2",
+    "name": "珍爱人偶",
+    "source": "",
+   "image": "chara skill/icon_skill_3040616000_1.webp",
+   "element": "暗",
+   "level": 1,
+   "maxlevel": 5,
+    "cd": "1",
+    "description": "自身获得以下强化，持续1回合：必定TA，暗属性追击 A2类（50%）",
+    "effects": [
+      {
+        "prop": "charabuff_ta",
+        "type": "must",
+        "value": "1000"
+      },
+      {
+        "prop": "charabuff_bonus_na_dmg",
+        "type": "A2",
+        "value": "20%",
+        "upvalue": "20%",
+        "maxvalue": "100%"
+      }
+    ]
+
+  
+  },
+  {
+    "id": "summonbuff_Orologia_1",
+    "name": "召唤-时龙-主动",
+    "source": "",
+   "image": "chara skill/M_2040433000.webp",
+   "element": "all",
+   "level": 1,
+   "maxlevel": 1,
+    "cd": "1",
+    "description": "我方全体获得伤害上升 Q类（上限10万），持续1回合,主角获得以下效果:再攻击，持续1回合",
+    "effects": [
+      {
+        "prop": "charabuff_dmg_supp",
+        "type": "q",
+        "value": "100000"
+      },
+      {
+        "prop": "charabuff_double_strike",
+        "type": "",
+        "value": "1"
+
+      }
+    ]
+
+  
+  },
+  {
+    "id": "summonbuff_Orologia_1",
+    "name": "召唤-时龙-主动",
+    "source": "",
+   "image": "chara skill/SK_2516_3.webp",
+   "element": "暗",
+   "level": 1,
+   "maxlevel": 5,
+    "cd": "1",
+    "description": "自身获得以下强化，持续1回合：必定TA，暗属性追击 A2类（50%）",
+    "effects": [
+      {
+        "prop": "charabuff_ta",
+        "type": "",
+        "value": "1000"
+      },
+      {
+        "prop": "charabuff_bonus_na_dmg",
+        "type": "A2",
+        "value": "20%",
+        "upvalue": "20%",
+        "maxvalue": "100%"
+      }
+    ]
+
+  
+  }
+]

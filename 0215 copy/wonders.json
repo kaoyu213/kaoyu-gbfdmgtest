@@ -1,0 +1,86 @@
+[
+  {
+    "id": "yupei",
+    "name": "玲珑佩/龙心",
+    "image": "wonders/icon_item_1001_03.png",
+    "description": [
+      {"desc": "属性攻击力", "effect": {"element_atk": 0.1}},
+      {"desc": "防御力", "effect": {"def_linglongpei": 0.1}},
+      {"desc": "技能伤害", "effect": {"skill_dmg": 0.05}},
+      {"desc": "奥义伤害", "effect": {"ca_dmg": 0.05}},
+      {"desc": "对克制属性伤害增幅", "effect": {"dmg_to_elemental_amp": 0.05}},
+      {"desc": "普通攻击上限", "effect": {"na_dmg_cap": 0.05}},
+      {"desc": "技能伤害上限", "effect": {"skill_dmg_cap": 0.05}},
+      {"desc": "奥义伤害上限", "effect": {"ca_dmg_cap": 0.05}}
+    ]
+  },
+  {
+    "id": "crucible_seal",
+    "name": "神灭印章",
+    "image": "wonders/9009_15.jpg",
+    "description": [
+      {"desc": "TA", "effect": {"ta": 0.05}},
+      {"desc": "DA", "effect": {"da": 0.06}},
+      {"desc": "回复上限", "effect": {"heal_cap": 0.09}},
+      {"desc": "弱体耐性", "effect": {"debuff_resistance": 0.09}},
+      {"desc": "弱体成功率", "effect": {"debuff_success_rate": 0.05}},
+      {"desc": "受到克制属性伤害减轻", "effect": {"anti_element_reduce": 0.05}}
+    ]
+  },
+  {
+    "id": "signum_heredis",
+    "name": "戴冠者",
+    "image": "wonders/9013.jpg",
+    "description": [
+      {"desc": "全属性攻击力", "effect": {"element_atk": 0.03}}
+    ]
+  },
+  {
+    "id": "oppressus_fragor",
+    "name": "六色之楔",
+    "image": "wonders/9014.jpg",
+    "description": [
+      {"desc": "全属性角色伤害上限", "effect": {"dmg_cap": 0.03}}
+    ]
+  },
+  {
+    "id": "symbolum_amicitiae",
+    "name": "友谊象征",
+    "image": "wonders/9015_8.jpg",
+    "description": [
+      {"desc": "全属性角色伤害增幅", "effect": {"dmg_amp": 0.03}}
+    ]
+  },
+  {
+    "id": "airship_sp_atk1",
+    "name": "骑空艇独立加成",
+    "image": "wonders/10001_03.png",
+    "description": [
+      {"desc": "全属性角色骑空艇区伤害", "effect": {"airship_sp_atk1": 0.1}}
+    ]
+  },
+  {
+    "id": "airship_sp_atk2",
+    "name": "骑空艇船炉",
+    "image": "wonders/52.png",
+    "description": [
+      {"desc": "全属性骑空艇区攻击力", "effect": {"airship_sp_atk2": 0.1}}
+    ]
+  },
+  {
+    "id": "rings_of_fate_hp",
+    "name": "命运之环-生命值",
+    "image": "wonders/2001.jpg",
+    "description": [
+      {"desc": "提升属性角色生命值（还没做完代码）", "effect": {"rings_of_fate_hp": 0.1}}
+    ]
+  },
+  {
+    "id": "rings_of_fate_atk",
+    "name": "命运之环-克属增幅",
+    "image": "wonders/2001.jpg",
+    "description": [
+      {"desc": "属性角色对克制属性的伤害增幅", "effect": {"dmg_to_elemental_amp": 0.1}}
+    ]
+  }
+]

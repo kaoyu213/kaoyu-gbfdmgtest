@@ -5,6 +5,12 @@
 // 武器数据
 let allWeapons = [];
 
+// 左侧「武器仓库」属性筛选：'全部' 或 火/水/土/风/光/暗
+let inventoryElementFilter = '全部';
+
+// 左侧「角色图鉴」属性筛选
+let characterElementFilter = '全部';
+
 // 职业数据
 let allClasses = [];
 
@@ -20,17 +26,37 @@ let currentSummons = new Array(8).fill(null);
 // 额外武器栏开关 (默认开启，显示13格)
 let extraSlotsEnabled = false;
 
+// 队伍成员状态 (槽位0为主角，其余为空或已选角色数据)
+let currentParty = [null, null, null, null, null, null];
+
 // 全局技能映射
 let globalSkillMap = {};
 
 // 召唤石数据
 let allSummons = [];
 
+// 角色主动技能目录（来自 charaskills.json，id -> 条目）
+let globalCharaSkillMap = {};
+
+// Buff 展示配置（来自 buff_icons.json：buff_id -> { icon, title, abbrev }）
+let globalBuffIconsMap = {};
+
+// 技能 / 角色 Buff 图鉴条目（来自 charabuff.json，根为数组）
+let allCharaBuffs = [];
+
+// 各角色槽位从 Buff 图鉴手动加入的条目（与 charaskills 勾选叠加写入 party.stats）
+window.buffCodexPanelRowsBySlot = [[], [], [], [], [], []];
+
 // 特殊加成数据
 let specialBuffsData = [];
 
 // 激活的特殊加成
 let activeSpecialBuffs = new Set();
+
+// 特殊道具自定义加成（用于如“友谊象征”这类可输入效果）
+// 结构：{ [buffId]: { [effectKey]: number } }，数值使用小数（如 3% -> 0.03）
+// 约定：未设置/输入无效则不写入该键，计算时回退到 JSON 默认值
+let specialBuffCustomValues = {};
 
 // 特殊加成总效果对象
 let currentSpecialTotalStats = {};

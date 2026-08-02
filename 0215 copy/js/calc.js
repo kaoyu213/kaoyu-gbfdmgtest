@@ -5,6 +5,113 @@
 // 全局变量：角色数据
 let party = [];
 
+const MC_LB_SLOT_COUNT = 20;
+const MC_LB_OPTIONS = [
+    { id: 'atk', label: '攻击力', values: [500, 1500, 3000], kind: 'fixed', apply: 'baseAtk' },
+    { id: 'def', label: '防御力', values: [1, 3, 5], kind: 'percent', apply: 'mcDef' },
+    { id: 'hp', label: 'HP', values: [300, 600, 1000], kind: 'fixed', apply: 'baseHp' },
+    { id: 'heal_std', label: '回复性能(1/3/5)', values: [1, 3, 5], kind: 'percent', apply: 'healCap' },
+    { id: 'heal_high', label: '回复性能(5/10/15)', values: [5, 10, 15], kind: 'percent', apply: 'healCap' },
+    { id: 'skill_dmg', label: '技能伤害', values: [1, 3, 5], kind: 'percent', apply: 'skillDmg' },
+    { id: 'debuff_res', label: '弱体耐性', values: [1, 3, 5], kind: 'percent', apply: 'debuffRes' },
+    { id: 'debuff_success_std', label: '弱体成功率(1/3/5)', values: [1, 3, 5], kind: 'percent', apply: 'debuffSuccess' },
+    { id: 'debuff_success_high', label: '弱体成功率(2/4/8)', values: [2, 4, 8], kind: 'percent', apply: 'debuffSuccess' },
+    { id: 'fire_atk', label: '火属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
+    { id: 'water_atk', label: '水属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
+    { id: 'earth_atk', label: '土属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
+    { id: 'wind_atk', label: '风属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
+    { id: 'light_atk', label: '光属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
+    { id: 'dark_atk', label: '暗属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
+    { id: 'ca_dmg_std', label: '奥义伤害(1/3/5)', values: [1, 3, 5], kind: 'percent', apply: 'caDmg' },
+    { id: 'ca_dmg_high', label: '奥义伤害(2/4/8)', values: [2, 4, 8], kind: 'percent', apply: 'caDmg' },
+    { id: 'prof1', label: '得意武器攻击1', values: [1, 3, 5], kind: 'percent', apply: 'prof1' },
+    { id: 'prof2', label: '得意武器攻击2', values: [1, 3, 5], kind: 'percent', apply: 'prof2' },
+    { id: 'prof12', label: '得意武器攻击1·2', values: [1, 3, 5], kind: 'percent', apply: 'prof12' },
+    { id: 'da', label: 'DA几率', values: [1, 3, 5], kind: 'percent', apply: 'da' },
+    { id: 'ta', label: 'TA几率', values: [1, 3, 5], kind: 'percent', apply: 'ta' },
+    { id: 'crit', label: '暴击率', values: [1, 3, 5], kind: 'percent', apply: 'crit' },
+    { id: 'party_hp', label: '我方全体HP', values: [300, 600, 1000], kind: 'fixed', apply: 'partyHpFlat' },
+    { id: 'dmg_cap', label: '伤害上限', values: [1, 3, 5], kind: 'percent', apply: 'allCap' },
+    { id: 'cb_dmg', label: 'CB伤害', values: [1, 3, 5], kind: 'percent', apply: 'cbDmg' },
+    { id: 'dodge', label: '回避率', values: [1, 2, 3], kind: 'percent', apply: 'dodge' },
+    { id: 'skill_cap', label: '技能伤害上限', values: [1, 3, 5], kind: 'percent', apply: 'skillCap' },
+    { id: 'cb_cap', label: 'CB伤害上限', values: [1, 3, 5], kind: 'percent', apply: 'cbCap' }
+];
+
+const MC_LB_OPTION_MAP = MC_LB_OPTIONS.reduce((acc, item) => {
+    acc[item.id] = item;
+    return acc;
+}, {});
+
+function ensureMcLbUI() {
+    const listContainer = document.querySelector('.mc-lb-slot-list');
+    if (!listContainer || listContainer.dataset.initialized === '1') return;
+    let rowsHtml = '';
+    const optionHtml = MC_LB_OPTIONS.map(opt => `<option value="${opt.id}">${opt.label}</option>`).join('');
+    for (let i = 0; i < MC_LB_SLOT_COUNT; i++) {
+        rowsHtml += `
+            <div class="lb-slot" style="background:#2a2a2a;padding:5px;border-radius:4px;display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="font-size:0.8em;color:#888;width:25px;text-align:center;">${i + 1}</div>
+                <div style="flex:1;">
+                    <select class="mc-form-control mc-lb-type-select" id="mc-lb-type-${i}" style="width:100%;font-size:0.85em;" onchange="recalculate(); if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') saveToLocal(true);">
+                        <option value="none">-</option>
+                        ${optionHtml}
+                    </select>
+                </div>
+                <div style="width:74px;">
+                    <select class="mc-form-control mc-lb-level-select" id="mc-lb-lvl-${i}" style="width:100%;font-size:0.85em;" onchange="recalculate(); if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') saveToLocal(true);">
+                        <option value="0">-</option>
+                        <option value="1">★1</option>
+                        <option value="2">★2</option>
+                        <option value="3">★3</option>
+                    </select>
+                </div>
+                <div id="mc-lb-val-${i}" style="width:80px;text-align:right;font-size:0.75em;color:#aaa;">-</div>
+            </div>`;
+    }
+    listContainer.innerHTML = rowsHtml;
+    listContainer.dataset.initialized = '1';
+}
+
+function getMcLbSelections() {
+    const selections = [];
+    for (let i = 0; i < MC_LB_SLOT_COUNT; i++) {
+        selections.push({
+            type: document.getElementById(`mc-lb-type-${i}`)?.value || 'none',
+            lvl: parseInt(document.getElementById(`mc-lb-lvl-${i}`)?.value, 10) || 0
+        });
+    }
+    return selections;
+}
+window.getMcLbSelections = getMcLbSelections;
+window.ensureMcLbUI = ensureMcLbUI;
+
+window.getMcLbTotals = function() {
+    ensureMcLbUI();
+    const totals = {
+        baseAtk: 0, baseHp: 0, partyHpFlat: 0, prof1: 0, prof2: 0, mcDef: 0, healCap: 0,
+        skillDmg: 0, debuffRes: 0, debuffSuccess: 0, elementAtk: 0, elementReduce: 0, caDmg: 0,
+        da: 0, ta: 0, crit: 0, allCap: 0, cbDmg: 0, dodge: 0, skillCap: 0, cbCap: 0,
+        expRp: 0, odSuppression: 0, breakdown: {}
+    };
+    const selections = getMcLbSelections();
+    selections.forEach((sel, i) => {
+        const opt = MC_LB_OPTION_MAP[sel.type];
+        if (!opt || sel.lvl < 1 || sel.lvl > 3) {
+            const valEl = document.getElementById(`mc-lb-val-${i}`);
+            if (valEl) valEl.textContent = '-';
+            return;
+        }
+        const rawValue = opt.values[sel.lvl - 1];
+        const numericVal = opt.kind === 'percent' ? rawValue / 100 : rawValue;
+        totals[opt.apply] = (totals[opt.apply] || 0) + numericVal;
+        totals.breakdown[`${opt.label}#${i + 1}`] = numericVal;
+        const valEl = document.getElementById(`mc-lb-val-${i}`);
+        if (valEl) valEl.textContent = opt.kind === 'percent' ? `${rawValue}%` : `${rawValue}`;
+    });
+    return totals;
+};
+
 // 浑身/背水 曲线计算 (使用 decimal.js 进行精确计算，保留10位小数)
 function calculateCurveValue(curveKey, slvl, hpPercent) {
     const curveData = SKILL_CURVES[curveKey];
@@ -20,14 +127,134 @@ function calculateCurveValue(curveKey, slvl, hpPercent) {
         let percentVal = Decimal.pow(base, 2.9).plus(2.1);
         
         return percentVal.div(100).toDecimalPlaces(10).toNumber();
+    } else if (curveData.type === 'enmity') {
+        // 背水曲线：HP比例 = 1 - (现时HP / 最大HP)
+        // 倍率 = baseMult * ((1 + 2 * HP比例) * HP比例)
+        
+        let hpRatio;
+        if (hpPercent === 1) {
+            // 当 hpPercent 为 1 时，代表游戏中的“1HP”极限背水状态，HP损失比例直接视为 1.0
+            hpRatio = new Decimal(1.0);
+        } else {
+            hpRatio = new Decimal(1).minus(new Decimal(hpPercent).div(100));
+        }
+
+        let baseMult = 0;
+        
+        if (curveData.base) {
+            // 解析类似于 '1:0.5 10:6.0 15:7.0 20:7.5' 这样的阶梯数据
+            baseMult = parseSkillValue(curveData.base, slvl, null);
+        } else if (curveData.coeff) {
+            baseMult = curveData.coeff;
+        }
+
+        // 转为小数计算，例如 7.5% -> 0.075
+        let baseDecimal = new Decimal(baseMult).div(100);
+
+        let multiplier = new Decimal(1).plus(hpRatio.times(2)).times(hpRatio);
+        return baseDecimal.times(multiplier).toDecimalPlaces(10).toNumber();
+    } else if (curveData.type === 'ax_stamina') {
+        // 附魔浑身（强壮乘区）曲线：按 100/75/50/25/0 五点线性插值
+        const amt = Number(curveData.amount) || 0;
+        if (amt !== 1 && amt !== 2 && amt !== 3) return 0;
+
+        // 游戏中的“1HP”显示为 hpPercent=1，应当按 0% 档处理（否则会在 0%~25% 间插值出 1.04%/2.04% 这类值）
+        if (Number(hpPercent) <= 1) {
+            hpPercent = 0;
+        }
+
+        const hp01 = Math.max(0, Math.min(1, new Decimal(hpPercent || 0).div(100).toNumber()));
+        const hpBp = [1, 0.75, 0.5, 0.25, 0];
+        const table = {
+            1: [0.03, 0.025, 0.02, 0.015, 0.01], // +1
+            2: [0.04, 0.04, 0.04, 0.03, 0.02],   // +2
+            3: [0.05, 0.05, 0.04, 0.03, 0.02]    // +3
+        };
+        const values = table[amt];
+        if (!values) return 0;
+
+        if (hp01 >= hpBp[0]) return values[0];
+        if (hp01 <= hpBp[hpBp.length - 1]) return values[values.length - 1];
+
+        for (let i = 0; i < hpBp.length - 1; i++) {
+            const hiHp = hpBp[i];
+            const loHp = hpBp[i + 1];
+            if (hp01 <= hiHp && hp01 >= loHp) {
+                const hiVal = values[i];
+                const loVal = values[i + 1];
+                const denom = hiHp - loHp;
+                if (!denom) return loVal;
+                const t = (hp01 - loHp) / denom;
+                return new Decimal(loVal).plus(new Decimal(hiVal).minus(loVal).times(t)).toDecimalPlaces(10).toNumber();
+            }
+        }
+        return 0;
+    } else if (curveData.type === 'ax_enmity') {
+        // 附魔背水（逆境乘区）曲线：与戒指/耳饰 背水+1/+2/+3 共用一套曲线
+        const amt = Number(curveData.amount) || 0;
+        if (amt !== 1 && amt !== 2 && amt !== 3) return 0;
+
+        // 游戏中的“1HP”显示为 hpPercent=1，应当按 0% 档处理，避免 1.04% 这类边界
+        if (Number(hpPercent) <= 1) {
+            hpPercent = 0;
+        }
+
+        const hp01 = Math.max(0, Math.min(1, new Decimal(hpPercent || 0).div(100).toNumber()));
+        // 直接复用戒指/耳饰背水 +N 的通用曲线（amount=1/2/3 → 背水+1/+2/+3）
+        if (typeof getRingEarringEnmityAdversityBonus === 'function') {
+            return getRingEarringEnmityAdversityBonus(hp01, amt);
+        }
+        return 0;
     }
     return 0; 
 }
 
 // 解析技能值
-function parseSkillValue(valStr, currentSlvl, context) {
+function parseSkillValue(valStr, currentSlvl, context, hpPercent) {
     if (!valStr) return 0;
     const str = String(valStr);
+
+    // 通用线性写法（直接写在技能 value 中）：
+    // linear_hp:<min>:<max>       => HP 越高，数值越高（0%->min, 100%->max）
+    // linear_hp_down:<min>:<max>  => HP 越低，数值越高（0%->max, 100%->min）
+    // 例：
+    // - linear_hp:100000:600000
+    // - linear_hp:5%:20%
+    if (str.startsWith('linear_hp:') || str.startsWith('linear_hp_down:')) {
+        const parts = str.split(':');
+        if (parts.length >= 3) {
+            const parseLinearToken = (raw) => {
+                const s = String(raw || '').trim();
+                if (!s) return 0;
+                if (s.endsWith('%')) return (parseFloat(s) || 0) / 100;
+                return parseFloat(s) || 0;
+            };
+
+            // 按你当前口径：1HP（显示 1%）按 0% 档处理
+            let hp = Number(hpPercent);
+            if (!Number.isFinite(hp)) hp = 100;
+            if (hp <= 1) hp = 0;
+            const hp01 = Math.max(0, Math.min(1, new Decimal(hp).div(100).toNumber()));
+
+            const minVal = parseLinearToken(parts[1]);
+            const maxVal = parseLinearToken(parts[2]);
+            const isDown = str.startsWith('linear_hp_down:');
+            if (isDown) {
+                // 0%HP=max, 100%HP=min
+                return new Decimal(maxVal)
+                    .minus(new Decimal(maxVal).minus(minVal).times(hp01))
+                    .toDecimalPlaces(10)
+                    .toNumber();
+            }
+            // 0%HP=min, 100%HP=max
+            return new Decimal(minVal)
+                .plus(new Decimal(maxVal).minus(minVal).times(hp01))
+                .toDecimalPlaces(10)
+                .toNumber();
+        }
+        return 0;
+    }
+
     if (str.includes('count_')) {
         try {
             let expression = str.replace(/count_([a-z]+)/g, (match, typeKey) => {
@@ -36,7 +263,13 @@ function parseSkillValue(valStr, currentSlvl, context) {
             return new Function('return ' + expression)();
         } catch (e) { return 0; }
     }
-    if (!str.includes(':')) return parseFloat(str) || 0;
+    // 兼容直接写百分号的 value（如 "-100%"、"7.5%"），统一转为小数参与计算
+    // 例如："-100%" -> -1, "7.5%" -> 0.075
+    if (!str.includes(':')) {
+        const s = str.trim();
+        if (s.endsWith('%')) return (parseFloat(s) || 0) / 100;
+        return parseFloat(s) || 0;
+    }
     const breakpoints = str.split(' ').map(pair => {
         const [lv, val] = pair.split(':');
         let valClean = val;
@@ -69,34 +302,116 @@ function getEffectiveSkill(weapon, skillObj, slotIndex) {
 }
 
 // 计算Rank属性 (使用 Decimal.js)
+// ATK: Rank2 +80, R3-100 每级+40, R101-175 每级+20, R176-190 每级+10, R191-425 每级+5 (Rank1 基础 1000)
+// HP:  Rank2 +16, R3-100 每级+8,  R101-175 每级+4, R176-191 每级+2, R192-425 每级+1 (Rank1 基础 599)
 function calculateRankStats(rank) {
-    let hp = new Decimal(0);
-    let atk = new Decimal(5700).plus(new Decimal(5).times(rank));
+    const R1_ATK = 1000;
+    const R1_HP = 599;
+    if (rank <= 1) return { hp: R1_HP, atk: R1_ATK };
 
+    let atk = new Decimal(R1_ATK);
+    let hp = new Decimal(R1_HP);
+
+    // Rank 2: +80 ATK, +16 HP
     if (rank >= 2) {
-        let r100 = Decimal.min(rank, 100).minus(1);
-        if (r100.gt(0)) hp = hp.plus(r100.times(8));
+        atk = atk.plus(80);
+        hp = hp.plus(16);
     }
+    // R3-100: +40 ATK / +8 HP per rank
+    if (rank >= 3) {
+        let n = Decimal.min(rank, 100).minus(2);
+        if (n.gt(0)) { atk = atk.plus(n.times(40)); hp = hp.plus(n.times(8)); }
+    }
+    // R101-175: +20 ATK / +4 HP per rank
     if (rank >= 101) {
-        let r175 = Decimal.min(rank, 175).minus(100);
-        if (r175.gt(0)) hp = hp.plus(r175.times(4));
+        let n = Decimal.min(rank, 175).minus(100);
+        if (n.gt(0)) { atk = atk.plus(n.times(20)); hp = hp.plus(n.times(4)); }
     }
+    // R176-190: +10 ATK per rank（ATK 分段）
     if (rank >= 176) {
-        let r225 = Decimal.min(rank, 225).minus(175);
-        if (r225.gt(0)) hp = hp.plus(r225.times(2));
+        let nAtk = Decimal.min(rank, 190).minus(175);
+        if (nAtk.gt(0)) atk = atk.plus(nAtk.times(10));
+        // HP: R176-191 每级+2（HP 分段与 ATK 不同）
+        let nHp = Decimal.min(rank, 191).minus(175);
+        if (nHp.gt(0)) hp = hp.plus(nHp.times(2));
     }
-    if (rank >= 302) { 
-        let r400 = Decimal.min(rank, 400).minus(301);
-        if (r400.gt(0)) hp = hp.plus(r400.times(1));
+    // R191-425: +5 ATK per rank
+    if (rank >= 191) {
+        let nAtk = Decimal.min(rank, 425).minus(190);
+        if (nAtk.gt(0)) atk = atk.plus(nAtk.times(5));
     }
-    
-    let calculatedHP = new Decimal(648).plus(hp); 
-    
-    return { hp: calculatedHP.toNumber(), atk: atk.toNumber() };
+    // R192-425: +1 HP per rank（HP 分段与 ATK 不同）
+    if (rank >= 192) {
+        let nHp = Decimal.min(rank, 425).minus(191);
+        if (nHp.gt(0)) hp = hp.plus(nHp.times(1));
+    }
+
+    return { hp: hp.toNumber(), atk: atk.toNumber() };
 }
+
+/**
+ * 根据队伍 UI 中已勾选的角色技能，将 charaskills 里 apply_buff 写入 party[i].stats（STAT_CONFIG category=charabuff）。
+ * buff_id + parameters.type 经 resolveCharabuffStatKey 映射；未在 STAT_CONFIG 登记则 warn 且不累加。
+ */
+function applyCharaSkillBuffStatsToParty() {
+    if (typeof document === 'undefined' || typeof party === 'undefined' || !Array.isArray(party)) return;
+    const charaMap = typeof globalCharaSkillMap !== 'undefined' ? globalCharaSkillMap : {};
+    const charaBuffKeys =
+        typeof getCharabuffStatKeysList === 'function'
+            ? getCharabuffStatKeysList()
+            : [
+                  'charabuff_ta',
+                  'charabuff_bonus_na_dmg_a2',
+                  'charabuff_bonus_na_dmg_e',
+                  'weapon_destruction_bonus_na'
+              ];
+    for (let i = 0; i < party.length && i < 6; i++) {
+        if (!party[i] || !party[i].stats) continue;
+        charaBuffKeys.forEach((k) => {
+            party[i].stats[k] = 0;
+        });
+    }
+    for (let slot = 1; slot <= 5; slot++) {
+        if (!party[slot] || !party[slot].stats) continue;
+        const charData = typeof currentParty !== 'undefined' && currentParty[slot] ? currentParty[slot] : null;
+        if (!charData || charData['ID'] == null) continue;
+        const cid = charData['ID'];
+        for (let pos = 1; pos <= 4; pos++) {
+            const cb = document.querySelector(`.char-skill-enabled-cb[data-slot="${slot}"][data-pos="${pos}"]`);
+            if (!cb || !cb.checked) continue;
+            const sid = `${cid}_${pos}`;
+            const skill = charaMap[sid];
+            if (!skill || !Array.isArray(skill.effects)) continue;
+            skill.effects.forEach((effect) => {
+                if (!effect || effect.action_type !== 'apply_buff') return;
+                const p = effect.parameters && typeof effect.parameters === 'object' ? effect.parameters : {};
+                if (p.show_in_party_buff === false) return;
+                const bid = p.buff_id;
+                const raw = p.value;
+                const numVal = typeof raw === 'number' && !isNaN(raw) ? raw : parseFloat(raw);
+                if (isNaN(numVal)) return;
+                if (typeof resolveCharabuffStatKey !== 'function') return;
+                const statKey = resolveCharabuffStatKey(bid, p.type);
+                if (!statKey) return;
+                party[slot].stats[statKey] = (party[slot].stats[statKey] || 0) + numVal;
+            });
+        }
+    }
+    if (typeof window.applyBuffCodexRowsToPartyStats === 'function') {
+        window.applyBuffCodexRowsToPartyStats();
+    }
+}
+
+function getCalcParty() {
+    return party;
+}
+
+window.applyCharaSkillBuffStatsToParty = applyCharaSkillBuffStatsToParty;
+window.getCalcParty = getCalcParty;
 
 // 重新计算 (核心计算逻辑)
 function recalculate() {
+    ensureMcLbUI();
     let currentHpPercent = parseInt(document.getElementById('current-hp-slider').value) || 100;
 
     let baseOptimus = (parseFloat(document.getElementById('aura-optimus').value) || 0) / 100;
@@ -105,83 +420,37 @@ function recalculate() {
     let baseElementAtk = (parseFloat(document.getElementById('aura-elemental').value) || 0) / 100;
 
     let rankInput = parseInt(document.getElementById('mc-rank-input').value) || 1;
-    if(rankInput > 400) rankInput = 400; 
+    if(rankInput > 425) rankInput = 425; 
     
     let rankStats = calculateRankStats(rankInput);
     const rankStatsEl = document.getElementById('mc-rank-stats');
     if (rankStatsEl) rankStatsEl.innerText = `(HP: ${rankStats.hp} / ATK: ${rankStats.atk})`;
 
-    let lbAtk = parseInt(document.getElementById('mc-lb-atk').value) || 0;
-    let lbHp = parseInt(document.getElementById('mc-lb-hp').value) || 0;
+    const mcLbTotals = (typeof window.getMcLbTotals === 'function') ? window.getMcLbTotals() : {};
+    let lbAtk = mcLbTotals.baseAtk || 0;
+    let lbHp = mcLbTotals.baseHp || 0;
 
-    let prof1Extra = (parseFloat(document.getElementById('prof1-extra').value) || 0) / 100;
-    let prof2Extra = (parseFloat(document.getElementById('prof2-extra').value) || 0) / 100;
+    // 得意武器攻击1·2（prof12）表示对“1系”和“2系”都生效
+    // 若得意武器1和得意武器2映射到同一个 wType，则 prof12 需要在该命中下再额外计算一次（即算两次）
+    const prof12Extra = mcLbTotals.prof12 || 0;
+    let prof1Extra = (mcLbTotals.prof1 || 0) + prof12Extra;
+    let prof2Extra = (mcLbTotals.prof2 || 0) + prof12Extra;
 
     let summonAtk = parseInt(document.getElementById('summon-atk').value) || 0;
     let summonHp = parseInt(document.getElementById('summon-hp').value) || 0;
 
+    const mcPartyHpFlat = mcLbTotals.partyHpFlat || 0;
+
     let mcBaseAtk = new Decimal(rankStats.atk)
         .plus(lbAtk)
         .plus(currentMC.bonuses.class_atk_base || 0)
-        .plus(currentMC.bonuses.chara_atk_base || 0)
+        .plus(currentMC.bonuses.mc_atk_base || 0)
         .toNumber(); 
     let mcBaseHp = new Decimal(rankStats.hp)
         .plus(lbHp)
         .plus(currentMC.bonuses.class_hp_base || 0)
-        .plus(currentMC.bonuses.chara_hp_base || 0)
+        .plus(currentMC.bonuses.mc_hp_base || 0)
         .toNumber();
-
-    let gridHp = new Decimal(0);
-    let gridAtk = new Decimal(0);
-    
-    const mcProfList = currentMC.proficiency.map(p => {
-        let mapped = WEAPON_TYPE_MAP[p] || p;
-        return mapped ? mapped.toLowerCase() : p;
-    });
-
-    for (let i = 0; i < currentGrid.length; i++) {
-        const w = currentGrid[i];
-        if (!w) continue;
-
-        let wHp = (w.stats && w.stats.hp) ? parseInt(w.stats.hp) : (parseInt(w.hp) || 0);
-        let wAtk = (w.stats && w.stats.atk) ? parseInt(w.stats.atk) : (parseInt(w.atk) || 0);
-        
-        // 加蛋加成
-        const plusMarks = w.plusMarks || 0;
-        wHp += plusMarks * 1;
-        wAtk += plusMarks * 5;
-
-        let wType = WEAPON_TYPE_MAP[w.type] || w.type;
-        if(wType) wType = wType.toLowerCase();
-
-        let isProf = mcProfList.includes(wType);
-
-        if (isProf) {
-            // wHp * 1.2 并向上取整
-            gridHp = gridHp.plus(new Decimal(wHp).times(1.2).round());
-        } else {
-            gridHp = gridHp.plus(wHp);
-        }
-
-        let atkMultiplier = new Decimal(1.0);
-
-        if (mcProfList.length > 0 && wType === mcProfList[0]) {
-            atkMultiplier = atkMultiplier.plus(0.2).plus(prof1Extra);
-        } else if (mcProfList.length > 1 && wType === mcProfList[1]) {
-            atkMultiplier = atkMultiplier.plus(0.2).plus(prof2Extra);
-        }
-
-        if (i === 0) { 
-            let masteryType = wType;
-            if (wType === 'fist') masteryType = 'melee';
-            let key = 'main_weapon_bonuses_' + masteryType;
-            let mhBonus = DEFAULT_MASTERY[key] || 0;
-            atkMultiplier = atkMultiplier.plus(mhBonus); 
-        }
-
-        // wAtk * atkMultiplier 并四舍五入
-        gridAtk = gridAtk.plus(new Decimal(wAtk).times(atkMultiplier).round());
-    }
 
     const mainHand = currentGrid[0];
     const deckElement = mainHand ? mainHand.element : null;
@@ -209,10 +478,10 @@ function recalculate() {
             realSkill.effects.forEach(effect => {
                 // optimus: 攻刃技能; weapon_enhance_optimus: 神石的激励等技能
                 if (effect.prop === 'optimus' || effect.prop === 'weapon_enhance_optimus') {
-                    rawExtraOptimus = rawExtraOptimus.plus(parseSkillValue(effect.value, slvl, {}));
+                    rawExtraOptimus = rawExtraOptimus.plus(parseSkillValue(effect.value, slvl, {}, currentHpPercent));
                 }
                 if (effect.prop === 'magna') {
-                    rawExtraMagna = rawExtraMagna.plus(parseSkillValue(effect.value, slvl, {}));
+                    rawExtraMagna = rawExtraMagna.plus(parseSkillValue(effect.value, slvl, {}, currentHpPercent));
                 }
             });
         });
@@ -220,11 +489,6 @@ function recalculate() {
 
     let extraOptimus = Decimal.min(rawExtraOptimus, 0.9).toNumber();
     let extraMagna = Decimal.min(rawExtraMagna, 0.9).toNumber();
-    const passiveDisplay = document.getElementById('aura-optimus-passive');
-    if(passiveDisplay) passiveDisplay.innerText = new Decimal(extraOptimus).times(100).toFixed(0); 
-
-    const finalOptimus = new Decimal(baseOptimus).plus(extraOptimus).toNumber();
-    const finalMagna = new Decimal(baseMagna).plus(extraMagna).toNumber();
 
     let stats = {};
     STAT_CONFIG.forEach(cfg => stats[cfg.key] = 0);
@@ -239,23 +503,226 @@ function recalculate() {
     });
 
     const mcElement = mainHand ? mainHand.element : null;
-    party = [ { name: "MC", element: mcElement, stats: {} } ];
-    STAT_CONFIG.forEach(cfg => party[0].stats[cfg.key] = 0);
+    
+    // 初始化6个角色的状态数组
+    party = [];
+    for (let i = 0; i < 6; i++) {
+        // 第0个固定是MC
+        if (i === 0) {
+            // 确保主角的 proficiency 是一个有效的数组，并进行初步格式化
+            let mcProfs = [];
+            if (currentMC && currentMC.proficiency && Array.isArray(currentMC.proficiency)) {
+                mcProfs = currentMC.proficiency;
+            }
+            party.push({ name: "MC", element: mcElement, isMain: true, stats: {}, proficiency: mcProfs });
+        } else {
+            // 后面的槽位如果有选择角色，则使用角色的属性，目前暂时如果未选，让其默认跟MC一个属性方便测试武器盘加成
+            const charData = typeof currentParty !== 'undefined' ? currentParty[i] : null;
+            if (charData) {
+                party.push({ name: charData.名称, element: charData.属性, isMain: false, stats: {}, baseHp: charData.角色基础HP || 0, baseAtk: charData.角色基础atk || 0 });
+            } else {
+                // 占位角色，如果将来不想要占位可以去掉
+                party.push({ name: "角色" + (i + 1), element: mcElement, isMain: false, stats: {}, baseHp: 0, baseAtk: 0 });
+            }
+        }
+        STAT_CONFIG.forEach(cfg => party[i].stats[cfg.key] = 0);
+        party[i].stats['weapon_na_ranshu'] = 1;
+    }
+
+    // 解析当前召唤石的 effect 字符串，并写入 stats 统筹字典（主要写给主角，后续可以通过共享或者复制传给全队）
+    if (typeof currentSummons !== 'undefined') {
+        const mainOnlySet = new Set();
+        const friendOnlySet = new Set();
+        const subOnlySet = new Set();
+        
+        for (let i = 0; i < 8; i++) {
+            const summon = currentSummons[i];
+            if (!summon) continue;
+            
+            // 检查召唤石重复限制
+            const isMainOnly = i === 0 && summon.mainonly;
+            const isFriendOnly = i === 1 && summon.friendonly;
+            const isSubOnly = i >= 2 && summon.subonly;
+            
+            let isDuplicate = false;
+            if (isMainOnly) {
+                if (mainOnlySet.has(summon.id)) isDuplicate = true;
+                else mainOnlySet.add(summon.id);
+            } else if (isFriendOnly) {
+                if (friendOnlySet.has(summon.id)) isDuplicate = true;
+                else friendOnlySet.add(summon.id);
+            } else if (isSubOnly) {
+                if (subOnlySet.has(summon.id)) isDuplicate = true;
+                else subOnlySet.add(summon.id);
+            }
+            
+            if (isDuplicate) continue; // 如果受同类同名限制，则跳过
+            
+            // 获取对应槽位/等级的 effect 字符串
+            const selectedLevel = summon.selectedLevel || 250;
+            let effectStr = '';
+            
+            if (summon.effects) {
+                if (i === 0) {
+                    effectStr = summon.effects.main?.[selectedLevel]?.effect || '';
+                } else if (i === 1) {
+                    effectStr = summon.effects.friend?.[selectedLevel]?.effect || '';
+                } else {
+                    effectStr = summon.effects.sub?.[selectedLevel]?.effect || '';
+                }
+            }
+            
+            // 解析字符串，如 "summon_element_atk:10%;summon_hp:10%;element_optiums:170%"
+            if (effectStr) {
+                const effects = effectStr.split(';');
+                effects.forEach(eff => {
+                    const parts = eff.split(':');
+                    if (parts.length === 2) {
+                        let key = parts[0].trim();
+                        let valStr = parts[1].trim();
+                        let numValue = 0;
+                        if (valStr.endsWith('%')) {
+                            numValue = parseFloat(valStr) / 100;
+                        } else {
+                            numValue = parseFloat(valStr);
+                        }
+                        
+                        // 兼容拼写错误 element_optiums -> summon_optimus
+                        if (key === 'element_optiums' || key === 'element_optimus') {
+                            key = 'summon_optimus';
+                        } else if (key === 'element_magna') {
+                            key = 'summon_magna';
+                        }
+                        
+                        // 将解析出的加成属性写入 party[0].stats
+                        if (key && !isNaN(numValue) && STAT_CONFIG.some(c => c.key === key)) {
+                            party[0].stats[key] = (party[0].stats[key] || 0) + numValue;
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    const finalOptimus = new Decimal(baseOptimus).plus(extraOptimus).plus(party[0].stats['summon_optimus'] || 0).toNumber();
+    const finalMagna = new Decimal(baseMagna).plus(extraMagna).plus(party[0].stats['summon_magna'] || 0).toNumber();
+    // 如果之后有禁咒加成，可以在这里扩展：const finalJinzhou = ...
+
+    const passiveOptimusDisplay = document.getElementById('aura-optimus-passive');
+    if(passiveOptimusDisplay) {
+        const sumPassiveOptimus = new Decimal(extraOptimus).plus(party[0].stats['summon_optimus'] || 0).times(100).toFixed(0);
+        passiveOptimusDisplay.innerText = sumPassiveOptimus; 
+    }
+
+    const passiveMagnaDisplay = document.getElementById('aura-magna-passive');
+    if(passiveMagnaDisplay) {
+        const sumPassiveMagna = new Decimal(extraMagna).plus(party[0].stats['summon_magna'] || 0).times(100).toFixed(0);
+        passiveMagnaDisplay.innerText = sumPassiveMagna;
+    }
+
+    const passiveJinzhouDisplay = document.getElementById('aura-jinzhou-passive');
+    if(passiveJinzhouDisplay) {
+        // 假如有召唤石禁咒，或者武器盘禁咒属性可在这相加。目前暂无，显示为0或按需补充
+        passiveJinzhouDisplay.innerText = "0";
+    }
+
+    const passiveEleDisplay = document.getElementById('aura-elemental-passive');
+    if(passiveEleDisplay) {
+        const sumPassiveEle = new Decimal(party[0].stats['summon_element_atk'] || 0).times(100).toFixed(0);
+        passiveEleDisplay.innerText = sumPassiveEle;
+    }
 
     party[0].stats['optimus_boost'] = extraOptimus;
     party[0].stats['magna_boost'] = extraMagna;
     
-    // 加上属攻加成（从输入框读取）
-    party[0].stats['element_atk'] = (party[0].stats['element_atk'] || 0) + baseElementAtk;
-    
-    // 加上召唤石伤害上限加成
+    // 把召唤石（解析后写在 party[0].stats 的那些）以及面板输入的通用加成分发给全体队员
+    // 这里我们抽取所有不是仅限主角生效的全局词条（如召唤石的各类加成）。
+    const globalSummonKeys = STAT_CONFIG.map(c => c.key).filter(k => k.startsWith('summon_'));
     const summonDamageCap = window.summonDamageCapBonus || 0;
-    console.log('[Calc Debug] summonDamageCap:', summonDamageCap);
-    party[0].stats['summon_dmg_cap'] = (party[0].stats['summon_dmg_cap'] || 0) + summonDamageCap;
-    console.log('[Calc Debug] party[0].stats[\'summon_dmg_cap\']:', party[0].stats['summon_dmg_cap']);
+    
+    for (let i = 0; i < party.length; i++) {
+        // 分发属攻（包括面板输入的和可能来自召唤石合并的）
+        if (i > 0) {
+            party[i].stats['element_atk'] = (party[i].stats['element_atk'] || 0) + baseElementAtk;
+            
+            // 分发神石和方阵的召唤光环数值（供某些按光环判断的技能使用，虽然不一定用得到，但保持数据完整）
+            party[i].stats['optimus_boost'] = party[0].stats['optimus_boost'];
+            party[i].stats['magna_boost'] = party[0].stats['magna_boost'];
+            
+            // 分发召唤石提供的全队加成（HP、伤害上限等）
+            globalSummonKeys.forEach(key => {
+                party[i].stats[key] = (party[i].stats[key] || 0) + (party[0].stats[key] || 0);
+            });
+            
+            if (summonDamageCap > 0 && !party[i].stats['summon_dmg_cap']) {
+                party[i].stats['summon_dmg_cap'] = summonDamageCap;
+            }
+        } else {
+            party[0].stats['element_atk'] = (party[0].stats['element_atk'] || 0) + baseElementAtk;
+            if (summonDamageCap > 0 && !party[0].stats['summon_dmg_cap']) {
+                party[0].stats['summon_dmg_cap'] = summonDamageCap;
+            }
+        }
+    }
 
-    party.forEach(member => {
+    // =====================================
+    // 统筹非武器加成 (角色被动、职业被动等)
+    // =====================================
+    // 1. 将当前用户的 DEFAULT_MASTERY 常驻加成汇入 stats 中（对于 MC）
+    const defaultMastery = getDefaultMastery();
+    ['mc_atk_passive', 'mc_def_passive', 'mc_hp_passive', 
+     'mc_da_passive', 'mc_ta_passive', 'mc_all_cap_passive', 
+     'mc_skill_dmg_passive', 'mc_skill_dmg_cap_passive', 
+     'mc_ca_passive', 'mc_cb_cap_passive'].forEach(k => {
+        party[0].stats[k] = (party[0].stats[k] || 0) + (defaultMastery[k] || 0);
+    });
+
+    // 主角LB额外加成（新20槽位）
+    party[0].stats['mc_def_passive'] = (party[0].stats['mc_def_passive'] || 0) + (mcLbTotals.mcDef || 0);
+    party[0].stats['mc_da_base'] = (party[0].stats['mc_da_base'] || 0) + (mcLbTotals.da || 0);
+    party[0].stats['mc_ta_base'] = (party[0].stats['mc_ta_base'] || 0) + (mcLbTotals.ta || 0);
+    party[0].stats['mc_ca_passive'] = (party[0].stats['mc_ca_passive'] || 0) + (mcLbTotals.caDmg || 0);
+    party[0].stats['mc_skill_dmg_passive'] = (party[0].stats['mc_skill_dmg_passive'] || 0) + (mcLbTotals.skillDmg || 0);
+    party[0].stats['mc_skill_dmg_cap_passive'] = (party[0].stats['mc_skill_dmg_cap_passive'] || 0) + (mcLbTotals.skillCap || 0);
+    party[0].stats['mc_cb_cap_passive'] = (party[0].stats['mc_cb_cap_passive'] || 0) + (mcLbTotals.cbCap || 0);
+    party[0].stats['mc_all_cap_passive'] = (party[0].stats['mc_all_cap_passive'] || 0) + (mcLbTotals.allCap || 0);
+    party[0].stats['mc_debuff_resistance_passive'] = (party[0].stats['mc_debuff_resistance_passive'] || 0) + (mcLbTotals.debuffRes || 0);
+    party[0].stats['mc_debuff_success_passive_non_c5'] = (party[0].stats['mc_debuff_success_passive_non_c5'] || 0) + (mcLbTotals.debuffSuccess || 0);
+    party[0].stats['mc_heal_cap_passive_non_c5'] = (party[0].stats['mc_heal_cap_passive_non_c5'] || 0) + (mcLbTotals.healCap || 0);
+    party[0].stats['weapon_dodge_rate'] = (party[0].stats['weapon_dodge_rate'] || 0) + (mcLbTotals.dodge || 0);
+    party[0].stats['weapon_cb_dmg'] = (party[0].stats['weapon_cb_dmg'] || 0) + (mcLbTotals.cbDmg || 0);
+    party[0].stats['element_atk'] = (party[0].stats['element_atk'] || 0) + (mcLbTotals.elementAtk || 0);
+    
+    // 2. 将 currentMC.bonuses 中的对应职业加成也汇入 stats 中
+    if (currentMC && currentMC.bonuses) {
+        Object.keys(currentMC.bonuses).forEach(k => {
+            if (party[0].stats.hasOwnProperty(k)) {
+                party[0].stats[k] += currentMC.bonuses[k];
+            }
+        });
+    }
+
+    // 3. 将职业平A增幅及非C5加成写入 stats（给伤害计算统一读取）
+    const currentJob = currentMC.jobId ? allClasses.find(c => c.id === currentMC.jobId) : null;
+    const isClass5 = currentJob && currentJob.type === 'class_5';
+    // job_na_amp 使用当前用户的 defaultMastery，用户2 可为 0
+    party[0].stats['job_na_amp'] = isClass5 ? 0 : (defaultMastery['mc_na_dmg_amp_passive_non_c5'] || 0);
+    
+    if (!isClass5) {
+        // 如果不是 C5 职业，赋予非 C5 相关的常驻加成
+        party[0].stats['mc_all_cap_passive_non_c5'] = defaultMastery['mc_all_cap_passive_non_c5'] || 0;
+        party[0].stats['mc_skill_dmg_amp_passive_non_c5'] = defaultMastery['mc_skill_dmg_amp_passive_non_c5'] || 0;
+        party[0].stats['mc_na_dmg_amp_passive_non_c5'] = defaultMastery['mc_na_dmg_amp_passive_non_c5'] || 0;
+    }
+
+    party.forEach((member, i) => {
         if (!member.element) return; 
+
+        // 将角色上的久远独立攻刃折算到统一乘区 marriage_perpetuity_atk
+        const charDataForIndep = (typeof currentParty !== 'undefined') ? currentParty[i] : null;
+        if (charDataForIndep && charDataForIndep.chara_marriage_perpetuity_atk) {
+            member.stats['marriage_perpetuity_atk'] = (member.stats['marriage_perpetuity_atk'] || 0) + (charDataForIndep.chara_marriage_perpetuity_atk || 0);
+        }
 
         currentGrid.forEach(weapon => {
             if (!weapon) return;
@@ -267,10 +734,19 @@ function recalculate() {
                 const realSkill = getEffectiveSkill(weapon, skill, idx);
                 if (!realSkill) return;
 
+                // 判断条件是否满足，以及选择正确的效果组
+                let conditionMet280 = true;
+                let useAltEffects280 = false;
+                
                 if (realSkill.condition) {
                     const cond = realSkill.condition.toLowerCase();
-                    if (cond === 'aura_280' && finalOptimus < 2.8 && finalMagna < 2.8) return; 
-                    if ((cond === 'main_hand' || cond === 'is_main_hand') && weapon !== currentGrid[0]) return;
+                    if (cond === 'aura_up_280') {
+                        conditionMet280 = (finalOptimus >= 2.8 || finalMagna >= 2.8);
+                        useAltEffects280 = true; // 条件满足时用effects_up_280，不满足时用effects_down_280
+                    }
+                    if (cond === 'main_hand' || cond === 'is_main_hand') {
+                        if (weapon !== currentGrid[0]) return;
+                    }
                     if (cond === 'same_type_4') {
                         const counts = Object.values(context.typeCounts);
                         const maxCount = counts.length > 0 ? Math.max(...counts) : 0;
@@ -285,14 +761,71 @@ function recalculate() {
 
                 if (effectiveSkillEl !== "全" && effectiveSkillEl !== member.element) return;
 
-                realSkill.effects.forEach(effect => {
+                const skillPos = (realSkill.position != null ? String(realSkill.position) : 'all').toLowerCase();
+                if (skillPos === 'mc' && i !== 0) return;
+
+                // 选择要使用的效果数组
+                let effectsToProcess = realSkill.effects;
+
+                // 检查 effects_prof_weapon：效果仅对武器类型与角色得意武器相同的角色生效
+                if (realSkill["effects_prof_weapon"]) {
+                    const rawWeaponType = weapon.type;
+                    const weaponTypeNorm = WEAPON_TYPE_MAP[rawWeaponType] || (rawWeaponType ? String(rawWeaponType).toLowerCase() : '');
+                    const charProfsLower = (member.proficiency || []).map(p => String(p).trim().toLowerCase());
+                    const mappedProfs = new Set(charProfsLower);
+                    charProfsLower.forEach(p => {
+                        const m = WEAPON_TYPE_MAP[p];
+                        if (m) mappedProfs.add(m.toLowerCase());
+                    });
+                    if (mappedProfs.has(weaponTypeNorm)) {
+                        effectsToProcess = realSkill["effects_prof_weapon"];
+                    } else {
+                        return; // 角色得意武器与武器类型不匹配，跳过此技能效果
+                    }
+                }
+
+                // 检查是否有基于角色得意武器的专属效果（固定类型名：effects_prof_staff 等）
+                // 使用 Array.isArray 确保 member.proficiency 是数组，并检查其长度
+                else if (member.proficiency && Array.isArray(member.proficiency) && member.proficiency.length > 0) {
+                    for (const prof of member.proficiency) {
+                        if (!prof) continue; // 跳过空值
+                        
+                        // 使用 WEAPON_TYPE_MAP 进行映射，确保获取到正确的 key
+                        const rawProf = String(prof).trim(); // 确保是字符串并去除空格
+                        
+                        // 尝试多级查找：原始值 -> 转小写 -> 映射值 -> 映射值转小写
+                        let mappedProf = WEAPON_TYPE_MAP[rawProf];
+                        if (!mappedProf) mappedProf = WEAPON_TYPE_MAP[rawProf.toLowerCase()];
+                        if (!mappedProf) mappedProf = rawProf.toLowerCase(); // 兜底使用小写
+
+                        const profKey = `effects_prof_${mappedProf.toLowerCase()}`;
+
+                        if (realSkill[profKey]) {
+                            effectsToProcess = realSkill[profKey];
+                            break; // 找到第一个匹配的就跳出
+                        }
+                    }
+                }
+                
+                if (useAltEffects280 && conditionMet280 && realSkill.effects_up_280) {
+                    effectsToProcess = realSkill.effects_up_280;
+                } else if (useAltEffects280 && !conditionMet280 && realSkill.effects_down_280) {
+                    effectsToProcess = realSkill.effects_down_280;
+                }
+
+                // 如果条件不满足且没有备选效果组，则跳过
+                if (useAltEffects280 && !conditionMet280 && !realSkill.effects_down_280) {
+                    return;
+                }
+
+                effectsToProcess.forEach(effect => {
                     if (effect.prop === 'optimus' || effect.prop === 'magna') return;
                     if (effect.type === 'aura_boost') return;
 
                     if (effect.condition) {
                         const effCond = effect.condition;
-                        if (effCond === 'aura_ge_280') { if (finalOptimus < 2.8 && finalMagna < 2.8) return; }
-                        if (effCond === 'aura_lt_280') { if (finalOptimus >= 2.8 || finalMagna >= 2.8) return; }
+                        if (effCond === 'aura_up_280') { if (finalOptimus < 2.8 && finalMagna < 2.8) return; }
+                        if (effCond === 'aura_down_280') { if (finalOptimus >= 2.8 || finalMagna >= 2.8) return; }
                     }
 
                     let baseVal = 0;
@@ -300,7 +833,7 @@ function recalculate() {
                         let curveKey = effect.value.split(":")[1];
                         baseVal = calculateCurveValue(curveKey, slvl, currentHpPercent);
                     } else {
-                        baseVal = parseSkillValue(effect.value, slvl, context);
+                        baseVal = parseSkillValue(effect.value, slvl, context, currentHpPercent);
                     }
                     
                     let finalVal = baseVal;
@@ -323,7 +856,10 @@ function recalculate() {
                             .toNumber();
                     }
                     
-                    if (member.stats.hasOwnProperty(effect.prop)) {
+                    if (effect.prop === 'weapon_na_ranshu') {
+                        const v = Math.max(1, Math.floor(Math.abs(finalVal)));
+                        member.stats['weapon_na_ranshu'] = Math.max(member.stats['weapon_na_ranshu'] || 1, v);
+                    } else if (member.stats.hasOwnProperty(effect.prop)) {
                         member.stats[effect.prop] += finalVal;
                     }
                 });
@@ -331,113 +867,291 @@ function recalculate() {
         });
     });
 
-    const globalHpBonus = DEFAULT_MASTERY.chara_hp_passive || 0;
-    const globalAtkBonus = DEFAULT_MASTERY.chara_atk_passive || 0;
-    
-    const jobPassiveHp = (currentMC.bonuses.class_hp_passive || 0) + (currentMC.bonuses.chara_hp_passive || 0);
-    
-    const gridHpMod = party[0].stats['weapon_hp'] || 0;
-    
-    // 使用 Decimal.js 计算 totalAtkMod，保留10位小数
-    const totalAtkMod = new Decimal(party[0].stats['weapon_normal_atk'] || 0)
-        .plus(party[0].stats['weapon_omega_atk'] || 0)
-        .plus(party[0].stats['weapon_ex_atk'] || 0)
-        .plus(party[0].stats['weapon_special_ex_atk'] || 0)
-        .toDecimalPlaces(10)
-        .toNumber();
+    // =====================================
+    // 武器盘加成上限处理（只处理 category=weapon 的字段）
+    // 规则：只有武器盘提供的加成需要 cap，其他来源不做上限处理
+    // =====================================
+    function applyWeaponCaps(statsObj) {
+        if (!statsObj || typeof STAT_CONFIG === 'undefined') return;
+        STAT_CONFIG.forEach(cfg => {
+            if (!cfg || cfg.category !== 'weapon') return;
+            if (cfg.cap === null || cfg.cap === undefined) return;
+            const key = cfg.key;
+            // 暴击率允许溢出用于“过量技能·暴击”换算，因此不在此处截断
+            if (key === 'weapon_critical_hit_rate') return;
+            const cur = statsObj[key];
+            if (typeof cur !== 'number') return;
+            if (cur > cfg.cap) statsObj[key] = cfg.cap;
+        });
+    }
 
-    const rawBaseHp = new Decimal(mcBaseHp).plus(gridHp).plus(summonHp);
-    const rawBaseAtk = new Decimal(mcBaseAtk).plus(gridAtk).plus(summonAtk);
+    party.forEach(m => applyWeaponCaps(m.stats));
 
-    const roundedBaseHp = rawBaseHp;
-    const roundedBaseAtk = rawBaseAtk;
-
-    // 使用 Decimal.js 计算最终面板数值
-    const finalBaseHp = roundedBaseHp
-        .times(new Decimal(1).plus(globalHpBonus))
-        .round()
-        .toNumber();
-    const finalBaseAtk = roundedBaseAtk
-        .times(new Decimal(1).plus(globalAtkBonus))
-        .round()
-        .toNumber();
-
-    const displayHp = new Decimal(finalBaseHp)
-        .times(new Decimal(1).plus(gridHpMod).plus(jobPassiveHp))
-        .floor()
-        .toNumber();
-    const displayAtk = new Decimal(finalBaseAtk)
-        .times(new Decimal(1).plus(totalAtkMod))
-        .floor()
-        .toNumber();
-
+    // =====================================
+    // 武器盘白值和面板最终显示统一在下方按各个角色独立计算
+    // =====================================
+    const teamStats = [];
     const outDiv = document.getElementById('stats-output');
     let html = '';
-    
-    html += `<div class="stat-line"><span style="color:#aaa">主角武器盘基础HP</span> <span style="font-weight:bold; color:white">${gridHp.round().toNumber()}</span></div>`;
-    html += `<div class="stat-line"><span style="color:#aaa">主角武器盘基础ATK</span> <span style="font-weight:bold; color:white">${gridAtk.round().toNumber()}</span></div>`;
-    
-    html += `<hr style="border-color:#444; margin: 10px 0;">`;
-    html += `<div class="stat-line"><span style="color:#888">主角面板 HP</span> <span style="font-weight:bold; color:#ccc">${finalBaseHp}</span></div>`;
-    html += `<div class="stat-line"><span style="color:#888">主角面板 ATK</span> <span style="font-weight:bold; color:#ccc">${finalBaseAtk}</span></div>`;
-    html += `<div class="stat-line" style="margin-top:5px;"><span style="color:#fff">主角最终 HP修改</span> <span class="total-highlight">${displayHp}</span></div>`;
-    html += `<div class="stat-line"><span style="color:#fff">主角最终 ATK修改</span> <span class="total-highlight">${displayAtk}</span></div>`;
 
-    html += `<hr style="border-color:#444; margin: 10px 0;">`;
+    party.forEach((member, i) => {
+        let memberGridHp = new Decimal(0);
+        let memberGridAtk = new Decimal(0);
 
-    // 计算过量技能·暴击（提前计算，用于在暴击率下方显示）使用 Decimal.js
-    const weaponCritRate = party[0].stats['weapon_critical_hit_rate'] || 0;
-    const overflowCritRate = Decimal.max(new Decimal(weaponCritRate).minus(1.0), 0).toNumber(); // 溢出暴击率
-    const excessCritDamageUp = Decimal.min(new Decimal(overflowCritRate).times(0.5), 1.0).toNumber(); // 暴击伤害UP，上限100%
-
-    STAT_CONFIG.forEach(cfg => {
-        let val = party[0].stats[cfg.key] || 0;
-        
-        // 应用上限逻辑
-        let isCapped = false;
-        if (cfg.cap !== null && val > cfg.cap) {
-            val = cfg.cap;
-            isCapped = true;
+        // 提取角色的得意武器列表
+        // 主角在初始化 party 时已处理为 mapped proficiency，而非主角从 currentParty 中读取
+        let charProfs = [];
+        if (i === 0) {
+            charProfs = member.proficiency || [];
+        } else {
+            const charData = typeof currentParty !== 'undefined' ? currentParty[i] : null;
+            if (charData) {
+                const p1 = WEAPON_TYPE_MAP[charData['得意武器1']] || charData['得意武器1'];
+                const p2 = WEAPON_TYPE_MAP[charData['得意武器2']] || charData['得意武器2'];
+                if (p1) charProfs.push(p1.toLowerCase());
+                if (p2) charProfs.push(p2.toLowerCase());
+            }
         }
 
-        if (val <= 0.0001) return; 
-        
-        let displayVal = val;
-        if (cfg.format === 'percent') displayVal = (val * 100).toFixed(2) + "%";
-        else displayVal = val.toFixed(0);
+        // 遍历盘子计算针对此角色的 gridHp 和 gridAtk
+        for (let j = 0; j < currentGrid.length; j++) {
+            const w = currentGrid[j];
+            if (!w) continue;
 
-        if (isCapped) {
-             displayVal += " (MAX)";
+            let wHp = (w.stats && w.stats.hp) ? parseInt(w.stats.hp) : (parseInt(w.hp) || 0);
+            let wAtk = (w.stats && w.stats.atk) ? parseInt(w.stats.atk) : (parseInt(w.atk) || 0);
+            
+            // 加蛋加成
+            const plusMarks = w.plusMarks || 0;
+            wHp += plusMarks * 1;
+            wAtk += plusMarks * 5;
+
+            let wType = WEAPON_TYPE_MAP[w.type] || w.type;
+            if(wType) wType = wType.toLowerCase();
+
+            let isProf = charProfs.includes(wType);
+            let atkMultiplier = new Decimal(1.0);
+
+            if (i === 0) {
+                // 主角专属：HP 1.2倍，结果四舍五入（与游戏一致）
+                if (isProf) {
+                    memberGridHp = memberGridHp.plus(Math.round(wHp * 1.2));
+                } else {
+                    memberGridHp = memberGridHp.plus(wHp);
+                }
+                
+                // 主角专属：职业多重得意加成
+                // - 得意武器1·2（prof12）含义：对得意武器1与得意武器2均有加成
+                // - 若得意武器1和2映射到同一种 wType，则 prof12 需要“算两次”
+                const sameProfType = (charProfs.length > 1 && charProfs[0] === charProfs[1]);
+                if (charProfs.length > 0 && wType === charProfs[0]) {
+                    atkMultiplier = atkMultiplier
+                        .plus(0.2)
+                        .plus(prof1Extra)
+                        .plus(sameProfType ? prof12Extra : 0);
+                } else if (charProfs.length > 1 && wType === charProfs[1]) {
+                    atkMultiplier = atkMultiplier.plus(0.2).plus(prof2Extra);
+                }
+
+                // 主角专属：主手武器额外加成
+                if (j === 0) { 
+                    let masteryType = wType;
+                    if (wType === 'fist') masteryType = 'melee';
+                    let key = 'main_weapon_bonuses_' + masteryType;
+                    let mhBonus = getDefaultMastery()[key] || 0;
+                    atkMultiplier = atkMultiplier.plus(mhBonus); 
+                }
+                
+                // 主角的攻击力补正也按每把武器四舍五入 (沿用旧逻辑)
+                memberGridAtk = memberGridAtk.plus(new Decimal(wAtk).times(atkMultiplier).round());
+            } else {
+                // 非主角：HP无得意加成
+                memberGridHp = memberGridHp.plus(wHp);
+                
+                // 非主角：每把武器 wAtk×atkMultiplier 向下取整后累加
+                if (isProf) {
+                    atkMultiplier = atkMultiplier.plus(0.2);
+                }
+                memberGridAtk = memberGridAtk.plus(new Decimal(wAtk).times(atkMultiplier).floor());
+            }
         }
 
-        html += `<div class="stat-line"><span>${cfg.label}</span> <span class="${isCapped ? 'capped-val' : 'val-highlight'}">${displayVal}</span></div>`;
-        
-        // 如果是暴击率且暴击率溢出，紧接着显示过量技能·暴击
-        if (cfg.key === 'weapon_critical_hit_rate' && overflowCritRate > 0) {
-            const excessDisplayVal = (excessCritDamageUp * 100).toFixed(2) + "%";
-            html += `<div class="stat-line"><span>过量技能·暴击</span> <span class="val-highlight" style="color:#f39c12;">${excessDisplayVal}</span></div>`;
+        // ------------------ 计算面板数值 ------------------
+        // 各个成员的乘区独立计算
+        const memberTotalAtkMod = new Decimal(member.stats['weapon_normal_atk'] || 0)
+            .plus(member.stats['weapon_omega_atk'] || 0)
+            .plus(member.stats['weapon_ex_atk'] || 0)
+            .plus(member.stats['weapon_special_ex_atk'] || 0)
+            .toDecimalPlaces(10)
+            .toNumber();
+            
+        const memberGridHpMod = member.stats['weapon_hp'] || 0;
+
+        if (i === 0) {
+            // ================= 主角面板结算 =================
+            const globalHpBonus = getDefaultMastery().mc_hp_passive || 0;
+            const globalAtkBonus = getDefaultMastery().mc_atk_passive || 0;
+            const jobPassiveHp = (currentMC.bonuses.class_hp_passive || 0) + (currentMC.bonuses.mc_hp_passive || 0); 
+            
+            // 提取汇总属性里的主角额外 HP/ATK
+            let extraHp = 0;
+            let extraAtk = 0;
+            if (currentParty && currentParty[0]) {
+                const charData = currentParty[0];
+                extraHp = (charData.chara_ring_basehp || 0) + (charData.chara_artifacts_basehp || 0) + (charData.chara_lb_basehp || 0);
+                extraAtk = (charData.chara_ring_baseatk || 0) + (charData.chara_artifacts_baseatk || 0) + (charData.chara_lb_baseatk || 0);
+            }
+
+            const rawBaseHp = new Decimal(mcBaseHp).plus(mcPartyHpFlat).plus(extraHp).plus(memberGridHp).plus(summonHp);
+            const rawBaseAtk = new Decimal(mcBaseAtk).plus(extraAtk).plus(memberGridAtk).plus(summonAtk);
+
+            const finalBaseHp = Math.round(rawBaseHp.times(new Decimal(1).plus(globalHpBonus)).toNumber());
+            const finalBaseAtk = Math.round(rawBaseAtk.times(new Decimal(1).plus(globalAtkBonus)).toNumber());
+
+            const displayHp = Math.floor(new Decimal(finalBaseHp).times(new Decimal(1).plus(memberGridHpMod).plus(jobPassiveHp)).toNumber());
+            const displayAtk = Math.floor(new Decimal(finalBaseAtk).times(new Decimal(1).plus(memberTotalAtkMod)).toNumber());
+            
+            teamStats[i] = {
+                gridHp: memberGridHp.floor().toNumber(),
+                gridAtk: memberGridAtk.round().toNumber(),
+                panelHp: finalBaseHp,
+                panelAtk: finalBaseAtk,
+                displayHp: displayHp,
+                displayAtk: displayAtk
+            };
+
+            // (详细数据监控代码已移除，统一在下方生成)
+            
+            // 为主手更新详细分解区域
+            renderDetailedBreakdown(member.stats);
+
+        } else {
+            // ================= 队员面板结算 =================
+            let memberBaseHp = new Decimal(member.baseHp || 0);
+            let memberBaseAtk = new Decimal(member.baseAtk || 0);
+            
+            const charData = typeof currentParty !== 'undefined' ? currentParty[i] : null;
+            if (charData) {
+                const extraHp = (charData.chara_ring_basehp || 0) + (charData.chara_artifacts_basehp || 0) + (charData.chara_lb_basehp || 0) + (charData.chara_awakening_basehp || 0);
+                const extraAtk = (charData.chara_ring_baseatk || 0) + (charData.chara_artifacts_baseatk || 0) + (charData.chara_lb_baseatk || 0) + (charData.chara_awakening_baseatk || 0);
+                memberBaseHp = memberBaseHp.plus(extraHp);
+                memberBaseAtk = memberBaseAtk.plus(extraAtk);
+            }
+            
+            let rawMemberBaseHp = memberBaseHp.plus(mcPartyHpFlat).plus(memberGridHp).plus(summonHp);
+            let rawMemberBaseAtk = memberBaseAtk.plus(memberGridAtk).plus(summonAtk);
+            
+            let charHpBonus = 0;
+            
+            if (charData) {
+                if (charData.chara_marriage_hp) charHpBonus += charData.chara_marriage_hp;
+            }
+
+            let finalMemberBaseHp = rawMemberBaseHp.times(new Decimal(1).plus(charHpBonus)).round().toNumber();
+            let finalMemberBaseAtk = rawMemberBaseAtk.floor().toNumber();
+
+            // 非主角显示面板为纯白值之和，不乘算武器盘的攻刃/守护乘区
+            const displayHp = Math.floor(finalMemberBaseHp);
+            const displayAtk = Math.floor(finalMemberBaseAtk);
+
+            teamStats[i] = {
+                gridHp: memberGridHp.floor().toNumber(),
+                gridAtk: memberGridAtk.round().toNumber(),
+                panelHp: displayHp,
+                panelAtk: displayAtk,
+                displayHp: displayHp,
+                displayAtk: displayAtk
+            };
         }
+
+        // ================= 生成通用数据监控HTML (保留武器盘加成) =================
+        // 默认显示主角(i===0)，隐藏其他人
+        const displayStyle = (i === 0) ? 'block' : 'none';
+        html += `<div id="monitor-stats-char-${i}" class="monitor-stats-block" style="display: ${displayStyle}; margin-bottom: 15px;">`;
+        html += `<div style="font-weight:bold; color:#f39c12; border-bottom:1px solid #444; margin-bottom:5px;">${member.name || (i===0 ? 'MC' : '角色 '+(i+1))}</div>`;
+
+        // 暴击过量计算
+        const weaponCritRate = member.stats['weapon_critical_hit_rate'] || 0;
+        const overflowCritRate = Decimal.max(new Decimal(weaponCritRate).minus(1.0), 0).toNumber();
+        // 过量技能·暴击：显示阈值 1%（小于 1% 不显示）
+        const excessCritDamageUpRaw = Decimal.min(new Decimal(overflowCritRate).times(0.5), 1.0).toNumber();
+        const excessCritDamageUp = (excessCritDamageUpRaw >= 0.01) ? excessCritDamageUpRaw : 0;
+
+        STAT_CONFIG.forEach(cfg => {
+            if (cfg.category !== 'weapon') return; 
+
+            let val = member.stats[cfg.key] || 0;
+            let isCapped = false;
+            if (cfg.cap !== null && val > cfg.cap) {
+                val = cfg.cap;
+                isCapped = true;
+            }
+
+            // 平A乱击段数：默认值为 1（等同“无乱击”），监控面板不展示
+            if (cfg.key === 'weapon_na_ranshu' && Number(val) === 1) return;
+
+            // 仅在“接近 0”时隐藏；允许负数展示（例如 -100% TA）
+            if (Math.abs(val) <= 0.0001) return; 
+            
+            let displayVal = val;
+            if (cfg.format === 'percent') displayVal = (val * 100).toFixed(2) + "%";
+            else displayVal = val.toFixed(0);
+
+            if (isCapped) displayVal += " (MAX)";
+
+            html += `<div class="stat-line"><span>${cfg.label}</span> <span class="${isCapped ? 'capped-val' : 'val-highlight'}">${displayVal}</span></div>`;
+            
+            if (cfg.key === 'weapon_critical_hit_rate' && overflowCritRate > 0 && excessCritDamageUp > 0) {
+                const excessDisplayVal = (excessCritDamageUp * 100).toFixed(2) + "%";
+                html += `<div class="stat-line"><span>过量技能·暴击</span> <span class="val-highlight" style="color:#f39c12;">${excessDisplayVal}</span></div>`;
+            }
+        });
+        html += `</div>`;
     });
 
-    if (html.endsWith('<hr style="border-color:#444; margin: 10px 0;">')) html += '<div style="color:#666;text-align:center;">暂无加成效果</div>';
+    if (html === '') html = '<div style="color:#666;text-align:center;">暂无加成效果</div>';
     outDiv.innerHTML = html;
+
+    // 计算当前激活的角色槽位 (由顶部 .char-slot-btn.active 决定)
+    let activeSlot = 0;
+    const activeBtn = document.querySelector('.char-slot-btn.active');
+    if (activeBtn) {
+        activeSlot = parseInt(activeBtn.getAttribute('data-slot')) || 0;
+    }
+
+    // 确保数据监控区展示的仍然是当前激活角色，而不是每次重算后强制回到 MC
+    const monitorBlocks = document.querySelectorAll('.monitor-stats-block');
+    monitorBlocks.forEach(el => { el.style.display = 'none'; });
+    const activeMonitor = document.getElementById('monitor-stats-char-' + activeSlot);
+    if (activeMonitor) {
+        activeMonitor.style.display = 'block';
+    }
+
+    // 调用渲染方法一次性渲染全队
+    if (typeof renderCharPanelStats === 'function') {
+        renderCharPanelStats(teamStats);
+    }
+
+    // 在更新伤害显示前先同步角色技能 buff，确保伤害计算与右侧 Buff 面板使用同一帧数据
+    if (typeof applyCharaSkillBuffStatsToParty === 'function') {
+        applyCharaSkillBuffStatsToParty();
+    }
     
-    // 更新详细分解区域
-    renderDetailedBreakdown(party[0].stats); 
+    // 更新每个角色的伤害计算显示
+    if (typeof updateDamageDisplay === 'function') {
+        party.forEach((member, i) => {
+            updateDamageDisplay(i);
+        });
+    }
     
-    // 更新角色面板显示区域
-    renderCharPanelStats({
-        gridHp: gridHp.round().toNumber(),
-        gridAtk: gridAtk.round().toNumber(),
-        panelHp: finalBaseHp,
-        panelAtk: finalBaseAtk
-    });
-    
-    // 更新常驻加成显示
-    renderResidentBonuses();
-    
-    // 更新伤害计算显示
-    updateDamageDisplay(0);
+    // 更新常驻加成显示 (使用当前激活角色槽位)
+    if (typeof renderResidentBonuses === 'function') {
+        renderResidentBonuses(activeSlot);
+    }
+
+    if (typeof renderPartyBuffPanel === 'function') {
+        renderPartyBuffPanel(activeSlot);
+    }
 }
 
 // 导出模块
@@ -448,6 +1162,8 @@ if (typeof module !== 'undefined' && module.exports) {
         estimateWeaponLevel,
         getEffectiveSkill,
         calculateRankStats,
-        recalculate
+        recalculate,
+        applyCharaSkillBuffStatsToParty,
+        getCalcParty
     };
 }

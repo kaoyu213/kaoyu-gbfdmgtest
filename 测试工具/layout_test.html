@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GBF 模拟器 - UI 布局测试 (中心武器盘)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #ecf0f1;
+            display: flex;
+            height: 100vh; /* 满屏高度 */
+            overflow: hidden; /* 防止整个页面滚动，用内部滚动 */
+        }
+
+        /* ==== 整体三栏布局 ==== */
+        .left-panel {
+            width: 380px;
+            min-width: 380px;
+            background-color: #253342;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #34495e;
+            overflow-y: auto;
+        }
+
+        .center-panel {
+            flex: 1; /* 占据中间剩余空间 */
+            min-width: 400px;
+            background-color: #1e2a38;
+            border-right: 1px solid #34495e;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right-panel {
+            width: 350px;
+            min-width: 350px;
+            background-color: #1a252f;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        /* ==== 通用区块样式 ==== */
+        .section-box {
+            background-color: #34495e;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #455a64;
+        }
+
+        .section-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #3498db;
+            border-bottom: 1px solid #455a64;
+            padding-bottom: 8px;
+        }
+
+        /* ==== 左栏：角色设置区 ==== */
+        .char-nav {
+            display: flex;
+            background-color: #1a252f;
+            padding: 10px 10px 0 10px;
+            gap: 5px;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .char-slot-btn {
+            padding: 10px 15px;
+            background-color: #2c3e50;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid #34495e;
+            border-bottom: none;
+            color: #95a5a6;
+            transition: all 0.2s;
+        }
+
+        .char-slot-btn.active {
+            background-color: #34495e;
+            color: #ecf0f1;
+            border-top: 2px solid #e74c3c;
+        }
+
+        .char-settings-scroll {
+            flex: 1;
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            color: #bdc3c7;
+            font-size: 0.9em;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px;
+            background-color: #1e2b3c;
+            border: 1px solid #455a64;
+            color: #ecf0f1;
+            border-radius: 4px;
+        }
+
+        /* ==== 中栏：武器盘与图鉴区 ==== */
+        .center-top-grid {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .grid-layout-mock {
+            display: flex;
+            gap: 30px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .main-slot-area-mock {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 280px;
+        }
+
+        .sub-slots-area-wrapper-mock {
+            display: flex;
+            flex-direction: column;
+            width: 280px;
+        }
+
+        .grid-slot-mock {
+            width: 80px;
+            height: 80px;
+            background-color: #34495e;
+            border-radius: 4px;
+            border: 1px solid #7f8c8d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #95a5a6;
+            font-size: 0.8em;
+            margin: 5px;
+        }
+
+        .grid-slot-mock.main {
+            width: 100px;
+            height: 100px;
+            border-color: #f1c40f;
+            color: #f1c40f;
+            margin-bottom: 20px;
+        }
+
+        .sub-grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .summons-grid-mock {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-top: 15px;
+            width: 100%;
+        }
+
+        .summon-slot-mock {
+            aspect-ratio: 1;
+            background-color: #2c3e50;
+            border: 1px solid #455a64;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            color: #bdc3c7;
+        }
+        
+        .summon-slot-mock.main-sum { border-color: #f1c40f; color: #f1c40f; }
+        .summon-slot-mock.friend-sum { border-color: #3498db; color: #3498db; }
+
+        .extra-weapon-slots-mock {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px dashed #455a64;
+        }
+
+        .extra-slot-mock {
+            width: 80px;
+            height: 80px;
+            background-color: #2c3e50;
+            border: 1px dashed #9b59b6;
+            color: #9b59b6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 底部大图鉴与仓库区 */
+        .center-bottom-tabs {
+            height: 350px;
+            background-color: #22313f;
+            border-top: 1px solid #34495e;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-headers {
+            display: flex;
+            background-color: #1a252f;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        
+        .tab-headers::-webkit-scrollbar { height: 4px; }
+        .tab-headers::-webkit-scrollbar-track { background: #1a252f; }
+        .tab-headers::-webkit-scrollbar-thumb { background: #34495e; border-radius: 2px; }
+
+        .tab-btn {
+            padding: 12px 20px;
+            text-align: center;
+            cursor: pointer;
+            background-color: #2c3e50;
+            border-bottom: 2px solid transparent;
+            font-size: 0.95em;
+            flex: 0 0 auto;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background-color: #34495e;
+            border-bottom-color: #3498db;
+            color: #3498db;
+            font-weight: bold;
+        }
+
+        .tab-btn:hover { background-color: #34495e; }
+
+        /* ==== 右栏：固定监控区 (面板与伤害) ==== */
+        .monitor-panel {
+            position: sticky;
+            top: 0;
+        }
+
+        .monitor-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #e74c3c;
+            text-align: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .active-buffs-bar {
+            background-color: #2c3e50;
+            border: 1px solid #34495e;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 48px;
+            align-items: center;
+        }
+
+        .active-buff-tag {
+            background-color: #1abc9c;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .active-buff-tag .close-btn {
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.7;
+        }
+
+        .active-buff-tag .close-btn:hover {
+            opacity: 1;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed #34495e;
+            font-size: 0.95em;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            color: #95a5a6;
+        }
+
+        .data-value {
+            font-family: monospace;
+            font-size: 1.1em;
+            color: #f1c40f;
+        }
+
+        .data-value.hp {
+            color: #2ecc71;
+        }
+
+        .dmg-predict-box {
+            background-color: #1e2b3c;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            border: 1px solid #c0392b;
+        }
+
+        .dmg-title {
+            color: #c0392b;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dmg-details {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #34495e;
+            font-size: 0.85em;
+            color: #bdc3c7;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== 左栏：角色设置区 (原中栏) ==================== -->
+    <div class="left-panel">
+        <div class="char-nav">
+            <div class="char-slot-btn active">
+                <span style="color:#e74c3c; font-weight:bold;">MC</span>
+                <span>主角</span>
+            </div>
+            <div class="char-slot-btn">
+                <span>+</span>
+                <span>角色 2</span>
+            </div>
+            <div class="char-slot-btn">
+                <span>+</span>
+                <span>角色 3</span>
+            </div>
+        </div>
+
+        <div class="char-settings-scroll">
+            <div class="section-box">
+                <div class="section-title">基础设定 (主角)</div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">等级 (Rank)</label>
+                        <input type="number" class="form-control" value="400">
+                    </div>
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">职业选择</label>
+                        <select class="form-control">
+                            <option>C5 - 帕拉丁 (Paladin)</option>
+                            <option>C5 - 维京 (Viking)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-box">
+                <div class="section-title">LB 与 独立加成</div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">LB 攻击力</label>
+                        <select class="form-control">
+                            <option>3000</option>
+                            <option>0</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">LB HP</label>
+                        <select class="form-control">
+                            <option>5000</option>
+                            <option>0</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">得意武器1 系数(%)</label>
+                        <input type="number" class="form-control" value="0">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">得意武器2 系数(%)</label>
+                        <input type="number" class="form-control" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-box" style="opacity: 0.5;">
+                <div class="section-title">其他设置 (占位)</div>
+                <p>这里可以继续放很长的设置项，比如特殊被动、队伍被动等。用户上下滚动时，其他区域不受影响。</p>
+                <br><br><br><br><br>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 中栏：核心武器盘与仓库 ==================== -->
+    <div class="center-panel">
+        
+        <div class="center-top-grid">
+            <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: #ecf0f1;">武器盘与召唤配置中心</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button style="padding: 5px 15px; background: #2980b9; color: white; border: none; border-radius: 4px; cursor: pointer;">保存</button>
+                    <button style="padding: 5px 15px; background: #e67e22; color: white; border: none; border-radius: 4px; cursor: pointer;">导入</button>
+                    <button style="padding: 5px 15px; background: #c0392b; color: white; border: none; border-radius: 4px; cursor: pointer;">清空</button>
+                </div>
+            </div>
+
+            <!-- 加成输入行 -->
+            <div style="display: flex; gap: 15px; margin-bottom: 25px; width: 100%; background: #1a252f; padding: 10px; border-radius: 8px;">
+                <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                    <label style="color: #bdc3c7; font-size: 0.9em; white-space: nowrap;">神石 %</label>
+                    <input type="number" class="form-control" value="0" style="padding: 4px;">
+                </div>
+                <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                    <label style="color: #bdc3c7; font-size: 0.9em; white-space: nowrap;">方阵 %</label>
+                    <input type="number" class="form-control" value="0" style="padding: 4px;">
+                </div>
+                <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                    <label style="color: #bdc3c7; font-size: 0.9em; white-space: nowrap;">禁咒 %</label>
+                    <input type="number" class="form-control" value="0" style="padding: 4px;">
+                </div>
+                <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                    <label style="color: #bdc3c7; font-size: 0.9em; white-space: nowrap;">属攻 %</label>
+                    <input type="number" class="form-control" value="0" style="padding: 4px;">
+                </div>
+            </div>
+
+            <!-- 核心武器盘布局 (参考 index1.html 的结构) -->
+            <div class="grid-layout-mock">
+                <!-- 左半部：主手与召唤 -->
+                <div class="main-slot-area-mock">
+                    <div style="text-align: center; margin-bottom: 10px; color: #f1c40f; font-weight: bold;">MAIN HAND</div>
+                    <div class="grid-slot-mock main">主手</div>
+                    
+                    <div style="text-align: center; margin: 20px 0 10px 0; color: #bdc3c7; font-size: 0.9em; width: 100%; border-bottom: 1px solid #455a64; padding-bottom: 5px;">召唤石合计值 (ATK/HP)</div>
+                    <div style="display: flex; gap: 10px; width: 100%; margin-bottom: 15px;">
+                        <input type="number" class="form-control" value="4652" placeholder="ATK" style="font-size: 0.85em; text-align: center;">
+                        <input type="number" class="form-control" value="1513" placeholder="HP" style="font-size: 0.85em; text-align: center;">
+                    </div>
+
+                    <div class="summons-grid-mock">
+                        <div class="summon-slot-mock main-sum">主召</div>
+                        <div class="summon-slot-mock friend-sum">友召</div>
+                        <div class="summon-slot-mock">Sum 1</div>
+                        <div class="summon-slot-mock">Sum 2</div>
+                        <div class="summon-slot-mock">Sum 3</div>
+                        <div class="summon-slot-mock">Sum 4</div>
+                        <div class="summon-slot-mock" style="border-style: dashed;">Sub 1</div>
+                        <div class="summon-slot-mock" style="border-style: dashed;">Sub 2</div>
+                    </div>
+                </div>
+
+                <!-- 右半部：9格武器盘与额外栏 -->
+                <div class="sub-slots-area-wrapper-mock">
+                    <div style="text-align: center; margin-bottom: 10px; color: #bdc3c7; font-weight: bold;">SUB WEAPONS</div>
+                    <div class="sub-grid-container">
+                        <div class="grid-slot-mock">Sub 1</div>
+                        <div class="grid-slot-mock">Sub 2</div>
+                        <div class="grid-slot-mock">Sub 3</div>
+                        <div class="grid-slot-mock">Sub 4</div>
+                        <div class="grid-slot-mock">Sub 5</div>
+                        <div class="grid-slot-mock">Sub 6</div>
+                        <div class="grid-slot-mock">Sub 7</div>
+                        <div class="grid-slot-mock">Sub 8</div>
+                        <div class="grid-slot-mock">Sub 9</div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; cursor: pointer;">
+                        <span style="color: #bdc3c7; font-size: 0.9em;">额外武器栏</span>
+                        <span style="color: #2ecc71; font-weight: bold; font-size: 0.8em;">ON</span>
+                    </div>
+                    
+                    <div class="extra-weapon-slots-mock">
+                        <div class="extra-slot-mock">+ EX</div>
+                        <div class="extra-slot-mock">+ EX</div>
+                        <div class="extra-slot-mock">+ EX</div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- 底部大图鉴与仓库区 -->
+        <div class="center-bottom-tabs">
+            <div class="tab-headers">
+                <div class="tab-btn active">⚔️ 武器仓库</div>
+                <div class="tab-btn">👥 角色图鉴</div>
+                <div class="tab-btn">🔮 召唤石图鉴</div>
+                <div class="tab-btn" style="color:#1abc9c;">✨ 技能/Buff仓库</div>
+            </div>
+            <div style="padding: 20px; color: #7f8c8d; text-align: center; margin-top: 50px; font-size: 1.1em;">
+                点击上方标签栏切换图鉴内容...<br><br>
+                <span style="font-size: 0.85em; opacity: 0.7;">（这里将横向展开显示大量的武器/召唤/技能列表，空间更宽裕，挑选更方便）</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==================== 右栏：数据监控区 (固定可见) ==================== -->
+    <div class="right-panel">
+        <div class="monitor-panel">
+            <div class="monitor-header">
+                📊 数据监控中心
+            </div>
+
+            <!-- 生效技能横条 -->
+            <div class="active-buffs-bar">
+                <div class="active-buff-tag">
+                    独立攻刃 +30% <span class="close-btn">×</span>
+                </div>
+                <div class="active-buff-tag" style="background-color: #3498db;">
+                    全队破甲 25% <span class="close-btn">×</span>
+                </div>
+                <div class="active-buff-tag" style="background-color: #9b59b6;">
+                    弱体成功率 +20% <span class="close-btn">×</span>
+                </div>
+            </div>
+            
+            <div class="section-box" style="background-color: #1a252f; border-color: #34495e;">
+                <div class="section-title" style="font-size: 0.95em; color:#fff;">当前角色：<span style="color:#e74c3c;">主角 (MC)</span></div>
+                
+                <div class="data-row">
+                    <span class="data-label">武器盘基础 HP</span>
+                    <span class="data-value hp">48,520</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">武器盘基础 ATK</span>
+                    <span class="data-value">124,500</span>
+                </div>
+                
+                <div style="margin: 15px 0; border-top: 1px solid #34495e;"></div>
+
+                <div class="data-row">
+                    <span class="data-label" style="color: #fff; font-weight:bold;">角色面板 HP</span>
+                    <span class="data-value hp" style="font-size: 1.3em;">55,300</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label" style="color: #fff; font-weight:bold;">角色面板 ATK</span>
+                    <span class="data-value" style="font-size: 1.3em;">148,200</span>
+                </div>
+            </div>
+
+            <div class="dmg-predict-box">
+                <div class="dmg-title">
+                    ⚔️ 伤害预测
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" style="font-size: 0.8em;">防御值 (Def)</label>
+                    <input type="number" class="form-control" value="10" style="padding: 4px;">
+                </div>
+
+                <div class="data-row">
+                    <span class="data-label">基础伤害</span>
+                    <span class="data-value" style="color: #e67e22;">345,120</span>
+                </div>
+                
+                <div class="data-row">
+                    <span class="data-label" style="color: #fff;">平A 预测伤害</span>
+                    <span class="data-value" style="color: #e74c3c; font-size: 1.4em;">892,400</span>
+                </div>
+                
+                <div class="dmg-details">
+                    <div class="data-row" style="padding: 2px 0;">
+                        <span class="data-label">理论伤害</span>
+                        <span class="data-value" style="font-size: 0.9em; color:#bdc3c7;">1,250,000</span>
+                    </div>
+                    <div class="data-row" style="padding: 2px 0;">
+                        <span class="data-label">95%衰减阈值</span>
+                        <span class="data-value" style="font-size: 0.9em; color:#bdc3c7;">600,000</span>
+                    </div>
+                </div>
+
+                <div style="margin: 15px 0; border-top: 1px solid #34495e;"></div>
+
+                <div class="data-row">
+                    <span class="data-label" style="color: #fff;">奥义 预测伤害</span>
+                    <span class="data-value" style="color: #9b59b6; font-size: 1.4em;">4,520,100</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>

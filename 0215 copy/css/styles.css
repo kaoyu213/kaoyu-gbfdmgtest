@@ -1,3 +1,95 @@
+/* --- 非主角：奥义摘要（倍率 + 效果） --- */
+.char-ca-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+.char-ca-mult-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+}
+.char-ca-effects-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.char-ca-label {
+    font-size: 0.75rem;
+    color: #888;
+    flex-shrink: 0;
+}
+.char-ca-mult-value {
+    font-size: 1.15rem;
+    font-weight: bold;
+    color: #e67e22;
+    letter-spacing: 0.02em;
+}
+.char-ca-effects-text {
+    font-size: 0.8rem;
+    color: #c8c8c8;
+    line-height: 1.45;
+    word-break: break-word;
+}
+.char-ca-effects-empty {
+    color: #666;
+    font-size: 0.8rem;
+}
+
+/* --- 非主角：角色技能槽（charaskills.json） --- */
+.char-skill-slots-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+}
+.char-skill-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.char-skill-slot-icon-wrap {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    background: #1e1e1e;
+    border: 1px solid #444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.char-skill-slot-icon {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+.char-skill-slot-empty {
+    font-size: 0.7rem;
+    color: #555;
+    user-select: none;
+}
+.char-skill-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    color: #9a9a9a;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+.char-skill-enabled-cb:disabled + .char-skill-toggle-text {
+    opacity: 0.45;
+}
+
 /* --- GBF 模拟器 v5.0 样式 --- */
 
 /* 全局与基础样式 */
@@ -41,14 +133,43 @@ button:hover {
 .btn-export { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
 .btn-import { background: linear-gradient(135deg, #f39c12, #d35400); }
 
-/* 左侧面板 */
+/* ---- 布局面板重构 (左中右三栏) ---- */
+.layout-left {
+    flex: 0 0 400px; /* 原右侧的缩小版，存放角色设定等 */
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 40px);
+    overflow-y: auto;
+    background: #2d2d2d;
+    border-radius: 8px;
+    border: 1px solid #444;
+}
+
+.layout-center {
+    flex: 1; /* 核心武器盘区域，占据中间所有剩余空间 */
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.layout-right {
+    flex: 0 0 450px; /* 抽离出的独立数据加成面板 */
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 40px);
+    overflow-y: auto;
+    background: #2d2d2d;
+    border-radius: 8px;
+    border: 1px solid #444;
+    padding: 15px;
+}
+
+/* 兼容旧的类名，防止有些JS还在找它们 */
 .left-panel { 
-    flex: 0 0 960px; 
     display: flex; 
     flex-direction: column; 
-    min-height: 100vh; 
-    overflow-y: auto; 
-    padding-right: 10px; 
     padding-bottom: 20px;
 }
 
@@ -157,12 +278,12 @@ button:hover {
     display: flex; 
     gap: 25px; 
     background: #222; 
-    padding: 12px; 
+    padding: 20px; 
     border-radius: 6px; 
-    width: 100%; 
+    width: fit-content; 
+    margin: 0 auto 15px auto; /* 居中显示 */
     box-sizing: border-box; 
     border: 1px solid #444; 
-    margin-bottom: 15px; 
     flex-shrink: 0; 
 }
 
@@ -175,11 +296,10 @@ button:hover {
 }
 
 .sub-slots-area { 
-    flex: 1; 
     display: grid; 
-    grid-template-columns: repeat(3, 1fr); 
-    grid-template-rows: repeat(3, 1fr); 
-    gap: 6px; 
+    grid-template-columns: repeat(3, 180px); /* 放大子武器固定列宽 */
+    grid-template-rows: repeat(3, 150px);   /* 放大子武器固定行高 (比例6:5) */
+    gap: 12px; 
 }
 
 .grid-slot { 
@@ -195,6 +315,7 @@ button:hover {
 }
 
 .grid-slot.main { flex: 0 0 auto; height: 220px; } 
+/* 这里可以移除或保留，因为在 grid-template-rows 已经写死了高度 */
 .grid-slot.sub { aspect-ratio: 6/5; }
 .grid-slot:hover { border-color: #aaa; }
 .grid-slot.filled { background: #202020; border-color: #8e44ad; }
@@ -334,7 +455,7 @@ button:hover {
     flex-direction: column; 
     gap: 2px; 
     z-index: 5; 
-    height: 80px; 
+    height: 100px; 
     justify-content: space-between; 
 }
 
@@ -511,8 +632,9 @@ button:hover {
 /* 额外武器栏容器 - 始终显示 */
 .extra-weapon-slots {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
+    grid-template-columns: repeat(3, 180px); /* 匹配上面武器盘放大的固定列宽 */
+    grid-template-rows: 150px;               /* 匹配放大的行高 */
+    gap: 12px;
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px dashed #444;
@@ -529,9 +651,9 @@ button:hover {
 
 /* 子武器槽区域包装器 */
 .sub-slots-area-wrapper {
-    flex: 1;
     display: flex;
     flex-direction: column;
+    width: fit-content;
 }
 
 /* 4. 综合面板 */
@@ -542,6 +664,395 @@ button:hover {
     border: 1px solid #444;
 }
 
+/* 理论总伤：伤害预测与角色 Buff 之间的占位区 */
+.theoretical-total-dmg-board {
+    margin-top: 16px;
+}
+.theoretical-total-dmg-heading {
+    margin: 0 0 10px 0;
+    font-size: 1em;
+    color: #1abc9c;
+    border-bottom: 1px solid #444;
+    padding-bottom: 8px;
+}
+.theoretical-total-dmg-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.theoretical-total-dmg-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 0.9em;
+}
+.theoretical-total-dmg-label {
+    color: #aaa;
+    flex-shrink: 0;
+}
+.theoretical-total-dmg-label-with-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.theoretical-total-dmg-value {
+    color: #ecf0f1;
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+#theoretical-na-chase-e-row {
+    margin-bottom: 6px;
+}
+
+/* 属性追击（E类）：字体略小，颜色由 JS 按武器属性动态注入 */
+#theoretical-na-chase-e-row .theoretical-total-dmg-label,
+#theoretical-na-chase-e-row .theoretical-total-dmg-value {
+    font-size: 0.85em;
+}
+
+/* 破坏属性追击：与 E 类追击保持同样字号与风格 */
+#theoretical-na-chase-des-row .theoretical-total-dmg-label,
+#theoretical-na-chase-des-row .theoretical-total-dmg-value {
+    font-size: 0.85em;
+}
+
+.theoretical-na-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+.theoretical-total-dmg-row--na .theoretical-na-formula-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px 8px;
+    min-width: 0;
+}
+.theoretical-na-base {
+    color: #ecf0f1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.theoretical-na-mult-combined {
+    color: #95a5a6;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.theoretical-na-toggle {
+    margin-left: 0;
+    padding: 2px 6px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #3a3a3a;
+    color: #1abc9c;
+    font-size: 0.85em;
+    line-height: 1.2;
+    cursor: pointer;
+}
+.theoretical-na-toggle:hover {
+    border-color: #1abc9c;
+    background: #333;
+}
+.theoretical-na-toggle:focus {
+    outline: none;
+    border-color: #1abc9c;
+}
+.theoretical-na-sum-panel {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    background: #252525;
+    border-radius: 4px;
+    border-left: 3px solid #1abc9c;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+.theoretical-na-sum-panel[hidden] {
+    display: none !important;
+}
+.theoretical-na-sum-label {
+    color: #aaa;
+    font-size: 0.85em;
+}
+.theoretical-na-sum-value {
+    color: #ecf0f1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 右侧：各槽伤害预测下方、武器盘全局面板上方 — 每名角色独立 Buff 面板（参考游戏状态栏） */
+.party-buff-icons-board {
+    margin-top: 16px;
+}
+.party-buff-icons-heading {
+    margin: 0 0 10px 0;
+    font-size: 1em;
+    color: #9b59b6;
+    border-bottom: 1px solid #444;
+    padding-bottom: 8px;
+}
+.party-buff-for-name {
+    font-weight: normal;
+    font-size: 0.85em;
+    color: #c9c9c9;
+    margin-left: 6px;
+}
+.party-buff-char-block {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.party-buff-char-block--single {
+    width: 100%;
+}
+.party-buff-char-label {
+    font-size: 0.68rem;
+    color: #9a9a9a;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* 单角色 Buff 容器：深底、圆角、内边距（与参考图一致） */
+.party-buff-char-panel {
+    background: #141414;
+    border-radius: 10px;
+    border: 1px solid #2e2e2e;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 2px 6px rgba(0, 0, 0, 0.35);
+    padding: 8px 9px;
+    min-height: 48px;
+}
+.party-buff-icon-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-content: flex-start;
+    align-items: flex-start;
+    gap: 7px 8px;
+}
+.party-buff-icon-list--stacked {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 8px;
+}
+.party-buff-codex-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+.party-buff-codex-rows:empty {
+    display: none;
+}
+.party-buff-skill-icons-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 7px 8px;
+    min-height: 0;
+}
+.party-buff-skill-icons-row:empty {
+    min-height: 28px;
+}
+.party-buff-skill-icons-row:empty::after {
+    content: '暂无勾选技能 Buff';
+    color: #3d3d3d;
+    font-size: 0.65rem;
+    letter-spacing: 0.02em;
+    align-self: center;
+}
+.party-buff-codex-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+}
+.party-buff-codex-row-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+.party-buff-codex-mid {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.party-buff-codex-buff-icons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+}
+.party-buff-codex-sub-slot {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 3px;
+    overflow: hidden;
+    background: #222;
+    border: 1px solid #444;
+    box-sizing: border-box;
+}
+.party-buff-codex-sub-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+.party-buff-codex-sub-slot--text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: #aaa;
+    padding: 1px;
+    text-align: center;
+    line-height: 1.05;
+}
+.party-buff-codex-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #222;
+    border: 1px solid #444;
+}
+.party-buff-codex-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+.party-buff-codex-icon--text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #bbb;
+}
+.party-buff-codex-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.party-buff-codex-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e0e0e0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.party-buff-codex-level {
+    font-size: 0.72rem;
+    color: #f39c12;
+    font-variant-numeric: tabular-nums;
+}
+.party-buff-codex-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 6px;
+}
+.party-buff-btn {
+    padding: 4px 10px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    border-radius: 4px;
+    border: 1px solid #555;
+    cursor: pointer;
+    background: #2c2c2c;
+    color: #ddd;
+}
+.party-buff-btn:hover:not(:disabled) {
+    background: #3d3d3d;
+    border-color: #777;
+}
+.party-buff-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.party-buff-btn-stack {
+    border-color: #2980b9;
+    color: #5dade2;
+}
+.party-buff-btn-clear {
+    border-color: #922b21;
+    color: #ec7063;
+}
+/* Buff 图标槽位（无外侧圆环，图标矩形平铺） */
+.party-buff-icon-slot {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+}
+.party-buff-icon-slot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    object-fit: contain;
+    background: transparent;
+    border: none;
+    box-sizing: border-box;
+}
+/* 无图标资源时：小方块内文字占位 */
+.party-buff-icon-slot.party-buff-icon-slot--text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 4px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    line-height: 1.05;
+    text-align: center;
+    color: #ddd;
+    background: #2a2a2a;
+    border-radius: 4px;
+    border: 1px solid #444;
+    text-shadow: none;
+    word-break: keep-all;
+}
+.party-buff-charabuff-stats {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: #ccc;
+}
+.party-buff-charabuff-stats .stat-line:last-child {
+    border-bottom: none;
+}
 .stat-line { 
     display: flex; 
     justify-content: space-between; 
@@ -554,17 +1065,13 @@ button:hover {
 .capped-val { color: #e74c3c; font-weight: bold; }
 .total-highlight { color: #f39c12; font-weight: bold; font-size: 1.1em; }
 
-/* --- 右侧面板 --- */
+/* --- 右侧面板 (旧版兼容) --- */
 .right-panel { 
     flex: 1; 
-    background: #2d2d2d; 
-    padding: 0; 
-    border-radius: 8px; 
-    height: 100%; 
     display: flex; 
     flex-direction: column; 
+    height: 100%;
     overflow: hidden; 
-    border: 1px solid #444; 
 }
 
 .tab-header { 
@@ -638,6 +1145,66 @@ button:hover {
     height: 40px; 
     border-radius: 50%; 
     background: #555; 
+}
+
+/* 暴击伤害特殊颜色高亮 */
+.dmg-value.is-crit {
+    color: #f1c40f !important;
+}
+
+/* 拨片按钮基础样式 */
+.toggle-btn {
+    padding: 0;
+    background: #333;
+    border: 1px solid #555;
+    color: #888;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+    width: 120px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.toggle-btn:hover {
+    background: #444;
+    color: #aaa;
+}
+
+/* 拨片按钮激活样式 */
+.toggle-btn.active.adv-btn {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    border-color: #c0392b;
+}
+
+.toggle-btn.active.crit-btn {
+    background: linear-gradient(135deg, #f39c12, #d35400);
+    color: white;
+    border-color: #d35400;
+}
+
+.toggle-btn.active.min-val-btn {
+    background: #555;
+    color: #fff;
+    border-color: #777;
+}
+
+/* 按钮组间距微调，适应更多按钮 */
+.dmg-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #1a1a1a;
+    border-radius: 4px;
 }
 
 /* --- 主角面板 UI v2.0 样式 --- */
@@ -856,6 +1423,189 @@ input[type="range"] {
     display: block;
 }
 
+/* 武器仓库 / 角色图鉴：顶部属性筛选（单行均分） */
+.left-element-filter-bar {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    align-items: stretch;
+    margin: 0 0 10px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #3a3a3a;
+}
+.left-filter-pill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 4px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #252525;
+    color: #bbb;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.left-filter-pill:hover {
+    background: #323232;
+    color: #eee;
+    border-color: #555;
+}
+.left-filter-pill--active {
+    color: #fff;
+    border-color: var(--pill-accent, #3498db);
+    background: #2f2f2f;
+    box-shadow: 0 0 0 1px var(--pill-accent, #3498db);
+}
+
+/* 技能图鉴（charabuff.json） */
+.charabuff-catalog-list {
+    padding: 4px 2px 8px;
+}
+
+.charabuff-catalog-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 6px;
+    border-bottom: 1px solid #3a3a3a;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.charabuff-catalog-item:hover {
+    background: #353545;
+}
+
+
+.charabuff-catalog-item:last-child {
+    border-bottom: none;
+}
+
+.charabuff-catalog-img {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: 4px;
+    background: #222;
+    border: 1px solid #444;
+}
+
+.charabuff-catalog-img--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7em;
+    color: #666;
+}
+
+.charabuff-catalog-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.charabuff-catalog-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 10px;
+    margin-bottom: 4px;
+}
+
+.charabuff-catalog-name {
+    font-weight: bold;
+    font-size: 0.95em;
+    color: #eee;
+}
+
+.charabuff-catalog-id {
+    font-size: 0.68em;
+    color: #666;
+    word-break: break-all;
+}
+
+.charabuff-catalog-meta {
+    font-size: 0.72em;
+    color: #8bc34a;
+    margin-bottom: 4px;
+}
+
+.charabuff-catalog-desc {
+    font-size: 0.78em;
+    color: #aaa;
+    line-height: 1.35;
+    margin-bottom: 6px;
+}
+
+.charabuff-catalog-subtitle {
+    font-size: 0.7em;
+    color: #3498db;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.charabuff-catalog-effects {
+    font-size: 0.74em;
+    color: #ccc;
+}
+
+.charabuff-effect-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin-bottom: 3px;
+    padding-left: 6px;
+    border-left: 2px solid #555;
+}
+
+.charabuff-effect-prop {
+    color: #f39c12;
+}
+
+.charabuff-effect-id-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    vertical-align: middle;
+}
+
+.charabuff-effect-buff-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: 2px;
+    background: #222;
+    border: 1px solid #3a3a3a;
+}
+
+.charabuff-effect-buff-icon--empty {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    box-sizing: border-box;
+    border-radius: 2px;
+    background: #1e1e1e;
+    border: 1px dashed #444;
+}
+
+.charabuff-effect-id {
+    color: #666;
+    font-size: 0.92em;
+}
+
 /* 角色槽选择器样式 */
 .char-slot-selector {
     display: flex;
@@ -943,6 +1693,26 @@ input[type="range"] {
 .empty-char-text {
     color: #666;
     font-size: 0.9em;
+}
+
+/* 非主角槽：清除角色 */
+.btn-clear-char-slot {
+    flex-shrink: 0;
+    align-self: center;
+    padding: 6px 10px;
+    font-size: 0.75em;
+    color: #e74c3c;
+    background: #2a1a1a;
+    border: 1px solid #633;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-clear-char-slot:hover {
+    background: #3d2222;
+    border-color: #e74c3c;
+    color: #ff6b6b;
 }
 
 /* 二级菜单样式 */
@@ -1101,6 +1871,17 @@ input[type="range"] {
     border-radius: 4px;
 }
 
+/* 第一行：防御 + 防down；第二行：四枚拨片独占整行 */
+.dmg-predict-section .dmg-controls {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    align-items: center;
+}
+
+.dmg-predict-section .dmg-controls .dmg-input-group {
+    flex-shrink: 0;
+}
+
 .dmg-toggle {
     display: flex;
     align-items: center;
@@ -1136,9 +1917,35 @@ input[type="range"] {
     text-align: center;
 }
 
+.dmg-input-group.dmg-input-small input {
+    width: 38px;
+    font-size: 0.8em;
+}
+
 .dmg-btn-group {
     display: flex;
     gap: 5px;
+    align-items: center;
+}
+
+/* 第二行满宽：四钮均分 */
+.dmg-predict-section .dmg-btn-group {
+    flex-basis: 100%;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+    min-width: 0;
+}
+
+.dmg-predict-section .dmg-btn-group .toggle-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 0.75em;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .dmg-btn-group button {
@@ -1188,6 +1995,36 @@ input[type="range"] {
     font-size: 1em;
     font-weight: bold;
     color: #fff;
+}
+
+/* 技能预测：标签与倍率框紧贴，整组与右侧数值 space-between */
+.dmg-skill-label-input {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.dmg-skill-label-input .dmg-label {
+    white-space: nowrap;
+}
+
+.dmg-skill-mult-input {
+    width: 4.25em;
+    max-width: 100%;
+    padding: 4px 6px;
+    font-size: 0.9em;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #1e1e1e;
+    color: #eee;
+    box-sizing: border-box;
+}
+
+.dmg-skill-mult-input:focus {
+    outline: none;
+    border-color: #e74c3c;
 }
 
 /* 对克属标签按钮样式 */
