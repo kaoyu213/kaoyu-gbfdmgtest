@@ -74,6 +74,18 @@
         { "limit": null,     "slope": 0.01 }
       ]
     },
+    "ca_337": {
+      "type": "ca",
+      "displayCap": 337,
+      "label": "奥义上限337万",
+      "stages": [
+        { "limit": 3000000, "slope": 1.0 },
+        { "limit": 3400000, "slope": 0.6 },
+        { "limit": 3600000, "slope": 0.3 },
+        { "limit": 5000000, "slope": 0.05 },
+        { "limit": null,     "slope": 0.01 }
+      ]
+    },
     "skill_default_44.5": {
       "type": "skill",
       "multiplier": null,

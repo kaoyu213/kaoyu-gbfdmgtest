@@ -620,6 +620,10 @@ function calculateDamageFromUI(charIndex = 0) {
     if (typeof overlayCharaLbElementAtkFromParty === 'function') {
         overlayCharaLbElementAtkFromParty(stats, charIndex);
     }
+    // 非主角上限加成（LB、戒指、神器、觉醒、婚戒等）overlay 进 stats
+    if (typeof overlayCharaCapsFromParty === 'function') {
+        overlayCharaCapsFromParty(stats, charIndex);
+    }
     
     // 计算角色强化加成提供的强壮乘区：
     //  - 戒指浑身 / 耳饰浑身：各自按渾身+N 曲线计算后相加
@@ -779,6 +783,10 @@ function updateDamageDisplay(charIndex = 0) {
     }
     if (typeof overlayCharaLbElementAtkFromParty === 'function') {
         overlayCharaLbElementAtkFromParty(stats, charIndex);
+    }
+    // 非主角上限加成（LB、戒指、神器、觉醒、婚戒等）overlay 进 stats
+    if (typeof overlayCharaCapsFromParty === 'function') {
+        overlayCharaCapsFromParty(stats, charIndex);
     }
     
     const teshuStats = getTeshuStats();
