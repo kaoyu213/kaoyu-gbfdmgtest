@@ -86,8 +86,15 @@
             extraAmp,
             params.capOptions || {}
         );
-        const cappedNum = cap && cap.finalDamage != null ? Number(cap.finalDamage) : 0;
-        const cappedBase = new Decimal(cappedNum);
+        // 重构后 applyDamageCap 不再返回 finalDamage，此处手动重建
+        const worldCapMode0 = (params.capOptions && params.capOptions.worldCapMode) ? params.capOptions.worldCapMode : '660';
+        const ampedAndTaken0 = new Decimal(cap.decayedDamage)
+            .times(new Decimal(1).plus(cap.ampCoef))
+            .times(new Decimal(1).plus(cap.takenDmgAmpCoef));
+        const worldCapped0 = typeof applyWorldCap === 'function'
+            ? applyWorldCap(ampedAndTaken0, 'na', stats, worldCapMode0)
+            : ampedAndTaken0;
+        const cappedBase = worldCapped0.ceil();
         // 与 sumNa 首段基底一致；追伤% 用 Decimal 连乘后 ceil，再加予伤
         const segForChase = x <= 1 ? cappedBase : cappedBase.div(x);
         return segForChase.times(pct).ceil().plus(totalSupp).toNumber();
@@ -234,7 +241,15 @@
             extraAmp,
             params.capOptions
         );
-        return capResult && capResult.finalDamage != null ? Number(capResult.finalDamage) : 0;
+        // 重构后 applyDamageCap 不再返回 finalDamage，此处手动重建
+        const worldCapMode1 = (params.capOptions && params.capOptions.worldCapMode) ? params.capOptions.worldCapMode : '660';
+        const ampedAndTaken1 = new Decimal(capResult.decayedDamage)
+            .times(new Decimal(1).plus(capResult.ampCoef))
+            .times(new Decimal(1).plus(capResult.takenDmgAmpCoef));
+        const worldCapped1 = typeof applyWorldCap === 'function'
+            ? applyWorldCap(ampedAndTaken1, 'na', params.stats, worldCapMode1)
+            : ampedAndTaken1;
+        return worldCapped1.ceil().toNumber();
     }
 
     /**
@@ -265,9 +280,16 @@
             params.ranshuForUi
         );
         const supp = Number(params.totalSupp) || 0;
-        const capAmt = nn.firstCapResult && nn.firstCapResult.finalDamage != null
-            ? Number(nn.firstCapResult.finalDamage)
-            : 0;
+        // 重构后 applyDamageCap 不再返回 finalDamage，此处手动重建
+        const worldCapMode2 = (params.capOptions && params.capOptions.worldCapMode) ? params.capOptions.worldCapMode : '660';
+        const capRaw = nn.firstCapResult;
+        const ampedAndTaken2 = new Decimal(capRaw.decayedDamage)
+            .times(new Decimal(1).plus(capRaw.ampCoef))
+            .times(new Decimal(1).plus(capRaw.takenDmgAmpCoef));
+        const worldCapped2 = typeof applyWorldCap === 'function'
+            ? applyWorldCap(ampedAndTaken2, 'na', params.stats, worldCapMode2)
+            : ampedAndTaken2;
+        const capAmt = worldCapped2.ceil().toNumber();
         const xh = Math.max(1, Math.floor(Number(params.ranshuForUi) || 1));
         const cappedBase = new Decimal(capAmt);
         const segForChase = xh <= 1 ? cappedBase : cappedBase.div(xh);

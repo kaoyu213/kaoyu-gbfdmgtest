@@ -35,11 +35,15 @@ const CHARA_CRIT_INDEPENDENT_DAMAGE_BONUS = 0.3;
 const EARRING_CRIT_DAMAGE_BONUS = CHARA_CRIT_INDEPENDENT_DAMAGE_BONUS;
 
 function getCaCapDisplayBase(caMultiplier) {
-    if (typeof getCaDisplayCapBase === 'function') {
-        const tableBase = getCaDisplayCapBase(caMultiplier);
-        if (tableBase != null) return tableBase;
+    // 从 ThresholdRegistry 获取 ca 类型的默认表，取 displayCap（单位：万）换算为实际值
+    if (typeof ThresholdRegistry !== 'undefined' && typeof ThresholdRegistry.getDefault === 'function') {
+        const resolved = ThresholdRegistry.getDefault('ca');
+        if (resolved && resolved.displayCap != null) {
+            return Math.round(resolved.displayCap * 10000); // 万 → 实际值
+        }
     }
 
+    // 兜底
     const mult = Number(caMultiplier);
     if (Number.isFinite(mult)) {
         if (Math.abs(mult - 4.5) < 1e-6) return 1685000;

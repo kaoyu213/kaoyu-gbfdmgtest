@@ -177,11 +177,17 @@
             var critExtraAmp = (Number(stats['weapon_critical_hit_amp']) || 0) * critAmpRate;
             var capOptions = Object.assign({}, options.capOptions || {});
             var capResult = applyDamageCap(afterCrit, stats, 'skill', teshuStats, critExtraAmp, capOptions);
-            var capFinal = new Decimal(capResult.decayedDamage)
+
+            // 技伤公式：decayed → +Supp → ×(1+Amp) → ×(1+TakenAmp) → worldCap → ceil
+            var worldCapMode = (capOptions && capOptions.worldCapMode) ? capOptions.worldCapMode : '660';
+            var beforeWorld = new Decimal(capResult.decayedDamage)
                 .plus(skillSupp)
                 .times(new Decimal(1).plus(capResult.ampCoef))
-                .ceil()
+                .times(new Decimal(1).plus(capResult.takenDmgAmpCoef))
                 .toNumber();
+            var capFinal = typeof applyWorldCap === 'function'
+                ? applyWorldCap(beforeWorld, 'skill', stats, worldCapMode).ceil().toNumber()
+                : new Decimal(beforeWorld).ceil().toNumber();
             out.value = capFinal;
             out.withCap = capFinal;
             out.capResult = capResult;

@@ -432,8 +432,16 @@
             // 2) 衰减后乘承受伤害增幅（takenDmgAmp）；
             // 3) 再叠加伤害上升（supp）；
             // 4) 最后乘伤害增幅（amp），走世界上限。
-            var rawDamageForCap = raw.steps.afterCrit; // 不含 supp，不含 amp
-            var capOptions = Object.assign({}, options.capOptions || {}, { caMultiplier: caMultiplier });
+             var rawDamageForCap = raw.steps.afterCrit; // 不含 supp，不含 amp
+            // 从角色数据读取阈值表ID
+            var thresholdTableId = null;
+            if (!isMC && typeof currentParty !== 'undefined' && currentParty[charIndex]) {
+                thresholdTableId = currentParty[charIndex]['阈值表'] || null;
+            }
+            var capOptions = Object.assign({}, options.capOptions || {}, {
+                caMultiplier: caMultiplier,
+                thresholdTableId: thresholdTableId
+            });
             // 克属时，将玲珑佩/武器盘的"对克制属性伤害增幅"传入上限衰减的 extraAmp
             var elementalAmp = isAdvantage ? aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats) : 0;
             var capResult = applyDamageCap(rawDamageForCap, stats, 'ca', teshuStats, critOnlyAmp + elementalAmp, capOptions);

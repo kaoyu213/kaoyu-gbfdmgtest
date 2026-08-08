@@ -1,0 +1,106 @@
+{
+  "tables": {
+    "na_1.0_44.5": {
+      "type": "na",
+      "multiplier": 1.0,
+      "displayCap": 44.5,
+      "label": "平A默认衰减表 上限44.5万",
+      "isDefault": true,
+      "stages": [
+        { "limit": 300000, "slope": 1.0 },
+        { "limit": 400000, "slope": 0.8 },
+        { "limit": 500000, "slope": 0.6 },
+        { "limit": 600000, "slope": 0.05 },
+        { "limit": null,   "slope": 0.01 }
+      ]
+    },
+    "ca_168.5": {
+      "type": "ca",
+      "displayCap": 168.5,
+      "label": "奥义上限168.5万",
+      "stages": [
+        { "limit": 1500000, "slope": 1.0 },
+        { "limit": 1700000, "slope": 0.6 },
+        { "limit": 1800000, "slope": 0.3 },
+        { "limit": 2500000, "slope": 0.05 },
+        { "limit": null,     "slope": 0.01 }
+      ]
+    },
+    "ca_230.5": {
+      "type": "ca",
+      "displayCap": 230.5,
+      "label": "奥义上限230.5万",
+      "stages": [
+        { "limit": 2100000, "slope": 1.0 },
+        { "limit": 2300000, "slope": 0.6 },
+        { "limit": 2500000, "slope": 0.3 },
+        { "limit": 3000000, "slope": 0.05 },
+        { "limit": null,     "slope": 0.01 }
+      ]
+    },
+    "ca_202": {
+      "type": "ca",
+      "displayCap": 202,
+      "label": "奥义上限202万",
+      "stages": [
+        { "limit": 1800000, "slope": 1.0 },
+        { "limit": 2000000, "slope": 0.6 },
+        { "limit": 2200000, "slope": 0.3 },
+        { "limit": 3000000, "slope": 0.05 },
+        { "limit": null,     "slope": 0.01 }
+      ]
+    },
+    "ca_242": {
+      "type": "ca",
+      "displayCap": 242,
+      "label": "奥义上限242万",
+      "stages": [
+        { "limit": 2000000, "slope": 1.0 },
+        { "limit": 2400000, "slope": 0.7 },
+        { "limit": 2800000, "slope": 0.3 },
+        { "limit": 3000000, "slope": 0.1 },
+        { "limit": null,     "slope": 0.01 }
+      ]
+    },
+    "ca_290": {
+      "type": "ca",
+      "displayCap": 290,
+      "label": "奥义上限290万",
+      "stages": [
+        { "limit": 2400000, "slope": 1.0 },
+        { "limit": 2800000, "slope": 0.8 },
+        { "limit": 3000000, "slope": 0.4 },
+        { "limit": 4000000, "slope": 0.1 },
+        { "limit": null,     "slope": 0.01 }
+      ]
+    },
+    "skill_default_44.5": {
+      "type": "skill",
+      "multiplier": null,
+      "displayCap": 44.5,
+      "label": "技伤默认衰减表 上限44.5万",
+      "isDefault": true,
+      "stages": [
+        { "limit": 300000, "slope": 1.0 },
+        { "limit": 400000, "slope": 0.8 },
+        { "limit": 500000, "slope": 0.6 },
+        { "limit": 600000, "slope": 0.05 },
+        { "limit": null,   "slope": 0.01 }
+      ]
+    }
+  },
+  "worldCap": {
+    "660": [
+      { "limit": 6000000, "slope": 1.0 },
+      { "limit": 7000000, "slope": 0.5 },
+      { "limit": 8000000, "slope": 0.1 },
+      { "limit": null,   "slope": 0.001 }
+    ],
+    "1310": [
+      { "limit": 12000000, "slope": 1.0 },
+      { "limit": 14000000, "slope": 0.5 },
+      { "limit": 15000000, "slope": 0.1 },
+      { "limit": null,     "slope": 0.001 }
+    ]
+  }
+}
