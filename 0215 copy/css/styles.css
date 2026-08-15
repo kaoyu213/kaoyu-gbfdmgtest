@@ -714,6 +714,11 @@ button:hover {
     font-size: 0.85em;
 }
 
+.theoretical-na-chase-dynamic-row .theoretical-total-dmg-label,
+.theoretical-na-chase-dynamic-row .theoretical-total-dmg-value {
+    font-size: 0.85em;
+}
+
 /* 破坏属性追击：与 E 类追击保持同样字号与风格 */
 #theoretical-na-chase-des-row .theoretical-total-dmg-label,
 #theoretical-na-chase-des-row .theoretical-total-dmg-value {

@@ -1173,9 +1173,9 @@
                 </div>
             </div>
 
-            <!-- 常驻加成栏目 -->
+            <!-- 全加成效果汇总栏目 -->
             <div class="result-board" style="margin-top: 15px;">
-                <h3>常驻加成</h3>
+                <h3>全加成效果汇总</h3>
                 <div id="resident-bonuses-output"></div>
             </div>
             
@@ -2097,9 +2097,9 @@
                 <div id="stats-output"></div>
             </div>
             
-            <!-- 常驻加成栏目 -->
+            <!-- 全加成效果汇总栏目 -->
             <div class="result-board" style="margin-top: 15px;">
-                <h3>常驻加成</h3>
+                <h3>全加成效果汇总</h3>
                 <div id="resident-bonuses-output"></div>
             </div>
         </div>
@@ -2137,6 +2137,9 @@
     <script src="js/render/charabuff.js"></script>
     <script src="js/render/bonus.js"></script>
 <script src="js/render/index.js"></script>
+    <script src="js/buff_directory.js"></script>
+    <script src="js/buff_zones.js"></script>
+    <script src="js/buff_registry.js"></script>
     <script src="js/calc.js"></script>
     <script src="js/threshold_registry.js"></script>
     <script src="js/damage_cap.js"></script>
@@ -2175,6 +2178,7 @@
                 el.value = val;
             });
             recalculate();
+            if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') setTimeout(() => saveToLocal(true), 100);
         }
 
         // 切换伤害预测区域折叠状态
@@ -2200,60 +2204,103 @@
             5: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' }
         };
 
+        function syncDamageViewStateToAll(sourceState) {
+            if (!sourceState || !window.damageViewStates) return;
+            for (let i = 0; i <= 5; i++) {
+                if (!window.damageViewStates[i]) window.damageViewStates[i] = {};
+                window.damageViewStates[i].randomMode = sourceState.randomMode || 'theory';
+                window.damageViewStates[i].isAdvantage = sourceState.isAdvantage === true;
+                window.damageViewStates[i].critMode = sourceState.critMode || 'non_crit';
+                window.damageViewStates[i].hideRanshuDisplay = sourceState.hideRanshuDisplay === true;
+                window.damageViewStates[i].worldCapMode = sourceState.worldCapMode || '660';
+            }
+        }
+
+        function refreshDamageViewButtons() {
+            if (!window.damageViewStates) return;
+            const randomLabels = { theory: '\u7406\u8bba\u503c', min: '\u6700\u4f4e\u503c', max: '\u6700\u9ad8\u503c' };
+            const worldLabels = { '660': '660\u4e07', '1310': '1310\u4e07', none: '\u4e0d\u751f\u6548' };
+            for (let i = 0; i <= 5; i++) {
+                const state = window.damageViewStates[i];
+                if (!state) continue;
+
+                const randomBtn = document.querySelector(`#data-slot-${i} .min-val-btn`);
+                if (randomBtn) {
+                    const mode = state.randomMode || 'theory';
+                    randomBtn.textContent = randomLabels[mode] || '\u7406\u8bba\u503c';
+                    randomBtn.classList.toggle('active', mode !== 'theory');
+                }
+
+                const advBtn = document.querySelector(`#data-slot-${i} .adv-btn`);
+                if (advBtn) {
+                    advBtn.textContent = state.isAdvantage ? '\u5bf9\u514b\u5c5e' : '\u975e\u514b\u5c5e';
+                    advBtn.classList.toggle('active', state.isAdvantage === true);
+                }
+
+                const ranshuBtn = document.querySelector(`#data-slot-${i} .ranshu-display-btn`);
+                if (ranshuBtn) {
+                    ranshuBtn.textContent = state.hideRanshuDisplay ? '\u4e0d\u663e\u793a\u4e71\u51fb' : '\u663e\u793a\u4e71\u51fb';
+                    ranshuBtn.classList.toggle('active', state.hideRanshuDisplay !== true);
+                }
+
+                const worldBtn = document.querySelector(`#data-slot-${i} .world-cap-btn`);
+                if (worldBtn) {
+                    const worldMode = state.worldCapMode || '660';
+                    worldBtn.textContent = worldLabels[worldMode] || '660\u4e07';
+                    worldBtn.classList.toggle('active', worldMode !== '660');
+                }
+            }
+        }
+        window.refreshDamageViewButtons = refreshDamageViewButtons;
+
         /** 乱击显示：同一按钮在「乱击」/「不显示乱击」间切换；不显示时按乱击=1 计算与展示 */
         function toggleRanshuDisplay(btn, charIndex) {
             const state = window.damageViewStates[charIndex];
             if (!state) return;
             state.hideRanshuDisplay = !state.hideRanshuDisplay;
-            if (btn) {
-                if (state.hideRanshuDisplay) {
-                    btn.textContent = '不显示乱击';
-                    btn.classList.remove('active');
-                } else {
-                    btn.textContent = '显示乱击';
-                    btn.classList.add('active');
-                }
-            }
+            syncDamageViewStateToAll(state);
+            refreshDamageViewButtons();
             recalculate();
+            if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') setTimeout(() => saveToLocal(true), 100);
         }
 
         function toggleRandomFactor(btn, charIndex) {
             const state = window.damageViewStates[charIndex];
+            if (!state) return;
             if (!state.randomMode) state.randomMode = 'theory';
-            
-            // 循环切换：理论值 -> 最小值 -> 最大值 -> 理论值
+
             if (state.randomMode === 'theory') {
                 state.randomMode = 'min';
-                btn.classList.add('active');
-                btn.textContent = '最低值';
             } else if (state.randomMode === 'min') {
                 state.randomMode = 'max';
-                btn.classList.add('active');
-                btn.textContent = '最大值';
             } else {
                 state.randomMode = 'theory';
-                btn.classList.remove('active');
-                btn.textContent = '理论值';
             }
+            syncDamageViewStateToAll(state);
+            refreshDamageViewButtons();
             recalculate();
+            if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') setTimeout(() => saveToLocal(true), 100);
         }
 
         function toggleAdvantage(btn, charIndex) {
             const state = window.damageViewStates[charIndex];
+            if (!state) return;
             state.isAdvantage = !state.isAdvantage;
-            if (state.isAdvantage) {
-                btn.classList.add('active');
-                btn.textContent = '对克属';
-            } else {
-                btn.classList.remove('active');
-                btn.textContent = '非克属';
-            }
+            syncDamageViewStateToAll(state);
+            refreshDamageViewButtons();
             recalculate();
+            if (typeof renderResidentBonuses === 'function') {
+                renderResidentBonuses(charIndex);
+            } else if (typeof renderAllEffectsSummary === 'function') {
+                renderAllEffectsSummary(charIndex);
+            }
+            if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') setTimeout(() => saveToLocal(true), 100);
         }
 
         function toggleCrit(btn, charIndex) {
             const state = window.damageViewStates[charIndex];
-            if (!state.critMode) state.critMode = 'expected';
+            if (!state) return;
+            if (!state.critMode) state.critMode = 'non_crit';
             if (state.critMode === 'non_crit') {
                 state.critMode = 'lower_bound';
             } else if (state.critMode === 'lower_bound') {
@@ -2263,7 +2310,10 @@
             } else {
                 state.critMode = 'non_crit';
             }
+            syncDamageViewStateToAll(state);
+            refreshDamageViewButtons();
             recalculate();
+            if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') setTimeout(() => saveToLocal(true), 100);
         }
 
         /** 世界上限衰减拨片：660万 → 1310万 → 不生效，所有角色槽状态同步切换 */
@@ -2272,36 +2322,18 @@
             if (!state) return;
             if (!state.worldCapMode) state.worldCapMode = '660';
 
-            // 计算下一个模式
-            let nextMode, nextText;
             if (state.worldCapMode === '660') {
-                nextMode = '1310'; nextText = '1310万';
+                state.worldCapMode = '1310';
             } else if (state.worldCapMode === '1310') {
-                nextMode = 'none'; nextText = '不生效';
+                state.worldCapMode = 'none';
             } else {
-                nextMode = '660'; nextText = '660万';
+                state.worldCapMode = '660';
             }
 
-            const isActive = nextMode !== '660';
-
-            // 同步所有槽位的状态
-            for (let i = 0; i < 6; i++) {
-                if (window.damageViewStates[i]) {
-                    window.damageViewStates[i].worldCapMode = nextMode;
-                }
-            }
-
-            // 同步更新所有按钮的文字和active状态
-            document.querySelectorAll('.world-cap-btn').forEach(function(b) {
-                b.textContent = nextText;
-                if (isActive) {
-                    b.classList.add('active');
-                } else {
-                    b.classList.remove('active');
-                }
-            });
-
+            syncDamageViewStateToAll(state);
+            refreshDamageViewButtons();
             recalculate();
+            if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') setTimeout(() => saveToLocal(true), 100);
         }
 
         // 切换角色buff区域4x4格显示/隐藏
@@ -2426,7 +2458,6 @@
                         if (typeof recalculate === 'function') {
                             recalculate();
                         }
-
                         // 方便你在控制台直接看到当前 buff 情况
                         console.log('[testbuff] 当前 buff 设定：', window.buffSettings);
                     });

@@ -332,7 +332,7 @@ function calculateRankStats(rank) {
         let nAtk = Decimal.min(rank, 190).minus(175);
         if (nAtk.gt(0)) atk = atk.plus(nAtk.times(10));
         // HP: R176-191 每级+2（HP 分段与 ATK 不同）
-        let nHp = Decimal.min(rank, 191).minus(175);
+        let nHp = Decimal.min(rank, 190).minus(175);
         if (nHp.gt(0)) hp = hp.plus(nHp.times(2));
     }
     // R191-425: +5 ATK per rank
@@ -341,8 +341,8 @@ function calculateRankStats(rank) {
         if (nAtk.gt(0)) atk = atk.plus(nAtk.times(5));
     }
     // R192-425: +1 HP per rank（HP 分段与 ATK 不同）
-    if (rank >= 192) {
-        let nHp = Decimal.min(rank, 425).minus(191);
+    if (rank >= 191) {
+        let nHp = Decimal.min(rank, 425).minus(190);
         if (nHp.gt(0)) hp = hp.plus(nHp.times(1));
     }
 
@@ -370,6 +370,8 @@ function applyCharaSkillBuffStatsToParty() {
         charaBuffKeys.forEach((k) => {
             party[i].stats[k] = 0;
         });
+        party[i].dynamicBuffEntries = [];
+        party[i].skillZoneEffectEntries = [];
     }
     for (let slot = 1; slot <= 5; slot++) {
         if (!party[slot] || !party[slot].stats) continue;
@@ -386,10 +388,24 @@ function applyCharaSkillBuffStatsToParty() {
                 if (!effect || effect.action_type !== 'apply_buff') return;
                 const p = effect.parameters && typeof effect.parameters === 'object' ? effect.parameters : {};
                 if (p.show_in_party_buff === false) return;
-                const bid = p.buff_id;
+                const rawProp = p.prop;
                 const raw = p.value;
                 const numVal = typeof raw === 'number' && !isNaN(raw) ? raw : parseFloat(raw);
                 if (isNaN(numVal)) return;
+                if (rawProp && p.zone) {
+                    const zoneEntry = {
+                        prop: String(rawProp).trim(),
+                        zone: String(p.zone).trim(),
+                        value: numVal,
+                        sourceId: sid + ':' + (p.description || rawProp),
+                        label: p.description || rawProp,
+                        format: p.format || 'percent'
+                    };
+                    party[slot].dynamicBuffEntries.push(zoneEntry);
+                    party[slot].skillZoneEffectEntries.push(zoneEntry);
+                    return;
+                }
+                const bid = p.buff_id;
                 if (typeof resolveCharabuffStatKey !== 'function') return;
                 const statKey = resolveCharabuffStatKey(bid, p.type);
                 if (!statKey) return;
@@ -408,6 +424,115 @@ function getCalcParty() {
 
 window.applyCharaSkillBuffStatsToParty = applyCharaSkillBuffStatsToParty;
 window.getCalcParty = getCalcParty;
+
+/**
+ * [Buff Zone 分区统合]
+ * 遍历 party 中每个成员的 stats，将 STAT_CONFIG 中标注了 prop/zone 的键
+ * 注册到 BuffRegistry，按 BUFF_TYPE_ZONE_RULES 的冲突规则聚合，
+ * 产出统合值存入 stats._xxx_total。
+ *
+ * 同时补充 currentParty 中不经过 stats 中转的数据（如耳饰予伤）。
+ */
+function applyBuffZoneRulesToStats() {
+    if (typeof BuffRegistry === 'undefined') return;
+    if (typeof parseBuffProp === 'function' && typeof STAT_CONFIG !== 'undefined') {
+        // pass
+    } else {
+        return;
+    }
+
+    // 构建 STAT_CONFIG.key → { prop, zone } 的映射表（仅标注过的条目）
+    var statKeyMap = {};
+    STAT_CONFIG.forEach(function(cfg) {
+        if (cfg && cfg.prop && cfg.zone) {
+            statKeyMap[cfg.key] = { prop: cfg.prop, zone: cfg.zone };
+        }
+    });
+
+    // 收集所有需要统合的 buff_type 集合
+    var allBuffTypes = new Set();
+
+    party.forEach(function(member, idx) {
+        if (!member || !member.stats) return;
+
+        // 1) 创建 BuffRegistry，从 stats 中读取标注值
+        var registry = new BuffRegistry();
+
+        // 从 stats 注册（仅对有 prop/zone 标注的键）
+        Object.keys(statKeyMap).forEach(function(key) {
+            var val = member.stats[key];
+            if (typeof val !== 'number' || val === 0) return;
+            var mapping = statKeyMap[key];
+            registry.addByProp(mapping.prop, mapping.zone, key, val);
+        });
+
+        if (Array.isArray(member.zoneEffectEntries)) {
+            member.zoneEffectEntries.forEach(function(entry, entryIdx) {
+                if (!entry || !entry.prop || !entry.zone) return;
+                var entryVal = Number(entry.value) || 0;
+                if (entryVal === 0) return;
+                registry.addByProp(
+                    entry.prop,
+                    entry.zone,
+                    entry.sourceId || ('zone_effect_' + idx + '_' + entryIdx),
+                    entryVal
+                );
+            });
+        }
+
+        if (Array.isArray(member.skillZoneEffectEntries)) {
+            member.skillZoneEffectEntries.forEach(function(entry, entryIdx) {
+                if (!entry || !entry.prop || !entry.zone) return;
+                var entryVal = Number(entry.value) || 0;
+                if (entryVal === 0) return;
+                registry.addByProp(
+                    entry.prop,
+                    entry.zone,
+                    entry.sourceId || ('skill_zone_effect_' + idx + '_' + entryIdx),
+                    entryVal
+                );
+            });
+        }
+
+        // 2) 补充 currentParty 中不经过 stats 的数据
+        if (typeof currentParty !== 'undefined' && currentParty[idx]) {
+            var cp = currentParty[idx];
+
+            // 耳饰予伤（等级 × 2000）
+            if (cp.chara_earring_dmg_supp && typeof getEarringDmgSuppFromLevel === 'function') {
+                var earringVal = getEarringDmgSuppFromLevel(cp.chara_earring_dmg_supp);
+                if (earringVal > 0) {
+                    registry.addByProp('dmg_supp', 'earring', 'chara_earring_dmg_supp', earringVal);
+                }
+            }
+
+            // 神器平A予伤
+            if (cp.chara_artifacts_na_dmg_supp) {
+                registry.addByProp('dmg_supp', 'artifacts', 'chara_artifacts_na_dmg_supp', Number(cp.chara_artifacts_na_dmg_supp) || 0);
+            }
+
+            // 召唤石属攻（已通过 STAT_CONFIG 标注注册）
+            // 婚戒久远攻刃（已写入 stats.marriage_perpetuity_atk，STAT_CONFIG 标注）
+        }
+
+        // 3) 收集所有已注册的 buff_type
+        registry.getRegisteredTypes().forEach(function(bt) { allBuffTypes.add(bt); });
+        // 也收集 BUFF_TYPE_ZONE_RULES 中定义了的类型
+        if (typeof BUFF_TYPE_ZONE_RULES !== 'undefined') {
+            Object.keys(BUFF_TYPE_ZONE_RULES).forEach(function(bt) { allBuffTypes.add(bt); });
+        }
+
+        // 4) 对每个 buff_type 计算统合值，写入 stats._xxx_total
+        allBuffTypes.forEach(function(buffType) {
+            var total = registry.getTotal(buffType);
+            var consolidatedKey = '_' + buffType + '_total';
+            member.stats[consolidatedKey] = total;
+        });
+
+    });
+}
+
+window.applyBuffZoneRulesToStats = applyBuffZoneRulesToStats;
 
 // 重新计算 (核心计算逻辑)
 function recalculate() {
@@ -1135,6 +1260,23 @@ function recalculate() {
     // 在更新伤害显示前先同步角色技能 buff，确保伤害计算与右侧 Buff 面板使用同一帧数据
     if (typeof applyCharaSkillBuffStatsToParty === 'function') {
         applyCharaSkillBuffStatsToParty();
+    }
+
+    // [新增] Buff Zone 分区统合：在角色技能同步之后，读取 STAT_CONFIG 标注值 + currentParty 数据
+    // → 注册到 BuffRegistry → 按 zone 规则裁决 → 产出统合值 _xxx_total
+    if (typeof BuffRegistry !== 'undefined' && typeof STAT_CONFIG !== 'undefined') {
+        applyBuffZoneRulesToStats();
+    }
+
+    // All Effects 是伤害公式的新读取源。先按当前 party/testbuff/拨片状态重建缓存，
+    // 避免 updateDamageDisplay 读取到上一帧汇总值。
+    if (typeof window !== 'undefined') {
+        window.allEffectsBySlot = {};
+        if (typeof buildAllEffectsForSlot === 'function') {
+            party.forEach((member, i) => {
+                if (member && member.stats) buildAllEffectsForSlot(i);
+            });
+        }
     }
     
     // 更新每个角色的伤害计算显示

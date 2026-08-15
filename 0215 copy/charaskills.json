@@ -71,9 +71,8 @@
           "target": "self",
           "parameters": {
             "description":"暗属性平A追击 A2类（50%）",
-            "buff_id": "charabuff_bonus_na_dmg",
-            "element": "dark",
-            "type": "A2",
+            "prop": "bonus_na_dark",
+            "zone": "A2",
             "duration_turns": 1,
             "value": 0.5
           }

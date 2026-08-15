@@ -25,6 +25,97 @@
         return total > 0 ? total : 0;
     }
 
+    function getSubtypeFromBonusProp(prop, prefix) {
+        const p = String(prop || '');
+        const head = prefix + '_';
+        return p.indexOf(head) === 0 ? p.slice(head.length) : null;
+    }
+
+    function resolveChaseDisplayElement(subtype, fallbackElement) {
+        if (subtype === 'own_element') return fallbackElement || 'unknown';
+        if (subtype === 'advantage') return 'advantage';
+        return subtype || fallbackElement || 'unknown';
+    }
+
+    function collectNaChaseSourcesFromStats(stats, fallbackElement) {
+        const s = stats || {};
+        const sources = [
+            {
+                key: 'weapon_bonus_na_own_element',
+                prop: 'bonus_na_own_element',
+                zone: 'E',
+                value: s.weapon_bonus_na_own_element
+            },
+            {
+                key: 'weapon_shuichong_bonus_na_own_element',
+                prop: 'bonus_na_own_element',
+                zone: 'E',
+                value: s.weapon_shuichong_bonus_na_own_element
+            }
+        ];
+
+        return sources.map((src) => {
+            const subtype = getSubtypeFromBonusProp(src.prop, 'bonus_na');
+            return {
+                key: src.key,
+                prop: src.prop,
+                subtype,
+                zone: src.zone || 'unknown',
+                element: resolveChaseDisplayElement(subtype, fallbackElement),
+                pct: toPositiveNumber(src.value)
+            };
+        }).filter((src) => src.pct > 0);
+    }
+
+    function collectNaChaseSourcesFromDynamic(params, fallbackElement) {
+        const dynamicEntries = Array.isArray(params && params.dynamicBuffEntries)
+            ? params.dynamicBuffEntries
+            : (
+                typeof party !== 'undefined'
+                && params
+                && typeof params.charIndex === 'number'
+                && party[params.charIndex]
+                && Array.isArray(party[params.charIndex].dynamicBuffEntries)
+                    ? party[params.charIndex].dynamicBuffEntries
+                    : []
+            );
+
+        return dynamicEntries.map((entry, idx) => {
+            if (!entry || !entry.prop || !entry.zone) return null;
+            const subtype = getSubtypeFromBonusProp(entry.prop, 'bonus_na');
+            if (!subtype || subtype === 'destruction') return null;
+            return {
+                key: entry.sourceId || ('dynamic_na_chase_' + idx),
+                prop: entry.prop,
+                subtype,
+                zone: entry.zone || 'unknown',
+                element: resolveChaseDisplayElement(subtype, fallbackElement),
+                pct: toPositiveNumber(entry.value),
+                label: entry.label || entry.prop
+            };
+        }).filter((src) => src && src.pct > 0);
+    }
+
+    function resolveNaChaseEffects(params) {
+        const fallbackElement = params && params.fallbackElement ? params.fallbackElement : 'unknown';
+        const sources = collectNaChaseSourcesFromStats((params && params.stats) || {}, fallbackElement)
+            .concat(collectNaChaseSourcesFromDynamic(params || {}, fallbackElement));
+        const byZone = new Map();
+
+        sources.forEach((src) => {
+            const zoneKey = src.zone || 'unknown';
+            const prev = byZone.get(zoneKey);
+            if (!prev || src.pct > prev.pct) byZone.set(zoneKey, src);
+        });
+
+        const effects = Array.from(byZone.values());
+        const totalPct = effects.reduce((sum, src) => sum + (Number(src.pct) || 0), 0);
+        return {
+            effects,
+            totalPct
+        };
+    }
+
     /** 与 damage_calc.DAMAGE_ZONES.element_atk 一致，避免仅清 element_atk 时其它属攻键仍被 aggregateZoneValue 汇总 */
     function stripElementAtkZoneFromStats(baseStats) {
         const out = { ...(baseStats || {}) };
@@ -44,14 +135,7 @@
     }
 
     function resolveEChasePct(stats, fallbackElement) {
-        const charaEElement = String(stats['charabuff_bonus_na_dmg_e_element'] || fallbackElement || 'unknown');
-        const weaponElemElement = String(stats['weapon_elem_bonus_na_element'] || fallbackElement || 'unknown');
-        const weaponShuichongElement = String(stats['weapon_shuichong_bonus_na_element'] || fallbackElement || 'unknown');
-        return mergeChaseSources([
-            { key: 'chara_e', pct: Number(stats['charabuff_bonus_na_dmg_e'] || 0), type: 'e', element: charaEElement },
-            { key: 'weapon_elem_na', pct: Number(stats['weapon_elem_bonus_na'] || 0), type: 'e', element: weaponElemElement },
-            { key: 'weapon_shuichong_na', pct: Number(stats['weapon_shuichong_bonus_na'] || 0), type: 'e', element: weaponShuichongElement }
-        ]);
+        return resolveNaChaseEffects({ stats, fallbackElement }).totalPct;
     }
 
     function calcPerHitFromFinalBase(baseAfterAmpTotal, chasePct, ranshuForUi, totalSupp) {
@@ -264,11 +348,12 @@
      * 追击每段 = ceil(cap 后首段基底 × 追击%) + 予伤
      */
     function calcEChaseDamage(params) {
-        const chasePct = resolveEChasePct(params.stats || {}, params.fallbackElement || 'unknown');
-        if (chasePct <= 0) return { pct: 0, perHit: 0 };
+        const chaseInfo = resolveNaChaseEffects(params || {});
+        const chasePct = chaseInfo.totalPct;
+        if (chasePct <= 0) return { pct: 0, perHit: 0, effects: [] };
         const rawIn = Number(params.rawCritPostDefUsed);
-        if (!Number.isFinite(rawIn) || rawIn <= 0) return { pct: chasePct, perHit: 0 };
-        if (typeof sumNaFinalWithRanshu !== 'function') return { pct: chasePct, perHit: 0 };
+        if (!Number.isFinite(rawIn) || rawIn <= 0) return { pct: chasePct, perHit: 0, effects: chaseInfo.effects };
+        if (typeof sumNaFinalWithRanshu !== 'function') return { pct: chasePct, perHit: 0, effects: chaseInfo.effects };
 
         const nn = sumNaFinalWithRanshu(
             rawIn,
@@ -293,13 +378,22 @@
         const xh = Math.max(1, Math.floor(Number(params.ranshuForUi) || 1));
         const cappedBase = new Decimal(capAmt);
         const segForChase = xh <= 1 ? cappedBase : cappedBase.div(xh);
-        const perHit = segForChase.times(chasePct).ceil().plus(supp).toNumber();
-        return { pct: chasePct, perHit };
+        const effects = chaseInfo.effects.map((effect) => {
+            const pct = toPositiveNumber(effect.pct);
+            const perHit = pct > 0 ? segForChase.times(pct).ceil().plus(supp).toNumber() : 0;
+            return {
+                ...effect,
+                pct,
+                perHit
+            };
+        }).filter((effect) => effect.pct > 0 && effect.perHit > 0);
+        const perHit = effects.reduce((sum, effect) => sum + (Number(effect.perHit) || 0), 0);
+        return { pct: chasePct, perHit, effects };
     }
 
     function calcDesChaseDamage(params) {
         const stats = params.stats || {};
-        const chasePct = toPositiveNumber(stats['weapon_des_bonus_na']);
+        const chasePct = toPositiveNumber(stats['weapon_bonus_na_destruction']);
         if (chasePct <= 0) return { pct: 0, perHit: 0 };
 
         // 破坏属性追击：不吃盘/饰品等属攻，仅固定弱点 +0.5。
@@ -352,6 +446,7 @@
         return {
             chaseEPct: e.pct,
             chasePerHit: e.perHit,
+            chaseEffects: e.effects || [],
             chaseDesPct: des.pct,
             chaseDesPerHit: des.perHit
         };
@@ -361,6 +456,7 @@
         window.BonusDmgCalc = {
             mergeChaseSources,
             resolveEChasePct,
+            resolveNaChaseEffects,
             calcNaBonusDamage
         };
     }

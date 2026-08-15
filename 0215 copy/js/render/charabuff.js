@@ -147,4 +147,7 @@ function onBuffCodexRowClick(index) {
 
     if (typeof recalculate === 'function') recalculate();
     else if (typeof renderPartyBuffPanel === 'function') renderPartyBuffPanel(slot);
+    if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') {
+        setTimeout(() => saveToLocal(true), 100);
+    }
 }

@@ -357,13 +357,20 @@
         var buffs = (typeof window !== 'undefined' && window.buffSettings) ? window.buffSettings : {};
         weaponGrid += Number(buffs.caWeaponDmg || 0);
         other += Number(buffs.caDmg || 0);
+        if (typeof getAllEffectsTotalForSlot === 'function') {
+            weaponGrid = getAllEffectsTotalForSlot(charIndex, 'ca_dmg_weapon_grid', weaponGrid);
+            other = getAllEffectsTotalForSlot(charIndex, 'ca_dmg_other', other);
+        }
         var caDmgSuppWeapon = sumSupp(CA_DMG_SUPP_WEAPON_GRID_KEYS, stats);
         var caDmgSuppOther = sumSupp(CA_DMG_SUPP_OTHER_KEYS, stats);
         var caDmgSuppEarring = 0;
         if (typeof getEarringDmgSuppFromLevel === 'function' && typeof currentParty !== 'undefined' && currentParty[charIndex]) {
             caDmgSuppEarring = getEarringDmgSuppFromLevel(currentParty[charIndex].chara_earring_dmg_supp);
         }
-        var caDmgSupp = caDmgSuppWeapon + caDmgSuppOther + caDmgSuppEarring + (Number(buffs.dmgSupp || 0)) + (Number(buffs.caDmgSupp || 0));
+        var fallbackCaDmgSupp = caDmgSuppWeapon + caDmgSuppOther + caDmgSuppEarring + (Number(buffs.dmgSupp || 0)) + (Number(buffs.caDmgSupp || 0));
+        var caDmgSupp = (typeof getAllEffectsTotalForSlot === 'function')
+            ? getAllEffectsTotalForSlot(charIndex, 'ca_dmg_supp', fallbackCaDmgSupp)
+            : fallbackCaDmgSupp;
         var critMult = 1;
         var critFlag = false;
         var critAmpRate = 0;
@@ -385,16 +392,19 @@
         }
 
         var critOnlyAmp = Number(stats['weapon_critical_hit_amp'] || 0) * critAmpRate;
-        var caDmgAmp = (stats['weapon_ca_dmg_amp'] || 0) + (stats['weapon_special_ca_dmg_amp'] || 0) + (stats['weapon_dmg_amp'] || 0);
-        caDmgAmp += critOnlyAmp;
+        var fallbackCaDmgAmp = (stats['weapon_ca_dmg_amp'] || 0) + (stats['weapon_special_ca_dmg_amp'] || 0) + (stats['weapon_dmg_amp'] || 0);
         if (teshuStats && teshuStats['dmg_amp']) {
-            caDmgAmp += teshuStats['dmg_amp'];
+            fallbackCaDmgAmp += teshuStats['dmg_amp'];
         }
         // 玲珑佩/武器盘的"对克制属性伤害增幅"，仅克属时生效
         if (isAdvantage) {
-            caDmgAmp += aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats);
+            fallbackCaDmgAmp += aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats);
         }
-        var takenDmgAmp = (typeof calculateTakenDamageAmp === 'function') ? calculateTakenDamageAmp() : 0;
+        var caDmgAmp = (typeof getAllEffectsTotalForSlot === 'function')
+            ? getAllEffectsTotalForSlot(charIndex, 'ca_dmg_amp', fallbackCaDmgAmp)
+            : fallbackCaDmgAmp;
+        caDmgAmp += critOnlyAmp;
+        var takenDmgAmp = (typeof calculateTakenDamageAmp === 'function') ? calculateTakenDamageAmp({ charIndex: charIndex }) : 0;
 
         var raw = calcCaDamageRaw({
             baseDamage: baseDamage,
@@ -440,11 +450,11 @@
             }
             var capOptions = Object.assign({}, options.capOptions || {}, {
                 caMultiplier: caMultiplier,
-                thresholdTableId: thresholdTableId
+                thresholdTableId: thresholdTableId,
+                charIndex: charIndex
             });
             // 克属时，将玲珑佩/武器盘的"对克制属性伤害增幅"传入上限衰减的 extraAmp
-            var elementalAmp = isAdvantage ? aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats) : 0;
-            var capResult = applyDamageCap(rawDamageForCap, stats, 'ca', teshuStats, critOnlyAmp + elementalAmp, capOptions);
+            var capResult = applyDamageCap(rawDamageForCap, stats, 'ca', teshuStats, critOnlyAmp, capOptions);
 
             // 按奥义公式：衰减后向上取整 → × (1+承受伤害增幅) → + 伤害上升 → × (1+伤害增幅) → 世界上限。
             var capFinal = new Decimal(capResult.decayedDamage)

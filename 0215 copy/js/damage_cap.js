@@ -66,6 +66,18 @@ function funcDecay(rawDamage, totalCap, thresholdStages) {
  * @returns {number} 总上限系数
  */
 function calculateTotalCap(stats, capType, teshuStats, options = {}) {
+    var charIndex = options.charIndex != null ? options.charIndex : 0;
+    if (typeof getAllEffectsTotalForSlot === 'function') {
+        var mappedCapType = capType === 'na' ? 'na_dmg_cap'
+            : capType === 'skill' ? 'skill_dmg_cap'
+            : capType === 'ca' ? 'ca_dmg_cap'
+            : null;
+        if (mappedCapType) {
+            var allEffectsCap = getAllEffectsTotalForSlot(charIndex, mappedCapType, null);
+            if (typeof allEffectsCap === 'number') return new Decimal(1.0).plus(allEffectsCap).toNumber();
+        }
+    }
+
     let totalCap = new Decimal(1.0);
 
     // 1. 全上限 (All Cap)
@@ -145,6 +157,19 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
  * @returns {number} 增幅系数
  */
 function calculateAmp(stats, ampType, teshuStats) {
+    var options = arguments.length > 3 && arguments[3] ? arguments[3] : {};
+    var charIndex = options.charIndex != null ? options.charIndex : 0;
+    if (typeof getAllEffectsTotalForSlot === 'function') {
+        var mappedAmpType = ampType === 'na' ? 'na_dmg_amp'
+            : ampType === 'skill' ? 'skill_dmg_amp'
+            : ampType === 'ca' ? 'ca_dmg_amp'
+            : null;
+        if (mappedAmpType) {
+            var allEffectsAmp = getAllEffectsTotalForSlot(charIndex, mappedAmpType, null);
+            if (typeof allEffectsAmp === 'number') return allEffectsAmp;
+        }
+    }
+
     let amp = new Decimal(0);
     
     amp = amp.plus(stats['weapon_dmg_amp'] || 0);
@@ -174,6 +199,12 @@ function calculateAmp(stats, ampType, teshuStats) {
 }
 
 function calculateTakenDamageAmp() {
+    var options = arguments.length > 0 && arguments[0] ? arguments[0] : {};
+    var charIndex = options.charIndex != null ? options.charIndex : 0;
+    if (typeof getAllEffectsTotalForSlot === 'function') {
+        var allEffectsTakenAmp = getAllEffectsTotalForSlot(charIndex, 'taken_dmg_amp', null);
+        if (typeof allEffectsTakenAmp === 'number') return allEffectsTakenAmp;
+    }
     if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.takenDmgAmp) {
         return Number(window.buffSettings.takenDmgAmp) || 0;
     }
@@ -276,11 +307,11 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
     const decayedDamage = funcDecay(rawDamage, C, thresholdStages);
     
     // 4. 计算增幅系数 Amp（仅汇总，不应用乘算）
-    const baseAmp = calculateAmp(stats, type, teshuStats);
+    const baseAmp = calculateAmp(stats, type, teshuStats, options);
     const totalAmp = new Decimal(baseAmp).plus(extraAmp).toNumber();
     
     // 5. 承受伤害增幅系数（仅汇总，不应用乘算）
-    const takenDmgAmp = calculateTakenDamageAmp();
+    const takenDmgAmp = calculateTakenDamageAmp(options);
     
     console.log(`[Cap Debug ${type}] Table: ${usedTableId}, Raw: ${rawDamage}, C: ${C.toFixed(4)}, Decayed: ${new Decimal(decayedDamage).toNumber()}, Amp: ${totalAmp.toFixed(6)}, TakenAmp: ${takenDmgAmp.toFixed(6)}`);
     

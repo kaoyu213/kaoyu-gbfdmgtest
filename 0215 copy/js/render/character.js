@@ -136,7 +136,7 @@ function getCharabuffStatFormatByKey(statKey) {
 function formatApplyBuffMagnitudeSummary(params) {
     if (!params || typeof params !== 'object') return '';
     const bid = params.buff_id;
-    if (!bid) return '';
+    const rawProp = params.prop;
     const raw = params.value;
     const numVal = typeof raw === 'number' && !isNaN(raw) ? raw : parseFloat(raw);
     if (isNaN(numVal)) {
@@ -145,6 +145,12 @@ function formatApplyBuffMagnitudeSummary(params) {
         }
         return '';
     }
+    if (!bid && rawProp && params.zone) {
+        const zone = String(params.zone).trim();
+        const valText = Math.abs(numVal) < 10 ? `${(numVal * 100).toFixed(2)}%` : String(Math.round(numVal));
+        return `效果量：${valText}${zone ? ` · ${zone}` : ''}`;
+    }
+    if (!bid) return '';
     const statKey =
         typeof resolveCharabuffStatKey === 'function' ? resolveCharabuffStatKey(bid, params.type) : null;
     if (!statKey) {
@@ -169,6 +175,7 @@ function getApplyBuffPartyDisplay(effect) {
     const params = effect.parameters && typeof effect.parameters === 'object' ? effect.parameters : {};
     if (params.show_in_party_buff === false) return null;
     const bid = params.buff_id;
+    const rawProp = params.prop != null ? String(params.prop).trim() : '';
     const fromJson = (typeof globalBuffIconsMap !== 'undefined' && bid && globalBuffIconsMap[bid])
         ? globalBuffIconsMap[bid]
         : null;
@@ -179,6 +186,12 @@ function getApplyBuffPartyDisplay(effect) {
     let ui = base;
     if (effect.party_buff_ui && typeof effect.party_buff_ui === 'object') {
         ui = Object.assign({}, base || {}, effect.party_buff_ui);
+    }
+    if (!ui && rawProp) {
+        const desc = params.description != null && String(params.description).trim() !== ''
+            ? String(params.description).trim()
+            : rawProp;
+        ui = { icon: '', title: desc, abbrev: desc.slice(0, 2) || '?' };
     }
     if (!ui) return null;
     const icon = ui.icon != null && String(ui.icon).trim() !== '' ? String(ui.icon).trim() : '';
@@ -199,7 +212,7 @@ function getApplyBuffPartyDisplay(effect) {
     const abbrev = ui.abbrev != null && String(ui.abbrev).trim() !== '' ? String(ui.abbrev).trim() : '';
     if (!icon && !title && !abbrev) return null;
     const magLine = formatApplyBuffMagnitudeSummary(params);
-    const tipBase = (title || regTitle || abbrev || bid || '').trim();
+    const tipBase = (title || regTitle || abbrev || bid || rawProp || '').trim();
     const tooltip = magLine ? (tipBase ? `${tipBase}\n${magLine}` : magLine) : tipBase;
     return {
         icon,
@@ -399,6 +412,7 @@ function formatPartyBuffEffectMagnitudeLine(effect, template, panelLevel) {
     if (isNaN(numVal)) return '';
     const prop = effect.prop != null ? String(effect.prop).trim() : '';
     const typ = effect.type != null ? String(effect.type).toUpperCase() : '';
+    const zone = effect.zone != null ? String(effect.zone).trim() : '';
     const statKey =
         typeof resolveCharabuffStatKey === 'function' ? resolveCharabuffStatKey(prop, effect.type) : null;
     const map =
@@ -412,7 +426,10 @@ function formatPartyBuffEffectMagnitudeLine(effect, template, panelLevel) {
     }
     const fmt = statKey ? getCharabuffStatFormatByKey(statKey) : null;
     let mag = '';
-    if (!statKey) {
+    if (!statKey && zone) {
+        const valText = Math.abs(numVal) < 10 ? `${(numVal * 100).toFixed(2)}%` : String(Math.round(numVal));
+        mag = `${valText} · ${zone}`;
+    } else if (!statKey) {
         mag = `${String(numVal)}（未登记 STAT_CONFIG）`;
     } else if (fmt === 'ta_rate_bonus') {
         mag = `${String(Math.round(numVal))}（TA 加算）`;
@@ -434,12 +451,41 @@ function buildStatsFromCharabuffTemplate(template, panelLevel) {
         const numVal = effectMagnitudeAtPanelLevel(e, template, panelLevel);
         if (isNaN(numVal)) return;
         const prop = e.prop != null ? String(e.prop).trim() : '';
+        if (prop && e.zone) return;
         if (!prop || typeof resolveCharabuffStatKey !== 'function') return;
         const statKey = resolveCharabuffStatKey(prop, e.type);
         if (!statKey) return;
         stats[statKey] = (stats[statKey] || 0) + numVal;
     });
     return stats;
+}
+
+function buildZoneEffectEntriesFromCharabuffTemplate(template, panelLevel, rowUid) {
+    const entries = [];
+    if (!template || !Array.isArray(template.effects)) return entries;
+    template.effects.forEach((e, idx) => {
+        if (!e || !e.prop || !e.zone) return;
+        const numVal = effectMagnitudeAtPanelLevel(e, template, panelLevel);
+        if (isNaN(numVal) || numVal === 0) return;
+        const prop = String(e.prop).trim();
+        const zone = String(e.zone).trim();
+        if (!prop || !zone) return;
+        entries.push({
+            prop,
+            zone,
+            value: numVal,
+            sourceId: (rowUid || template.id || 'charabuff') + ':' + idx,
+            label: e.label || e.description || template.name || prop,
+            format: e.format || 'percent',
+            source: 'charabuff'
+        });
+    });
+    return entries;
+}
+
+function buildDynamicEntriesFromCharabuffTemplate(template, panelLevel, rowUid) {
+    return buildZoneEffectEntriesFromCharabuffTemplate(template, panelLevel, rowUid)
+        .filter((entry) => String(entry.prop || '').indexOf('bonus_na_') === 0);
 }
 
 function aggregateCodexStatsForSlot(rows) {
@@ -454,17 +500,91 @@ function aggregateCodexStatsForSlot(rows) {
     return sum;
 }
 
+function aggregateCodexDynamicEntriesForSlot(rows) {
+    const entries = [];
+    if (!rows || !rows.length) return entries;
+    rows.forEach((r) => {
+        buildDynamicEntriesFromCharabuffTemplate(r.template, r.level, r.uid).forEach((entry) => {
+            entries.push(entry);
+        });
+    });
+    return entries;
+}
+
+function aggregateCodexZoneEffectEntriesForSlot(rows) {
+    const entries = [];
+    if (!rows || !rows.length) return entries;
+    rows.forEach((r) => {
+        buildZoneEffectEntriesFromCharabuffTemplate(r.template, r.level, r.uid).forEach((entry) => {
+            entries.push(entry);
+        });
+    });
+    return entries;
+}
+
+function calculateCodexZoneEffectTotals(entries) {
+    const totals = {};
+    if (!Array.isArray(entries) || entries.length === 0) return totals;
+
+    if (typeof BuffRegistry === 'function') {
+        const registry = new BuffRegistry();
+        entries.forEach((entry, idx) => {
+            if (!entry || !entry.prop || !entry.zone) return;
+            const value = Number(entry.value) || 0;
+            if (value === 0) return;
+            registry.addByProp(
+                String(entry.prop).trim(),
+                String(entry.zone).trim(),
+                entry.sourceId || ('charabuff_zone_' + idx),
+                value
+            );
+        });
+        registry.getRegisteredTypes().forEach((buffType) => {
+            totals[buffType] = registry.getTotal(buffType);
+        });
+        return totals;
+    }
+
+    entries.forEach((entry) => {
+        if (!entry || !entry.prop) return;
+        const parsed = typeof parseBuffProp === 'function'
+            ? parseBuffProp(String(entry.prop).trim())
+            : { buffType: String(entry.prop).trim() };
+        const buffType = parsed && parsed.buffType ? parsed.buffType : String(entry.prop).trim();
+        const value = Number(entry.value) || 0;
+        if (value === 0) return;
+        totals[buffType] = (totals[buffType] || 0) + value;
+    });
+    return totals;
+}
+
 /** 在 applyCharaSkillBuffStatsToParty 末尾调用：把各槽图鉴行累加到 party[].stats */
 function applyBuffCodexRowsToPartyStats() {
     if (typeof party === 'undefined' || !Array.isArray(party)) return;
     const bySlot = window.buffCodexPanelRowsBySlot;
-    if (!bySlot || bySlot.length < 6) return;
+    if (!bySlot || bySlot.length < 6) {
+        for (let s = 0; s < 6; s++) {
+            if (!party[s] || !party[s].stats) continue;
+            party[s].zoneEffectEntries = [];
+            party[s].stats._charabuffZoneEffectTotals = {};
+        }
+        return;
+    }
     for (let s = 0; s < 6; s++) {
         if (!party[s] || !party[s].stats) continue;
         const add = aggregateCodexStatsForSlot(bySlot[s]);
         Object.keys(add).forEach((k) => {
             party[s].stats[k] = (party[s].stats[k] || 0) + add[k];
         });
+        const dynamicEntries = aggregateCodexDynamicEntriesForSlot(bySlot[s]);
+        if (dynamicEntries.length > 0) {
+            if (!Array.isArray(party[s].dynamicBuffEntries)) party[s].dynamicBuffEntries = [];
+            dynamicEntries.forEach((entry) => party[s].dynamicBuffEntries.push(entry));
+        }
+        party[s].zoneEffectEntries = aggregateCodexZoneEffectEntriesForSlot(bySlot[s]);
+        const formulaZoneEntries = (Array.isArray(party[s].skillZoneEffectEntries) ? party[s].skillZoneEffectEntries : [])
+            .concat(party[s].zoneEffectEntries);
+        party[s].stats._charabuffZoneEffectTotals = calculateCodexZoneEffectTotals(formulaZoneEntries);
     }
 }
 
@@ -489,6 +609,9 @@ window.onBuffCodexPanelStack = function (uid) {
     else if (typeof renderPartyBuffPanel === 'function') {
         renderPartyBuffPanel(getActiveCharSlotIndex());
     }
+    if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') {
+        setTimeout(() => saveToLocal(true), 100);
+    }
 };
 
 window.onBuffCodexPanelRemove = function (uid) {
@@ -498,6 +621,9 @@ window.onBuffCodexPanelRemove = function (uid) {
     if (typeof recalculate === 'function') recalculate();
     else if (typeof renderPartyBuffPanel === 'function') {
         renderPartyBuffPanel(getActiveCharSlotIndex());
+    }
+    if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') {
+        setTimeout(() => saveToLocal(true), 100);
     }
 };
 

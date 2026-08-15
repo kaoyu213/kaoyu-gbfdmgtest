@@ -3,10 +3,10 @@
     "id": "charabuff_3040616000_1",
     "name": "珍爱人偶",
     "source": "",
-   "image": "chara skill/icon_skill_3040616000_1.webp",
-   "element": "暗",
-   "level": 1,
-   "maxlevel": 1,
+    "image": "chara skill/icon_skill_3040616000_1.webp",
+    "element": "暗",
+    "level": 1,
+    "maxlevel": 1,
     "cd": "1",
     "description": "自身获得以下强化，持续1回合：必定TA，暗属性追击 A2类（50%）",
     "effects": [
@@ -21,17 +21,15 @@
         "value": "50%"
       }
     ]
-
-  
   },
   {
     "id": "charabuff_3040616000_2",
     "name": "珍爱人偶",
     "source": "",
-   "image": "chara skill/icon_skill_3040616000_1.webp",
-   "element": "暗",
-   "level": 1,
-   "maxlevel": 5,
+    "image": "chara skill/icon_skill_3040616000_1.webp",
+    "element": "暗",
+    "level": 1,
+    "maxlevel": 5,
     "cd": "1",
     "description": "自身获得以下强化，持续1回合：必定TA，暗属性追击 A2类（50%）",
     "effects": [
@@ -48,17 +46,15 @@
         "maxvalue": "100%"
       }
     ]
-
-  
   },
   {
     "id": "summonbuff_Orologia_1",
     "name": "召唤-时龙-主动",
     "source": "",
-   "image": "chara skill/M_2040433000.webp",
-   "element": "all",
-   "level": 1,
-   "maxlevel": 1,
+    "image": "chara skill/M_2040433000.webp",
+    "element": "all",
+    "level": 1,
+    "maxlevel": 1,
     "cd": "1",
     "description": "我方全体获得伤害上升 Q类（上限10万），持续1回合,主角获得以下效果:再攻击，持续1回合",
     "effects": [
@@ -71,20 +67,17 @@
         "prop": "charabuff_double_strike",
         "type": "",
         "value": "1"
-
       }
     ]
-
-  
   },
   {
     "id": "summonbuff_Orologia_1",
     "name": "召唤-时龙-主动",
     "source": "",
-   "image": "chara skill/SK_2516_3.webp",
-   "element": "暗",
-   "level": 1,
-   "maxlevel": 5,
+    "image": "chara skill/SK_2516_3.webp",
+    "element": "暗",
+    "level": 1,
+    "maxlevel": 5,
     "cd": "1",
     "description": "自身获得以下强化，持续1回合：必定TA，暗属性追击 A2类（50%）",
     "effects": [
@@ -101,7 +94,79 @@
         "maxvalue": "100%"
       }
     ]
-
-  
+  },
+  {
+    "id": "test_charabuff_bonus_na_water_e_20",
+    "name": "测试水属性平A追击E区20%",
+    "source": "test",
+    "image": "buff icon/bonus_na_dmg.png",
+    "element": "water",
+    "level": 1,
+    "maxlevel": 1,
+    "cd": "1",
+    "description": "自身获得水属性平A追击 E区（20%），用于追击分区测试。",
+    "effects": [
+      {
+        "prop": "bonus_na_water",
+        "zone": "E",
+        "value": "20%"
+      }
+    ]
+  },
+  {
+    "id": "test_charabuff_bonus_na_water_a1_20",
+    "name": "测试水属性平A追击A1区20%",
+    "source": "test",
+    "image": "buff icon/bonus_na_dmg.png",
+    "element": "water",
+    "level": 1,
+    "maxlevel": 1,
+    "cd": "1",
+    "description": "自身获得水属性平A追击 A1区（20%），用于追击分区测试。",
+    "effects": [
+      {
+        "prop": "bonus_na_water",
+        "zone": "A1",
+        "value": "20%"
+      }
+    ]
+  },
+  {
+    "id": "test_8_buff",
+    "name": "测试jb猫八爷buff",
+    "source": "test",
+    "image": "",
+    "element": "all",
+    "level": 1,
+    "maxlevel": 1,
+    "cd": "1",
+    "description": "自身获得水属性平A追击 E区（20%），用于追击分区测试。",
+    "effects": [
+      {
+        "prop": "ca_special_dmg_cap",
+        "zone": "charabonus",
+        "value": "4.8%"
+      },
+      {
+        "prop": "dmg_cap",
+        "zone": "charabonus",
+        "value": "15%"
+      },
+      {
+        "prop": "ca_dmg_supp",
+        "zone": "charabonus",
+        "value": "150000"
+      },
+      {
+        "prop": "ca_dmg_amp",
+        "zone": "charabonus",
+        "value": "3%"
+      },
+      {
+        "prop": "perpetuity_atk",
+        "zone": "charabonus",
+        "value": "10%"
+      }
+    ]
   }
 ]

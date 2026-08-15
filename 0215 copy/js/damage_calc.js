@@ -509,8 +509,34 @@ function aggregateZoneValue(zoneName, stats, teshuStats) {
     if (teshuStats && teshuStats[zoneName]) {
         sum = sum.plus(teshuStats[zoneName]);
     }
+
+    const zoneToBuffType = {
+        hp: 'hp_mod',
+        normal_dmg_amp: 'na_dmg_amp',
+        marriage_perpetuity_atk: 'perpetuity_atk'
+    };
+    const buffType = zoneToBuffType[zoneName] || zoneName;
+    const charabuffZoneTotals = stats && stats._charabuffZoneEffectTotals;
+    if (charabuffZoneTotals && typeof charabuffZoneTotals[buffType] === 'number') {
+        sum = sum.plus(charabuffZoneTotals[buffType]);
+    }
     
     return sum.toDecimalPlaces(10).toNumber();
+}
+
+function getAllEffectsTotalForSlot(charIndex, buffType, fallbackValue) {
+    if (typeof window === 'undefined') {
+        return fallbackValue != null ? fallbackValue : 0;
+    }
+    var slotEffects = window.allEffectsBySlot && window.allEffectsBySlot[charIndex];
+    if ((!slotEffects || !slotEffects.totals) && typeof buildAllEffectsForSlot === 'function') {
+        slotEffects = buildAllEffectsForSlot(charIndex);
+    }
+    var totals = slotEffects && slotEffects.totals ? slotEffects.totals : null;
+    if (!totals || typeof totals[buffType] !== 'number') {
+        return fallbackValue != null ? fallbackValue : 0;
+    }
+    return totals[buffType];
 }
 
 /**
@@ -651,6 +677,7 @@ if (typeof window !== 'undefined') {
     window.getEarringDmgSuppFromLevel = getEarringDmgSuppFromLevel;
     window.getEarringDmgSuppFromEffect = getEarringDmgSuppFromEffect;
     window.getDmgSuppZonesForNa = getDmgSuppZonesForNa;
+    window.getAllEffectsTotalForSlot = getAllEffectsTotalForSlot;
 }
 
 // ==========================================
@@ -806,6 +833,7 @@ if (typeof module !== 'undefined' && module.exports) {
         getEarringDmgSuppFromLevel,
         getEarringDmgSuppFromEffect,
         getDmgSuppZonesForNa,
+        getAllEffectsTotalForSlot,
         getTeshuStats,
         getDamageParamsSummary,
         getHpBonusForChar,

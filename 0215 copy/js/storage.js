@@ -3,6 +3,103 @@
 // ==========================================
 
 // 保存配置到本地存储（silent 为 true 时不显示“已保存”提示，用于等级等自动保存）
+function clonePlainStorageData(value) {
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch (e) {
+        return value;
+    }
+}
+
+function getDefaultDamageViewState() {
+    return {
+        randomMode: 'theory',
+        isAdvantage: false,
+        critMode: 'non_crit',
+        hideRanshuDisplay: false,
+        worldCapMode: '660'
+    };
+}
+
+function normalizeDamageViewState(raw) {
+    const defaults = getDefaultDamageViewState();
+    const src = raw && typeof raw === 'object' ? raw : {};
+    return {
+        randomMode: ['theory', 'min', 'max'].includes(src.randomMode) ? src.randomMode : defaults.randomMode,
+        isAdvantage: src.isAdvantage === true,
+        critMode: ['non_crit', 'lower_bound', 'expected', 'upper_bound'].includes(src.critMode) ? src.critMode : defaults.critMode,
+        hideRanshuDisplay: src.hideRanshuDisplay === true,
+        worldCapMode: ['660', '1310', 'none'].includes(src.worldCapMode) ? src.worldCapMode : defaults.worldCapMode
+    };
+}
+
+function serializeDamageViewStatesForStorage() {
+    const out = {};
+    const states = (typeof window !== 'undefined' && window.damageViewStates) ? window.damageViewStates : {};
+    for (let i = 0; i <= 5; i++) {
+        out[i] = normalizeDamageViewState(states[i]);
+    }
+    return out;
+}
+
+function restoreDamageViewStatesFromStorage(savedStates) {
+    if (typeof window === 'undefined') return;
+    if (!window.damageViewStates) window.damageViewStates = {};
+    for (let i = 0; i <= 5; i++) {
+        window.damageViewStates[i] = normalizeDamageViewState(savedStates && savedStates[i]);
+    }
+    if (typeof window.refreshDamageViewButtons === 'function') {
+        window.refreshDamageViewButtons();
+    }
+}
+
+function serializeBuffCodexRowsForStorage() {
+    const rowsBySlot = (typeof window !== 'undefined' && window.buffCodexPanelRowsBySlot)
+        ? window.buffCodexPanelRowsBySlot
+        : [];
+    const out = [];
+    for (let slot = 0; slot <= 5; slot++) {
+        const rows = Array.isArray(rowsBySlot[slot]) ? rowsBySlot[slot] : [];
+        out[slot] = rows.map((row) => {
+            const template = row && row.template ? row.template : null;
+            return {
+                id: template && template.id != null ? String(template.id) : '',
+                level: Math.max(1, parseInt(row && row.level, 10) || 1)
+            };
+        }).filter((row) => row.id);
+    }
+    return out;
+}
+
+function restoreBuffCodexRowsFromStorage(savedRowsBySlot) {
+    if (typeof window === 'undefined') return;
+    const buffList = (typeof allCharaBuffs !== 'undefined' && Array.isArray(allCharaBuffs)) ? allCharaBuffs : [];
+    window.buffCodexPanelRowsBySlot = [[], [], [], [], [], []];
+    if (!Array.isArray(savedRowsBySlot) || buffList.length === 0) return;
+
+    for (let slot = 0; slot <= 5; slot++) {
+        const rows = Array.isArray(savedRowsBySlot[slot]) ? savedRowsBySlot[slot] : [];
+        rows.forEach((savedRow, idx) => {
+            const id = savedRow && savedRow.id != null ? String(savedRow.id) : '';
+            if (!id) return;
+            const raw = buffList.find((buff) => buff && String(buff.id) === id);
+            if (!raw) return;
+            const template = clonePlainStorageData(raw);
+            const refLevel = Math.max(1, parseInt(template.level, 10) || 1);
+            const maxFromTpl = parseInt(template.maxlevel, 10);
+            const maxLv = Math.max(refLevel, !isNaN(maxFromTpl) && maxFromTpl > 0 ? maxFromTpl : refLevel);
+            const savedLevel = Math.max(1, parseInt(savedRow.level, 10) || refLevel);
+            const level = Math.min(savedLevel, maxLv);
+            window.buffCodexPanelRowsBySlot[slot].push({
+                uid: 'bc_saved_' + slot + '_' + idx + '_' + Date.now(),
+                template,
+                level,
+                maxlevel: maxLv
+            });
+        });
+    }
+}
+
 function saveToLocal(silent) {
     try {
         const saveData = {
@@ -70,6 +167,8 @@ function saveToLocal(silent) {
         };
         
         // 压缩数据（去除undefined和null值）
+        saveData.buffCodexRowsBySlot = serializeBuffCodexRowsForStorage();
+        saveData.damageViewStates = serializeDamageViewStatesForStorage();
         const compressedData = JSON.parse(JSON.stringify(saveData));
         
         // 存储到当前用户对应的 key
@@ -280,6 +379,8 @@ function loadFromLocal(silent) {
         for (let i = 1; i <= 5; i++) {
             try { if (typeof updateCharSlotUI === 'function') updateCharSlotUI(i); } catch(e) {}
         }
+        restoreBuffCodexRowsFromStorage(data.buffCodexRowsBySlot);
+        restoreDamageViewStatesFromStorage(data.damageViewStates);
         
         // 重新渲染并计算
         try { renderGrid(); } catch(e) { console.error('renderGrid error:', e); }
@@ -665,6 +766,10 @@ function resetConfig() {
         
         // 重置特殊加成
         activeSpecialBuffs.clear();
+        if (typeof window !== 'undefined') {
+            window.buffCodexPanelRowsBySlot = [[], [], [], [], [], []];
+            restoreDamageViewStatesFromStorage(null);
+        }
         
         // 重置HP滑块
         const hpSlider = document.getElementById('current-hp-slider');
@@ -820,4 +925,11 @@ if (typeof module !== 'undefined' && module.exports) {
         setupAutoSave,
         showNotification
     };
+}
+
+if (typeof window !== 'undefined') {
+    window.serializeDamageViewStatesForStorage = serializeDamageViewStatesForStorage;
+    window.restoreDamageViewStatesFromStorage = restoreDamageViewStatesFromStorage;
+    window.serializeBuffCodexRowsForStorage = serializeBuffCodexRowsForStorage;
+    window.restoreBuffCodexRowsFromStorage = restoreBuffCodexRowsFromStorage;
 }

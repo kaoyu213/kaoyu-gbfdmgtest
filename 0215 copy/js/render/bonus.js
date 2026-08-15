@@ -314,6 +314,9 @@ function renderResidentBonuses(slotIndex = 0) {
     // 如果 party 还未初始化或为空，则暂不渲染
     if (!party || !party[slotIndex] || !party[slotIndex].stats) return;
 
+    renderAllEffectsSummary(slotIndex, container);
+    return;
+
     let html = '';
     const isMC = (slotIndex === 0);
     
@@ -664,185 +667,663 @@ function getSpecialBonuses() {
     };
 }
 
-// 渲染详细分解
-function renderDetailedBreakdown(gridStats) {
-    const container = document.getElementById('all-stats-breakdown');
-    if(!container) return;
-    
-    // 合计计算
-    let sumDA = gridStats['weapon_da'] || 0;
-    let sumTA = gridStats['weapon_ta'] || 0;
-    
-    sumDA += (currentMC.bonuses['mc_da_base'] || 0) + (gridStats['mc_da_passive'] || 0);
-    sumTA += (currentMC.bonuses['mc_ta_base'] || 0) + (gridStats['mc_ta_passive'] || 0);
+/** 
+ * 纯数据函数：构建当前槽位的 All Effects 汇总
+ * @param {number} charIndex - 队伍槽位
+ * @returns {{ totals: object, sources: array }}
+ */
+function buildAllEffectsForSlot(charIndex) {
+    var totals = {};
+    var sources = [];
 
-    let inputEleVal = parseFloat(document.getElementById('aura-elemental').value) || 0;
-    let sumEle = (inputEleVal / 100) + (gridStats['weapon_progression_element_atk'] || 0) + (gridStats['weapon_awaken_element_atk'] || 0) + (gridStats['summon_element_atk'] || 0); 
+    if (typeof party === 'undefined' || !party[charIndex] || !party[charIndex].stats) {
+        return { totals: totals, sources: sources };
+    }
 
-    let sumDmgAmp = gridStats['weapon_dmg_amp'] || 0;
+    var stats = party[charIndex].stats;
+    var registry = (typeof BuffRegistry !== 'undefined') ? new BuffRegistry() : null;
+    var allBuffTypes = new Set();
+    var specialCfgByEffectKey = {};
 
-    activeSpecialBuffs.forEach(id => {
-        const buff = specialBuffsData.find(b => b.id === id);
-        if(buff) {
-            const buffStats = getSpecialBuffEffectiveStats(buff);
-            if(buffStats['da']) sumDA += buffStats['da'];
-            if(buffStats['ta']) sumTA += buffStats['ta'];
-            if(buffStats['element_atk']) sumEle += buffStats['element_atk'];
-            if(buffStats['dmg_amp']) sumDmgAmp += buffStats['dmg_amp'];
+    function rememberBuffType(prop) {
+        if (!prop) return;
+        if (typeof parseBuffProp === 'function') {
+            var parsed = parseBuffProp(prop);
+            if (parsed && parsed.buffType) allBuffTypes.add(parsed.buffType);
+        } else {
+            allBuffTypes.add(prop);
         }
-    });
+    }
 
-    const lbData = {};
-    if (typeof window.getMcLbTotals === 'function') {
-        const mcLbTotals = window.getMcLbTotals();
-        if (mcLbTotals.baseAtk) lbData['LB攻击'] = mcLbTotals.baseAtk;
-        if (mcLbTotals.baseHp) lbData['LB生命'] = mcLbTotals.baseHp;
-        if (mcLbTotals.prof1) lbData['得意1系数'] = mcLbTotals.prof1;
-        if (mcLbTotals.prof2) lbData['得意2系数'] = mcLbTotals.prof2;
-        Object.keys(mcLbTotals.breakdown || {}).forEach(k => {
-            lbData[k] = mcLbTotals.breakdown[k];
+    function registerEffect(prop, zone, sourceId, value) {
+        var n = Number(value) || 0;
+        if (!prop || !zone || n === 0) return;
+        rememberBuffType(prop);
+        if (registry) registry.addByProp(prop, zone, sourceId, n);
+    }
+
+    function sumRegisteredEntries(buffType, zoneFilter) {
+        var sum = 0;
+        sources.forEach(function(src) {
+            if (!src || !src.entries) return;
+            Object.keys(src.entries).forEach(function(entryKey) {
+                var entry = src.entries[entryKey];
+                if (!entry || entry.prop !== buffType) return;
+                if (typeof zoneFilter === 'function' && !zoneFilter(src.zone, entry)) return;
+                var n = Number(entry.value) || 0;
+                if (n !== 0) sum += n;
+            });
         });
+        return sum;
     }
 
-    // 从 gridStats 拆分出只属于特定分类的数据 (为了显示美观和避免重复)
-    const pureWeaponStats = {};
-    const jobStats = {};
-    const summonStats = {};
-    
-    for (const [k, v] of Object.entries(gridStats)) {
-        if (v === 0) continue;
-        // 默认乱击段数为 1（等同“无乱击”），武器盘全局面板中不展示
-        if (k === 'weapon_na_ranshu' && Number(v) === 1) continue;
-        const cfg = STAT_CONFIG.find(c => c.key === k);
-        if (cfg) {
-            if (cfg.category === 'weapon') pureWeaponStats[k] = v;
-            else if (cfg.category === 'job') jobStats[k] = v;
-            else if (cfg.category === 'summon') summonStats[k] = v;
+    function isAdvantageEnabledForSlot() {
+        if (typeof window !== 'undefined' && window.damageViewStates && window.damageViewStates[charIndex]) {
+            return !!window.damageViewStates[charIndex].isAdvantage;
         }
+        if (typeof document !== 'undefined') {
+            var weaknessId = charIndex === 0 ? 'weakness-toggle' : 'weakness-toggle-' + charIndex;
+            var weaknessToggle = document.getElementById(weaknessId);
+            return !!(weaknessToggle && weaknessToggle.checked);
+        }
+        return false;
     }
 
-    const allSources = [
-        { name: '武器盘', color: '#4db6ac', data: pureWeaponStats },
-        { name: '职业/常驻', color: '#3498db', data: jobStats },
-        { name: '召唤石', color: '#9b59b6', data: summonStats },
-        { name: 'LB', color: '#e67e22', data: lbData }
-    ];
+    function applyFormulaReadyTotals() {
+        var allAmp = Number(totals.dmg_amp) || 0;
+        var elementalAmp = isAdvantageEnabledForSlot() ? (Number(totals.dmg_to_elemental_amp) || 0) : 0;
+        ['na_dmg_amp', 'skill_dmg_amp', 'ca_dmg_amp'].forEach(function(bt) {
+            var base = Number(totals[bt]) || 0;
+            var combined = base + allAmp + elementalAmp;
+            if (combined !== 0) totals[bt] = combined;
+        });
 
-    activeSpecialBuffs.forEach(id => {
-        const buff = specialBuffsData.find(b => b.id === id);
-        if(buff) {
-            const buffStats = getSpecialBuffEffectiveStats(buff);
-            allSources.push({ name: buff.name, color: '#f1c40f', data: buffStats });
-        }
-    });
+        var allCap = Number(totals.dmg_cap) || 0;
+        ['na_dmg_cap', 'skill_dmg_cap', 'ca_dmg_cap', 'cb_dmg_cap', 'fc_dmg_cap'].forEach(function(bt) {
+            var base = Number(totals[bt]) || 0;
+            var combined = base + allCap;
+            if (combined !== 0) totals[bt] = combined;
+        });
 
-    const formatVal = (k, v) => {
-        const cfg = STAT_CONFIG.find(c => c.key === k);
-        if (cfg && cfg.format === 'percent') return (v * 100).toFixed(2) + "%";
-        if ((typeof v === 'number' && Math.abs(v) <= 8 && !Number.isInteger(v)) || 
-            (k && (k.includes('rate') || k.includes('cap') || k.includes('amp') || k.includes('boost')))) {
-            return (v * 100).toFixed(2) + "%";
-        } 
-        if (typeof v === 'number' && v > 0) return "+" + v;
-        return v;
-    };
+        var allSupp = Number(totals.dmg_supp) || 0;
+        ['na_dmg_supp', 'skill_dmg_supp', 'ca_dmg_supp', 'counter_dmg_supp', 'cb_dmg_supp'].forEach(function(bt) {
+            var base = Number(totals[bt]) || 0;
+            var combined = base + allSupp;
+            if (combined !== 0) totals[bt] = combined;
+        });
 
-    const getLabel = (k) => {
-        if(DISPLAY_NAME_MAP[k]) return DISPLAY_NAME_MAP[k];
-        const cfg = STAT_CONFIG.find(c => c.key === k);
-        if(cfg) return cfg.label;
-        return k;
-    };
-
-    let html = '';
-    
-    html += `<div class="breakdown-group" style="border: 1px solid #555; background: #222; border-radius: 4px; overflow: hidden; margin-bottom: 25px;">`;
-    html += `<div class="breakdown-title" style="background: #333; color: #fff; border-left: 4px solid #fff; margin-bottom: 0; padding: 5px 10px;">全加成效果汇总 (All Effects)</div>`;
-    html += `<div style="max-height: 400px; overflow-y: auto;">`;
-
-    const summaryRowStyle = "border-bottom: 1px solid #444; background: #2f3542; display:flex; justify-content:space-between; padding:4px 8px;";
-    const labelStyle = "color: #bbb; display:flex; align-items:center;";
-    const tagStyle = "color: #ff7675; font-weight: bold; margin-right: 6px; font-size:0.9em; border:1px solid #ff7675; padding:0 4px; border-radius:3px;";
-    const valueStyle = "color: #ff7675; font-weight:bold; font-size:1.1em;";
-
-    html += `<div style="${summaryRowStyle}"><span style="${labelStyle}"><span style="${tagStyle}">合计</span>DA (连击率)</span><span style="${valueStyle}">${(sumDA * 100).toFixed(2)}%</span></div>`;
-    html += `<div style="${summaryRowStyle}"><span style="${labelStyle}"><span style="${tagStyle}">合计</span>TA (连击率)</span><span style="${valueStyle}">${(sumTA * 100).toFixed(2)}%</span></div>`;
-    html += `<div style="${summaryRowStyle}"><span style="${labelStyle}"><span style="${tagStyle}">合计</span>属性攻击力</span><span style="${valueStyle}">${(sumEle * 100).toFixed(2)}%</span></div>`;
-    html += `<div style="${summaryRowStyle} border-bottom: 3px double #555;"><span style="${labelStyle}"><span style="${tagStyle}">合计</span>全伤害增幅 (Amp)</span><span style="${valueStyle}">${(sumDmgAmp * 100).toFixed(2)}%</span></div>`;
-
-    let hasSummaryData = false;
-
-    allSources.forEach(src => {
-        if(!src.data || Object.keys(src.data).length === 0) return;
-
-        for(const [k, v] of Object.entries(src.data)) {
-            if(k === 'optimus_boost' || k === 'magna_boost') continue; 
-
-            const label = getLabel(k);
-            const valStr = formatVal(k, v); 
-            const valColor = (v === 0) ? '#666' : src.color;
-
-            html += `<div class="breakdown-row" style="border-bottom: 1px solid #2a2a2a;"><span style="color: #bbb;"><span style="color: ${src.color}; font-weight: bold; margin-right: 4px;">【${src.name}】</span>${label}</span><span class="breakdown-val" style="color: ${valColor};">${valStr}</span></div>`;
-            hasSummaryData = true;
-        }
-    });
-
-    if (!hasSummaryData) {
-        html += `<div class="empty-data">暂无任何数据</div>`;
+        var caWeaponGrid = sumRegisteredEntries('ca_dmg', function(zone, entry) {
+            return entry.caDmgPart === 'weapon_grid' || (!entry.caDmgPart && zone === 'weapon_grid');
+        });
+        var caOther = sumRegisteredEntries('ca_dmg', function(zone, entry) {
+            return entry.caDmgPart === 'other' || (!entry.caDmgPart && zone !== 'weapon_grid');
+        });
+        if (caWeaponGrid !== 0) totals.ca_dmg_weapon_grid = caWeaponGrid;
+        if (caOther !== 0) totals.ca_dmg_other = caOther;
     }
 
-    html += `</div></div>`; 
-
-    const renderSection = (title, dataObj, color = "#4db6ac") => {
-        if(!dataObj || Object.keys(dataObj).length === 0) return '';
-        
-        let sectionHtml = `<div class="breakdown-group"><div class="breakdown-title" style="border-left-color:${color}; color:${color}; background:transparent;">${title}</div>`;
-        
-        for(const [k, v] of Object.entries(dataObj)) {
-            if(k === 'optimus_boost' || k === 'magna_boost') continue;
-
-            const label = getLabel(k);
-            const valStr = formatVal(k, v); 
-            const valColor = (v === 0) ? '#666' : color; 
-            
-            sectionHtml += `<div class="breakdown-row"><span class="breakdown-key">${label}</span><span class="breakdown-val" style="color:${valColor}">${valStr}</span></div>`;
-        }
-        
-        sectionHtml += '</div>';
-        return sectionHtml;
-    };
-
-    html += renderSection('1. 武器盘数据 (Weapon Grid)', pureWeaponStats, '#4db6ac');
-    html += renderSection('2. 职业与角色加成 (Job & Character)', jobStats, '#3498db');
-    html += renderSection('3. 召唤石加成 (Summons)', summonStats, '#9b59b6');
-    html += renderSection('4. LB 加成 (Limit Bonus)', lbData, '#e67e22');
-
-    if (activeSpecialBuffs.size > 0) {
-        let specialHtml = `<div class="breakdown-group"><div class="breakdown-title" style="border-left-color:#f1c40f; color:#f1c40f; background:transparent;">5. 特殊道具详情 (Special Items)</div>`;
-        let hasSpecialData = false;
-        
-        activeSpecialBuffs.forEach(id => {
-            const buff = specialBuffsData.find(b => b.id === id);
-            if(buff) {
-                const buffStats = getSpecialBuffEffectiveStats(buff);
-                
-                if(Object.keys(buffStats).length > 0) {
-                    specialHtml += `<div class="bd-source-name" style="margin-top:8px;">${buff.name}</div>`;
-                    for(const [k, v] of Object.entries(buffStats)) {
-                         const label = getLabel(k);
-                         const valStr = formatVal(k, v); 
-                         const valColor = (v === 0) ? '#666' : '#f1c40f';
-                         specialHtml += `<div class="breakdown-row"><span class="breakdown-key">${label}</span><span class="breakdown-val" style="color:${valColor}">${valStr}</span></div>`;
-                    }
-                    hasSpecialData = true;
-                }
+    if (typeof STAT_CONFIG !== 'undefined') {
+        STAT_CONFIG.forEach(function(cfg) {
+            if (cfg && cfg.category === 'special' && cfg.key && cfg.key.indexOf('special_') === 0) {
+                specialCfgByEffectKey[cfg.key.replace('special_', '')] = cfg;
             }
         });
-        specialHtml += '</div>';
-        if(hasSpecialData) html += specialHtml;
     }
 
+    var weaponGridEntries = {};
+    if (typeof STAT_CONFIG !== 'undefined') {
+        STAT_CONFIG.forEach(function(cfg) {
+            if (cfg && cfg.zone === 'weapon_grid' && cfg.prop) {
+                var v = stats[cfg.key];
+                if (typeof v !== 'number' || v === 0) return;
+                if (cfg.key === 'weapon_na_ranshu' && Number(v) === 1) return;
+                registerEffect(cfg.prop, cfg.zone, cfg.key, v);
+                weaponGridEntries[cfg.key] = { label: cfg.label, value: v, format: cfg.format, prop: cfg.prop, zone: cfg.zone };
+            }
+        });
+    }
+    if (Object.keys(weaponGridEntries).length > 0) {
+        sources.push({ zone: 'weapon_grid', name: '武器盘', color: '#4db6ac', entries: weaponGridEntries });
+    }
+
+    var summonEntries = {};
+    if (typeof STAT_CONFIG !== 'undefined') {
+        STAT_CONFIG.forEach(function(cfg) {
+            if (cfg && cfg.zone === 'summon' && cfg.prop) {
+                var v = stats[cfg.key];
+                if (typeof v !== 'number' || v === 0) return;
+                registerEffect(cfg.prop, cfg.zone, cfg.key, v);
+                summonEntries[cfg.key] = { label: cfg.label, value: v, format: cfg.format, prop: cfg.prop, zone: cfg.zone };
+            }
+        });
+    }
+    if (Object.keys(summonEntries).length > 0) {
+        sources.push({ zone: 'summon', name: '召唤石', color: '#9b59b6', entries: summonEntries });
+    }
+
+    var passiveEntries = {};
+    if (typeof STAT_CONFIG !== 'undefined') {
+        STAT_CONFIG.forEach(function(cfg) {
+            if (!cfg || !cfg.prop || !cfg.zone) return;
+            if (cfg.category !== 'job' && cfg.category !== 'chara' && cfg.category !== 'system') return;
+            if (cfg.key === 'marriage_perpetuity_atk') return;
+            var v = stats[cfg.key];
+            if (typeof v !== 'number' || v === 0) return;
+            registerEffect(cfg.prop, cfg.zone, cfg.key, v);
+            passiveEntries[cfg.key] = { label: cfg.label, value: v, format: cfg.format, prop: cfg.prop, zone: cfg.zone };
+        });
+    }
+    if (Object.keys(passiveEntries).length > 0) {
+        sources.push({ zone: 'passive', name: '角色/职业被动', color: '#74b9ff', entries: passiveEntries });
+    }
+
+    var rawStatEntries = {};
+    if (typeof STAT_CONFIG !== 'undefined') {
+        STAT_CONFIG.forEach(function(cfg) {
+            if (!cfg || !cfg.key || (cfg.prop && cfg.zone)) return;
+            if (cfg.key.charAt(0) === '_') return;
+            var v = stats[cfg.key];
+            if (typeof v !== 'number' || v === 0) return;
+            if (cfg.key === 'weapon_na_ranshu' && Number(v) === 1) return;
+            if (cfg.category === 'charabonus' || cfg.category === 'special') return;
+            rawStatEntries[cfg.key] = {
+                label: cfg.label,
+                value: v,
+                format: cfg.format,
+                source: cfg.category || 'raw'
+            };
+        });
+    }
+    if (Object.keys(rawStatEntries).length > 0) {
+        sources.push({ zone: 'raw_stats', name: '未分区明细', color: '#95a5a6', entries: rawStatEntries });
+    }
+
+    if (typeof currentParty !== 'undefined' && currentParty[charIndex]) {
+        var cp = currentParty[charIndex];
+        var charaEntries = {};
+        var rawCharaEntries = {};
+        var baseAtkTotal = 0;
+        var baseHpTotal = 0;
+        var charaSummaryEntries = {};
+        var charaIndependentEntries = {};
+        var sourceLabels = {
+            chara_ring: '戒指',
+            chara_earring: '耳饰',
+            chara_artifacts: '神器',
+            chara_marriage: '婚戒',
+            chara_awakening: '觉醒',
+            chara_lb: 'LB'
+        };
+        var charaSummaryLabels = {
+            base_atk: '总额外攻击力',
+            base_hp: '总额外HP',
+            ca_dmg_cap: '奥义上限',
+            ca_dmg: '奥义伤害',
+            stamina: '浑身',
+            enmity: '背水',
+            def_mod: '防御力',
+            hp_mod: 'HP',
+            da_rate: 'DA',
+            ta_rate: 'TA',
+            skill_dmg: '技能伤害',
+            skill_dmg_cap: '技伤上限',
+            na_dmg_cap: '普攻上限',
+            dmg_cap: '伤害上限',
+            debuff_success: '弱体成功率',
+            debuff_resist: '弱体耐性',
+            heal_cap: '回复性能',
+            element_atk: '属性攻击',
+            critical_hit: '暴击率',
+            dodge_rate: '回避率',
+            charge_gain: '奥义值上升量'
+        };
+        var independentCharaKeys = new Set([
+            'chara_marriage_perpetuity_atk',
+            'chara_marriage_hp',
+            'chara_marriage_dmg_cap',
+            'chara_marriage_debuff_resistance',
+            'chara_awakening_element_reduce',
+            'chara_artifacts_special_ca_dmg_cap',
+            'chara_artifacts_crit_dmg_cap',
+            'chara_artifacts_chain_supp'
+        ]);
+        function getCharaSourceLabel(key) {
+            for (var prefix in sourceLabels) {
+                if (key.indexOf(prefix) === 0) return sourceLabels[prefix];
+            }
+            return '角色强化';
+        }
+        function addCharaSummary(prop, label, value, format) {
+            if (typeof value !== 'number' || value === 0) return;
+            var key = prop || label;
+            if (!charaSummaryEntries[key]) {
+                charaSummaryEntries[key] = {
+                    label: label,
+                    value: 0,
+                    format: format,
+                    source: '汇总',
+                    group: 'summary',
+                    prop: prop,
+                    zone: 'charabonus'
+                };
+            }
+            charaSummaryEntries[key].value += value;
+        }
+        function addCharaIndependent(cfg, value, displayFormat) {
+            var sourceLabel = getCharaSourceLabel(cfg.key);
+            var entryKey = '[独立] ' + cfg.key;
+            charaIndependentEntries[entryKey] = {
+                label: '[' + sourceLabel + ']' + cfg.label,
+                value: value,
+                rawValue: value,
+                format: displayFormat || cfg.format,
+                source: sourceLabel,
+                group: 'independent',
+                prop: cfg.prop,
+                zone: cfg.zone
+            };
+        }
+        if (typeof STAT_CONFIG !== 'undefined') {
+            var currentHp = parseInt(document.getElementById('current-hp-slider')?.value, 10);
+            var hp01ForStrong = Number.isNaN(currentHp) ? 1 : Math.max(0, Math.min(1, currentHp / 100));
+            STAT_CONFIG.forEach(function(cfg) {
+                if (cfg && cfg.zone === 'charabonus' && cfg.prop) {
+                    var val = cp[cfg.key];
+                    if (typeof val !== 'number' || val === 0) return;
+                    var registerVal = val;
+                    var displayFormat = cfg.format;
+                    if (cfg.prop === 'base_atk') {
+                        baseAtkTotal += val;
+                        return;
+                    }
+                    if (cfg.prop === 'base_hp') {
+                        baseHpTotal += val;
+                        return;
+                    }
+                    if ((cfg.key === 'chara_ring_stamina' || cfg.key === 'chara_earring_stamina') && typeof getRingEarringStaminaStrongBonus === 'function') {
+                        registerVal = getRingEarringStaminaStrongBonus(hp01ForStrong, val);
+                        displayFormat = 'percent';
+                    } else if (cfg.key === 'chara_lb_stamina' && typeof getLbStaminaStrongBonus === 'function') {
+                        var lbAmounts = Array.isArray(cp['chara_lb_stamina_amounts']) ? cp['chara_lb_stamina_amounts'] : null;
+                        if (lbAmounts && lbAmounts.length > 0) {
+                            registerVal = lbAmounts.reduce(function(acc, amt) {
+                                return acc + getLbStaminaStrongBonus(hp01ForStrong, amt);
+                            }, 0);
+                        } else {
+                            registerVal = getLbStaminaStrongBonus(hp01ForStrong, val);
+                        }
+                        displayFormat = 'percent';
+                    }
+                    if (cfg.key === 'chara_earring_dmg_supp' && typeof getEarringDmgSuppFromLevel === 'function') {
+                        registerVal = getEarringDmgSuppFromLevel(val);
+                    }
+                    registerEffect(cfg.prop, cfg.zone, cfg.key, registerVal);
+                    if (independentCharaKeys.has(cfg.key)) {
+                        addCharaIndependent(cfg, val, cfg.format);
+                        return;
+                    }
+                    var summaryLabel = charaSummaryLabels[cfg.prop] || cfg.label;
+                    var summaryValue = (cfg.prop === 'stamina' || cfg.prop === 'enmity') ? val : registerVal;
+                    var summaryFormat = (cfg.prop === 'stamina' || cfg.prop === 'enmity') ? 'fixed' : displayFormat;
+                    addCharaSummary(cfg.prop, summaryLabel, summaryValue, summaryFormat);
+                }
+                if (cfg && cfg.category === 'charabonus' && (!cfg.prop || !cfg.zone)) {
+                    var rawVal = cp[cfg.key];
+                    if (typeof rawVal !== 'number' || rawVal === 0) return;
+                    rawCharaEntries[cfg.key] = { label: cfg.label, value: rawVal, format: cfg.format, source: '角色强化' };
+                }
+            });
+        }
+        if (baseAtkTotal) {
+            addCharaSummary('base_atk', '总额外攻击力', baseAtkTotal, 'fixed');
+        }
+        if (baseHpTotal) {
+            addCharaSummary('base_hp', '总额外HP', baseHpTotal, 'fixed');
+        }
+        Object.keys(charaSummaryEntries).forEach(function(k) { charaEntries['[汇总属性] ' + k] = charaSummaryEntries[k]; });
+        Object.keys(charaIndependentEntries).forEach(function(k) { charaEntries[k] = charaIndependentEntries[k]; });
+        if (Object.keys(charaEntries).length > 0) {
+            sources.push({ zone: 'charabonus', name: '角色强化', color: '#e67e22', entries: charaEntries });
+        }
+        if (Object.keys(rawCharaEntries).length > 0) {
+            sources.push({ zone: 'raw_charabonus', name: '角色强化未分区', color: '#bdc3c7', entries: rawCharaEntries });
+        }
+    }
+
+    var charaSkillEntries = {};
+    if (typeof STAT_CONFIG !== 'undefined') {
+        STAT_CONFIG.forEach(function(cfg) {
+            if (cfg && cfg.category === 'charabuff' && cfg.prop && cfg.zone) {
+                var v = stats[cfg.key];
+                if (typeof v !== 'number' || v === 0) return;
+                registerEffect(cfg.prop, cfg.zone, cfg.key, v);
+                charaSkillEntries[cfg.key] = { label: cfg.label, value: v, format: cfg.format, prop: cfg.prop, zone: cfg.zone };
+            }
+        });
+    }
+    if (party[charIndex] && Array.isArray(party[charIndex].dynamicBuffEntries)) {
+        party[charIndex].dynamicBuffEntries.forEach(function(entry, idx) {
+            if (!entry || !entry.prop || !entry.zone) return;
+            var v = Number(entry.value) || 0;
+            if (v === 0) return;
+            var sourceId = entry.sourceId || ('dynamic_buff_' + idx);
+            registerEffect(entry.prop, entry.zone, sourceId, v);
+            charaSkillEntries[sourceId] = {
+                label: entry.label || entry.prop,
+                value: v,
+                format: entry.format || 'percent',
+                prop: entry.prop,
+                zone: entry.zone,
+                source: 'dynamic'
+            };
+        });
+    }
+    if (party[charIndex] && Array.isArray(party[charIndex].zoneEffectEntries)) {
+        party[charIndex].zoneEffectEntries.forEach(function(entry, idx) {
+            if (!entry || !entry.prop || !entry.zone) return;
+            if (String(entry.prop).indexOf('bonus_na_') === 0) return;
+            var v = Number(entry.value) || 0;
+            if (v === 0) return;
+            var sourceId = entry.sourceId || ('zone_effect_' + idx);
+            registerEffect(entry.prop, entry.zone, sourceId, v);
+            charaSkillEntries[sourceId] = {
+                label: entry.label || entry.prop,
+                value: v,
+                format: entry.format || 'percent',
+                prop: entry.prop,
+                zone: entry.zone,
+                source: 'charabuff'
+            };
+        });
+    }
+    if (Object.keys(charaSkillEntries).length > 0) {
+        sources.push({ zone: 'chara_skill', name: '角色技能Buff', color: '#ff7675', entries: charaSkillEntries });
+    }
+
+    var testBuffEntries = {};
+    if (typeof window !== 'undefined' && window.buffSettings) {
+        var testBuffMap = {
+            normal: { prop: 'normal_atk', label: '普刃', format: 'percent' },
+            stamina: { prop: 'stamina', label: '浑身', format: 'percent' },
+            enmity: { prop: 'enmity', label: '背水', format: 'percent' },
+            strong: { prop: 'stamina', label: '强壮', format: 'percent' },
+            adversity: { prop: 'enmity', label: '逆境', format: 'percent' },
+            element: { prop: 'element_atk', label: '属攻', format: 'percent' },
+            marriage: { prop: 'perpetuity_atk', label: '独立攻刃【久远】', format: 'percent' },
+            indepCumulative: { prop: 'indep_cumulative_atk', label: '独立攻刃【累积】', format: 'percent' },
+            indepUnjudged: { prop: 'indep_unjudged_atk', label: '独立攻刃【未判定】', format: 'percent' },
+            indepSpecialEnmity: { prop: 'indep_special_enmity_atk', label: '独立攻刃【特殊背水】', format: 'percent' },
+            indepSpecial: { prop: 'indep_special_atk', label: '独立攻刃【特殊】', format: 'percent' },
+            dmgCap: { prop: 'dmg_cap', label: '伤害上限', format: 'percent' },
+            dmgAmp: { prop: 'dmg_amp', label: '伤害增幅', format: 'percent' },
+            caWeaponDmg: { prop: 'ca_dmg', label: '武器盘奥义伤害加成', format: 'percent', caDmgPart: 'weapon_grid' },
+            caDmg: { prop: 'ca_dmg', label: '奥义伤害加成', format: 'percent', caDmgPart: 'other' },
+            caCap: { prop: 'ca_dmg_cap', label: '奥义上限加成', format: 'percent' },
+            dmgSupp: { prop: 'dmg_supp', label: '伤害上升', format: 'fixed' },
+            caDmgSupp: { prop: 'ca_dmg_supp', label: '奥义伤害上升效果', format: 'fixed' },
+            takenDmgAmp: { prop: 'taken_dmg_amp', label: '承受伤害增幅', format: 'percent' }
+        };
+        Object.keys(testBuffMap).forEach(function(key) {
+            var cfg = testBuffMap[key];
+            var v = Number(window.buffSettings[key]) || 0;
+            if (v === 0) return;
+            registerEffect(cfg.prop, 'testbuff', 'testbuff:' + key, v);
+            testBuffEntries['testbuff:' + key] = {
+                label: cfg.label,
+                value: v,
+                format: cfg.format,
+                prop: cfg.prop,
+                zone: 'testbuff',
+                source: 'testbuff',
+                caDmgPart: cfg.caDmgPart || null
+            };
+        });
+    }
+    if (Object.keys(testBuffEntries).length > 0) {
+        sources.push({ zone: 'testbuff', name: 'testbuff', color: '#fdcb6e', entries: testBuffEntries });
+    }
+
+    if (typeof activeSpecialBuffs !== 'undefined' && activeSpecialBuffs.size > 0 && typeof specialBuffsData !== 'undefined') {
+        var specialEntries = {};
+        activeSpecialBuffs.forEach(function(id) {
+            var buff = specialBuffsData.find(function(b) { return b.id === id; });
+            if (!buff) return;
+            var buffStats = getSpecialBuffEffectiveStats(buff);
+            Object.keys(buffStats).forEach(function(k) {
+                var v = buffStats[k];
+                if (v === 0) return;
+                var cfg = specialCfgByEffectKey[k] || null;
+                var prop = cfg && cfg.prop ? cfg.prop : null;
+                var zone = cfg && cfg.zone ? cfg.zone : null;
+                if (prop && zone) {
+                    registerEffect(prop, zone, buff.id + ':' + k, v);
+                }
+                specialEntries['[' + buff.name + '] ' + k] = {
+                    label: cfg && cfg.label ? cfg.label : k,
+                    value: v,
+                    format: cfg && cfg.format ? cfg.format : null,
+                    source: buff.name,
+                    prop: prop,
+                    zone: zone
+                };
+            });
+        });
+        if (Object.keys(specialEntries).length > 0) {
+            sources.push({ zone: 'special', name: '特殊道具', color: '#f1c40f', entries: specialEntries });
+        }
+    }
+
+    if (typeof BUFF_TYPE_ZONE_RULES !== 'undefined') {
+        Object.keys(BUFF_TYPE_ZONE_RULES).forEach(function(bt) { allBuffTypes.add(bt); });
+    }
+    allBuffTypes.forEach(function(bt) {
+        var val = registry ? registry.getTotal(bt) : (stats['_' + bt + '_total'] || 0);
+        if (typeof val === 'number' && val !== 0) totals[bt] = val;
+    });
+    applyFormulaReadyTotals();
+
+    if (typeof window !== 'undefined') {
+        if (!window.allEffectsBySlot) window.allEffectsBySlot = {};
+        window.allEffectsBySlot[charIndex] = { totals: totals, sources: sources };
+    }
+
+    return { totals: totals, sources: sources };
+}
+
+
+/**
+ * 渲染 All Effects 面板（纯展示，读出 buildAllEffectsForSlot 结果）
+ * @param {number} charIndex
+ */
+function renderAllEffectsSummary(charIndex, target) {
+    var container = null;
+    if (typeof target === 'string') {
+        container = document.getElementById(target);
+    } else if (target && typeof target.innerHTML !== 'undefined') {
+        container = target;
+    } else {
+        container = document.getElementById('all-stats-breakdown');
+    }
+    if (!container) return;
+
+    var allEffects = buildAllEffectsForSlot(charIndex);
+    var totals = allEffects.totals;
+    var sources = allEffects.sources;
+
+    var html = '';
+    html += '<div class="breakdown-group" style="border: 1px solid #555; background: #222; border-radius: 4px; overflow: hidden; margin-bottom: 25px;">';
+    html += '<div class="breakdown-title" style="background: #333; color: #fff; border-left: 4px solid #fff; margin-bottom: 0; padding: 5px 10px;">全加成效果汇总 (All Effects)</div>';
+    html += '<div style="max-height: 400px; overflow-y: auto;">';
+
+    // --- 摘要行 ---
+    var summaryRowStyle = "border-bottom: 1px solid #444; background: #2f3542; display:flex; justify-content:space-between; padding:4px 8px;";
+    var labelStyle = "color: #bbb; display:flex; align-items:center;";
+    var tagStyle = "color: #ff7675; font-weight: bold; margin-right: 6px; font-size:0.9em; border:1px solid #ff7675; padding:0 4px; border-radius:3px;";
+    var valueStyle = "color: #ff7675; font-weight:bold; font-size:1.1em;";
+
+    var summaryKeys = [
+        { bt: 'normal_atk', label: '普刃' },
+        { bt: 'omega_atk', label: 'M攻刃' },
+        { bt: 'ex_atk', label: 'EX攻刃' },
+        { bt: 'odious_atk', label: 'OD攻刃' },
+        { bt: 'stamina', label: '浑身' },
+        { bt: 'stamina_omega', label: 'M浑身' },
+        { bt: 'enmity', label: '背水' },
+        { bt: 'enmity_omega', label: 'M背水' },
+        { bt: 'element_atk', label: '属性攻击力' },
+        { bt: 'perpetuity_atk', label: '独立攻刃【久远】' },
+        { bt: 'indep_cumulative_atk', label: '独立攻刃【累积】' },
+        { bt: 'indep_unjudged_atk', label: '独立攻刃【未判定】' },
+        { bt: 'indep_special_enmity_atk', label: '独立攻刃【特殊背水】' },
+        { bt: 'indep_special_atk', label: '独立攻刃【特殊】' },
+        { bt: 'da_rate', label: 'DA' },
+        { bt: 'ta_rate', label: 'TA' },
+        { bt: 'ca_dmg_weapon_grid', label: '武器盘奥义伤害' },
+        { bt: 'ca_dmg_other', label: '其他区奥义伤害' },
+        { bt: 'dmg_cap', label: '全上限' },
+        { bt: 'na_dmg_cap', label: '普攻上限' },
+        { bt: 'skill_dmg_cap', label: '技伤上限' },
+        { bt: 'ca_dmg_cap', label: '奥义上限' },
+        { bt: 'dmg_amp', label: '全伤害增幅' },
+        { bt: 'dmg_to_elemental_amp', label: '对克制属性伤害增幅' },
+        { bt: 'dmg_to_non_elemental_amp', label: '对无属性伤害增幅' },
+        { bt: 'critical_dmg_amp', label: '暴击时伤害增幅' },
+        { bt: 'na_dmg_amp', label: '普攻伤害增幅' },
+        { bt: 'skill_dmg_amp', label: '技伤伤害增幅' },
+        { bt: 'ca_dmg_amp', label: '奥义伤害增幅' },
+        { bt: 'dmg_supp', label: '全伤害上升' },
+        { bt: 'na_dmg_supp', label: '平A伤害上升' },
+        { bt: 'skill_dmg_supp', label: '技伤上升' },
+        { bt: 'ca_dmg_supp', label: '奥义伤害上升' },
+        { bt: 'hp_mod', label: 'HP加成' },
+        { bt: 'def_mod', label: '防御力' },
+        { bt: 'critical_hit', label: '暴击率' },
+        { bt: 'critical_dmg_cap', label: '暴击时上限' },
+        { bt: 'def_ignore', label: '无视防御' },
+        { bt: 'dmg_reduce', label: '伤害减轻' },
+        { bt: 'taken_dmg_amp', label: '承受伤害增幅' },
+        { bt: 'element_reduce', label: '属性伤害减轻' },
+        { bt: 'anti_element_reduce', label: '受克制伤害减轻' },
+        { bt: 'dodge_rate', label: '回避率' },
+        { bt: 'dodge_all', label: '全回避发生率' },
+        { bt: 'hostility', label: '敌对心' },
+        { bt: 'counter_rate', label: '反击发生率' },
+        { bt: 'counter_dmg', label: '反击伤害' },
+        { bt: 'counter_dmg_supp', label: '反击伤害上升' },
+        { bt: 'heal_mod', label: '回复力' },
+        { bt: 'heal_cap', label: '回复上限' },
+        { bt: 'charge_gain', label: '奥义值上升量' },
+        { bt: 'debuff_success', label: '弱体成功率' },
+        { bt: 'debuff_resist', label: '弱体耐性' },
+        { bt: 'skill_dmg', label: '技能伤害' },
+        { bt: 'skill_hit_rate', label: '技能命中率' },
+        { bt: 'cb_dmg', label: '奥义连锁伤害' },
+        { bt: 'cb_dmg_cap', label: '奥义连锁上限' },
+        { bt: 'cb_dmg_amp', label: '奥义连锁增幅' },
+        { bt: 'cb_dmg_supp', label: '奥义连锁伤害上升' },
+        { bt: 'fc_dmg_cap', label: '致命连锁上限' },
+        { bt: 'fc_dmg_amp', label: '致命连锁增幅' },
+        { bt: 'ca_special_dmg_cap', label: '奥义特殊上限' },
+        { bt: 'hp_cut', label: 'HP减少' },
+        { bt: 'hp_dmg', label: '开局HP减少' },
+        { bt: 'turn_dmg', label: '每回合HP减少' },
+        { bt: 'turn_dmg_reduce', label: '回合类伤害减轻' },
+        { bt: 'optimus_boost', label: '神石加护' },
+        { bt: 'omega_boost', label: '方阵加护' },
+        { bt: 'na_ranshu', label: '平A乱击段数' },
+        { bt: 'exp_gain', label: '经验加成' },
+        { bt: 'rupie_gain', label: '卢布获取量加成' }
+    ];
+
+    var hasSummary = false;
+    summaryKeys.forEach(function(sk) {
+        if (typeof totals[sk.bt] !== 'number') return;
+        if (sk.bt === 'na_ranshu' && Number(totals[sk.bt]) === 1) return;
+        hasSummary = true;
+        var v = totals[sk.bt];
+        var valStr;
+        if (sk.bt.indexOf('dmg_supp') >= 0 || sk.bt === 'counter_dmg_supp' || sk.bt === 'cb_dmg_supp') {
+            valStr = v >= 0 ? '+' + Math.round(v) : Math.round(v).toString();
+        } else if (sk.bt === 'na_ranshu') {
+            valStr = Math.round(v).toString();
+        } else {
+            valStr = (v * 100).toFixed(2) + '%';
+        }
+        html += '<div style="' + summaryRowStyle + '"><span style="' + labelStyle + '"><span style="' + tagStyle + '">合计</span>' + sk.label + '</span><span style="' + valueStyle + '">' + valStr + '</span></div>';
+    });
+    if (!hasSummary) {
+        html += '<div style="' + summaryRowStyle + '"><span style="' + labelStyle + '"><span style="' + tagStyle + '">合计</span>暂无统合数据</span></div>';
+    }
+
+    // --- 分区详情 ---
+    var hasSourceData = false;
+    sources.forEach(function(src) {
+        if (!src.entries || Object.keys(src.entries).length === 0) return;
+        hasSourceData = true;
+        html += '<div style="border-top: 2px solid ' + src.color + '; padding: 4px 0; margin-top: 4px;">';
+        html += '<div style="color: ' + src.color + '; font-weight: bold; font-size: 0.9em; padding: 2px 8px;">' + src.name + '</div>';
+        var entryKeys = Object.keys(src.entries);
+        if (src.zone === 'charabonus') {
+            var summaryEntryKeys = entryKeys.filter(function(k) { return src.entries[k].group === 'summary'; });
+            var independentEntryKeys = entryKeys.filter(function(k) { return src.entries[k].group === 'independent'; });
+            var otherEntryKeys = entryKeys.filter(function(k) { return !src.entries[k].group; });
+            entryKeys = [];
+            if (summaryEntryKeys.length > 0) {
+                entryKeys.push('__heading_summary__');
+                entryKeys = entryKeys.concat(summaryEntryKeys);
+            }
+            if (independentEntryKeys.length > 0) {
+                entryKeys.push('__heading_independent__');
+                entryKeys = entryKeys.concat(independentEntryKeys);
+            }
+            entryKeys = entryKeys.concat(otherEntryKeys);
+        }
+        entryKeys.forEach(function(k) {
+            if (k === '__heading_summary__') {
+                html += '<div style="color:#ddd; font-weight:bold; padding:4px 8px 2px;">[汇总属性]</div>';
+                return;
+            }
+            if (k === '__heading_independent__') {
+                html += '<div style="color:#ddd; font-weight:bold; padding:6px 8px 2px;">[独立属性]</div>';
+                return;
+            }
+            var e = src.entries[k];
+            var valStr;
+            if (e.format === 'percent') {
+                valStr = (e.value * 100).toFixed(2) + '%';
+            } else if (e.format === 'fixed') {
+                valStr = e.value >= 0 ? '+' + Math.round(e.value) : Math.round(e.value).toString();
+            } else {
+                valStr = (typeof e.value === 'number' && Math.abs(e.value) < 10 && !Number.isInteger(e.value)) ? (e.value * 100).toFixed(2) + '%' : e.value.toString();
+            }
+            html += '<div class="breakdown-row" style="border-bottom: 1px solid #2a2a2a;"><span style="color: #bbb;">' + e.label + '</span><span class="breakdown-val" style="color: ' + src.color + ';">' + valStr + '</span></div>';
+        });
+        html += '</div>';
+    });
+
+    if (!hasSourceData) {
+        html += '<div class="empty-data">暂无来源数据</div>';
+    }
+
+    html += '</div></div>';
     container.innerHTML = html;
+}
+
+
+// 兼容旧调用：keep old renderDetailedBreakdown as a wrapper
+function renderDetailedBreakdown(gridStats) {
+    // 旧接口：gridStats 实际上被忽略，使用当前激活槽位
+    var activeSlot = 0;
+    if (typeof document !== 'undefined') {
+        var activeBtn = document.querySelector('.char-slot-btn.active');
+        if (activeBtn) activeSlot = parseInt(activeBtn.getAttribute('data-slot')) || 0;
+    }
+    renderAllEffectsSummary(activeSlot);
+}
+
+if (typeof window !== 'undefined') {
+    window.buildAllEffectsForSlot = buildAllEffectsForSlot;
+    window.renderAllEffectsSummary = renderAllEffectsSummary;
 }
 
 // 导出
@@ -854,6 +1335,8 @@ if (typeof module !== 'undefined' && module.exports) {
         toggleCollapsible,
         getSummonBonuses,
         getSpecialBonuses,
+        buildAllEffectsForSlot,
+        renderAllEffectsSummary,
         renderDetailedBreakdown
     };
 }

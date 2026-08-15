@@ -123,7 +123,10 @@
         if (typeof getEarringDmgSuppFromLevel === 'function' && typeof currentParty !== 'undefined' && currentParty[charIndex]) {
             skillSuppEarring = getEarringDmgSuppFromLevel(currentParty[charIndex].chara_earring_dmg_supp);
         }
-        var skillSupp = skillSuppWeapon + skillSuppEarring;
+        var fallbackSkillSupp = skillSuppWeapon + skillSuppEarring;
+        var skillSupp = (typeof getAllEffectsTotalForSlot === 'function')
+            ? getAllEffectsTotalForSlot(charIndex, 'skill_dmg_supp', fallbackSkillSupp)
+            : fallbackSkillSupp;
 
         var critMult = 1;
         var critFlag = false;
@@ -145,7 +148,7 @@
             critAmpRate = critFlag ? 1 : 0;
         }
 
-        var skillAmp = typeof calculateAmp === 'function' ? calculateAmp(stats, 'skill', teshuStats) : 0;
+        var skillAmp = typeof calculateAmp === 'function' ? calculateAmp(stats, 'skill', teshuStats, { charIndex: charIndex }) : 0;
         skillAmp += (Number(stats['weapon_critical_hit_amp'] || 0) * critAmpRate);
 
         var skillDmgBonus = getSkillDmgBonusFromStats(stats);
@@ -175,7 +178,7 @@
         if (applyCap && typeof applyDamageCap === 'function') {
             var afterCrit = raw.steps.afterMultCrit;
             var critExtraAmp = (Number(stats['weapon_critical_hit_amp']) || 0) * critAmpRate;
-            var capOptions = Object.assign({}, options.capOptions || {});
+            var capOptions = Object.assign({}, options.capOptions || {}, { charIndex: charIndex });
             var capResult = applyDamageCap(afterCrit, stats, 'skill', teshuStats, critExtraAmp, capOptions);
 
             // 技伤公式：decayed → +Supp → ×(1+Amp) → ×(1+TakenAmp) → worldCap → ceil

@@ -612,6 +612,9 @@ function calculateDamageFromUI(charIndex = 0) {
         STAT_CONFIG.forEach(cfg => {
             stats[cfg.key] = party[charIndex].stats[cfg.key] || 0;
         });
+        if (party[charIndex].stats._charabuffZoneEffectTotals) {
+            stats._charabuffZoneEffectTotals = Object.assign({}, party[charIndex].stats._charabuffZoneEffectTotals);
+        }
         stats['element_atk'] = party[charIndex].stats['element_atk'] || 0;
     }
     if (typeof overlayCharaEarringElementAtkFromParty === 'function') {
@@ -735,14 +738,14 @@ function sumNaFinalWithRanshu(rawPostDef, stats, teshuStats, extraAmp, capOption
  * 理论伤害（不经过伤害衰减）：税后伤害仅乘增幅并 ceil，再加伤害上升。
  * 与预测值保持相同乱击口径（返回每段值 perSegment 与总和 sum）。
  */
-function sumNaTheoryWithoutDecayWithRanshu(rawPostDef, stats, teshuStats, extraAmp, totalSupp, ranshuHits) {
+function sumNaTheoryWithoutDecayWithRanshu(rawPostDef, stats, teshuStats, extraAmp, totalSupp, ranshuHits, capOptions) {
     const x = Math.max(1, Math.floor(Number(ranshuHits) || 1));
     const baseAmp = (typeof calculateAmp === 'function')
-        ? (Number(calculateAmp(stats, 'na', teshuStats)) || 0)
+        ? (Number(calculateAmp(stats, 'na', teshuStats, capOptions || {})) || 0)
         : 0;
     const totalAmp = baseAmp + (Number(extraAmp) || 0);
     const ampMul = new Decimal(1).plus(totalAmp);
-    const takenAmp = (typeof calculateTakenDamageAmp === 'function') ? calculateTakenDamageAmp() : 0;
+    const takenAmp = (typeof calculateTakenDamageAmp === 'function') ? calculateTakenDamageAmp(capOptions || {}) : 0;
     const takenAmpMul = new Decimal(1).plus(takenAmp);
     if (x <= 1) {
         const seg = new Decimal(rawPostDef).times(ampMul).ceil().times(takenAmpMul).ceil().plus(totalSupp).toNumber();
@@ -767,11 +770,33 @@ function sumNaTheoryWithoutDecayWithRanshu(rawPostDef, stats, teshuStats, extraA
 // 更新UI显示伤害结果
 // ==========================================
 function updateDamageDisplay(charIndex = 0) {
+    function ensureDamageRangeRow(detailsId, rangeId) {
+        const detailsEl = document.getElementById(detailsId);
+        if (!detailsEl) return null;
+        let rangeEl = document.getElementById(rangeId);
+        if (rangeEl) return rangeEl;
+        const theoryEl = detailsEl.querySelector('[id*="-theory-"]');
+        if (!theoryEl || !theoryEl.parentElement) return null;
+        const row = document.createElement('div');
+        row.className = 'dmg-detail-row';
+        row.innerHTML = '<span class="label">伤害范围:</span><span class="value" id="' + rangeId + '">-</span>';
+        detailsEl.insertBefore(row, theoryEl.parentElement);
+        return row.querySelector('#' + rangeId);
+    }
+
+    function formatDamageRange(minValue, maxValue) {
+        if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) return '-';
+        return Math.ceil(minValue).toLocaleString() + '~' + Math.ceil(maxValue).toLocaleString();
+    }
+
     const stats = {};
     if (typeof party !== 'undefined' && party[charIndex]) {
         STAT_CONFIG.forEach(cfg => {
             stats[cfg.key] = party[charIndex].stats[cfg.key] || 0;
         });
+        if (party[charIndex].stats._charabuffZoneEffectTotals) {
+            stats._charabuffZoneEffectTotals = Object.assign({}, party[charIndex].stats._charabuffZoneEffectTotals);
+        }
         stats['element_atk'] = party[charIndex].stats['element_atk'] || 0;
         stats['summon_dmg_cap'] = party[charIndex].stats['summon_dmg_cap'] || 0;
         stats['job_na_amp'] = party[charIndex].stats['job_na_amp'] || 0;
@@ -902,6 +927,43 @@ function updateDamageDisplay(charIndex = 0) {
         backups: backups,
         ...baseAdversityOptions
     });
+
+    const resultNormalMin = calculateDamage(panelAtk, stats, hpPercent, {
+        isAdvantage: false,
+        charIndex: charIndex,
+        defense: defense,
+        defenseDown: defenseDown,
+        randomFactor: 0.95,
+        backups: backups,
+        ...baseAdversityOptions
+    });
+    const resultNormalMax = calculateDamage(panelAtk, stats, hpPercent, {
+        isAdvantage: false,
+        charIndex: charIndex,
+        defense: defense,
+        defenseDown: defenseDown,
+        randomFactor: 1.05,
+        backups: backups,
+        ...baseAdversityOptions
+    });
+    const resultAdvantageMin = calculateDamage(panelAtk, stats, hpPercent, {
+        isAdvantage: true,
+        charIndex: charIndex,
+        defense: defense,
+        defenseDown: defenseDown,
+        randomFactor: 0.95,
+        backups: backups,
+        ...baseAdversityOptions
+    });
+    const resultAdvantageMax = calculateDamage(panelAtk, stats, hpPercent, {
+        isAdvantage: true,
+        charIndex: charIndex,
+        defense: defense,
+        defenseDown: defenseDown,
+        randomFactor: 1.05,
+        backups: backups,
+        ...baseAdversityOptions
+    });
     
     // 基础伤害：基础值 * 总倍率 / 防御（不含上限/增幅/予伤/暴击）
     // 这里直接使用 calculateDamage 的输出 damage（已在 Step12 除以有效防御并向上取整）
@@ -915,6 +977,13 @@ function updateDamageDisplay(charIndex = 0) {
     const baseDmgAdv = resultAdvantage.damage;
     
     const dmg_amp = aggregateZoneValue('dmg_amp', stats, teshuStats);
+
+    let isAdv = false;
+    let currentCritMode = 'expected';
+    if (window.damageViewStates && window.damageViewStates[charIndex]) {
+        isAdv = window.damageViewStates[charIndex].isAdvantage;
+        currentCritMode = window.damageViewStates[charIndex].critMode || 'expected';
+    }
     
     // 判断是否为主角 (charIndex === 0) 且应用对应的职业特性
     let isClass5 = false;
@@ -930,8 +999,12 @@ function updateDamageDisplay(charIndex = 0) {
         // 例如：char_buff_amp = stats['chara_specific_amp'] || 0;
     }
     
-    const normal_dmg_amp = aggregateZoneValue('normal_dmg_amp', stats, teshuStats);
-    const dmg_to_elemental_amp = aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats);
+    const fallbackNormalDmgAmp = isAdv
+        ? new Decimal(aggregateZoneValue('normal_dmg_amp', stats, teshuStats)).plus(aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats)).toNumber()
+        : aggregateZoneValue('normal_dmg_amp', stats, teshuStats);
+    const normal_dmg_amp = (typeof getAllEffectsTotalForSlot === 'function')
+        ? getAllEffectsTotalForSlot(charIndex, 'na_dmg_amp', fallbackNormalDmgAmp)
+        : fallbackNormalDmgAmp;
     
     const naSuppZones = typeof getDmgSuppZonesForNa === 'function'
         ? getDmgSuppZonesForNa(stats, teshuStats, charIndex)
@@ -943,7 +1016,10 @@ function updateDamageDisplay(charIndex = 0) {
     const testBuffSupp = (typeof window !== 'undefined' && window.buffSettings)
         ? (Number(window.buffSettings.dmgSupp) || 0)
         : 0;
-    const total_supp = (Number(naSuppZones.total) || 0) + testBuffSupp;
+    const fallbackNaSupp = (Number(naSuppZones.total) || 0) + testBuffSupp;
+    const total_supp = (typeof getAllEffectsTotalForSlot === 'function')
+        ? getAllEffectsTotalForSlot(charIndex, 'na_dmg_supp', fallbackNaSupp)
+        : fallbackNaSupp;
 
     const critState = (window.damageViewStates && window.damageViewStates[charIndex]) ? window.damageViewStates[charIndex] : {};
     const critMode = critState.critMode || 'expected';
@@ -955,15 +1031,18 @@ function updateDamageDisplay(charIndex = 0) {
     // 暴击时生效的伤害增幅（如：属性角色暴击时，伤害增幅（大））
     const critOnlyAmp = (Number(stats['weapon_critical_hit_amp'] || 0)) * critAmpRate;
     
-    const extraAmpNormal = new Decimal(char_buff_amp).plus(normal_dmg_amp).plus(critOnlyAmp).toNumber();
-    const extraAmpAdvantage = new Decimal(extraAmpNormal).plus(dmg_to_elemental_amp).toNumber();
+    const allEffectsAmpReady = typeof getAllEffectsTotalForSlot === 'function' && typeof getAllEffectsTotalForSlot(charIndex, 'na_dmg_amp', null) === 'number';
+    const extraAmpNormal = allEffectsAmpReady
+        ? new Decimal(char_buff_amp).plus(critOnlyAmp).toNumber()
+        : new Decimal(char_buff_amp).plus(normal_dmg_amp).plus(critOnlyAmp).toNumber();
+    const extraAmpAdvantage = extraAmpNormal;
 
     console.groupCollapsed(`[Debug Amp Composition]`);
     console.log(`Char Buff Amp: ${char_buff_amp}`);
     console.log(`Normal Dmg Amp (Stats): ${normal_dmg_amp}`);
     console.log(`Crit Flag: ${critFlag}`);
     console.log(`Crit-only Amp: ${critOnlyAmp}`);
-    console.log(`Dmg to Ele Amp (Seraphic): ${dmg_to_elemental_amp}`);
+    console.log(`Dmg to Ele Amp is included in All Effects NA amp when advantage is enabled`);
     console.log(`Extra Amp Normal: ${extraAmpNormal}`);
     console.log(`Extra Amp Advantage: ${extraAmpAdvantage}`);
     console.groupEnd();
@@ -972,7 +1051,7 @@ function updateDamageDisplay(charIndex = 0) {
     const rawPostDefAdv = resultAdvantage.damage;
 
     const worldCapMode = (window.damageViewStates && window.damageViewStates[charIndex]) ? (window.damageViewStates[charIndex].worldCapMode || '660') : '660';
-    const capOptions = { isClass5: isClass5, worldCapMode: worldCapMode };
+    const capOptions = { isClass5: isClass5, worldCapMode: worldCapMode, charIndex: charIndex };
     const ranshuFromStats = Math.max(1, Math.floor(Number(stats['weapon_na_ranshu'] || 1)));
     const hideRanshuDisplay = !!(window.damageViewStates && window.damageViewStates[charIndex] && window.damageViewStates[charIndex].hideRanshuDisplay);
     const ranshuHits = hideRanshuDisplay ? 1 : ranshuFromStats;
@@ -1000,8 +1079,8 @@ function updateDamageDisplay(charIndex = 0) {
     const critSumAdv = cadv.sum;
     const critSegAdv = cadv.perSegment;
     const capCritResultAdv = cadv.firstCapResult;
-    const tn = sumNaTheoryWithoutDecayWithRanshu(rawCritPostDefNormal, stats, teshuStats, extraAmpNormal, total_supp, ranshuHits);
-    const tadv = sumNaTheoryWithoutDecayWithRanshu(rawCritPostDefAdv, stats, teshuStats, extraAmpAdvantage, total_supp, ranshuHits);
+    const tn = sumNaTheoryWithoutDecayWithRanshu(rawCritPostDefNormal, stats, teshuStats, extraAmpNormal, total_supp, ranshuHits, capOptions);
+    const tadv = sumNaTheoryWithoutDecayWithRanshu(rawCritPostDefAdv, stats, teshuStats, extraAmpAdvantage, total_supp, ranshuHits, capOptions);
 
     console.groupCollapsed(`最终伤害详细调试 [Slot ${charIndex}]`);
     console.log(`Defense: ${defense}, DefDown: ${defenseDown}%, DefIgnore: ${weaponDefIgnore}, EffectiveDef: ${effectiveDefense}, CritMult: ${totalCritMult}, Supp: ${total_supp}`, naSuppZones ? `(予伤 武器盘:${naSuppZones.weaponGrid} 耳饰:${naSuppZones.earring} 神器:${naSuppZones.artifacts || 0} testbuff:${testBuffSupp})` : '');
@@ -1028,8 +1107,8 @@ function updateDamageDisplay(charIndex = 0) {
     const naDmgEl = document.getElementById(`na-dmg-display-${charIndex}`);
     
     // 获取当前面板的拨片状态
-    let isAdv = false;
-    let currentCritMode = 'expected';
+    isAdv = false;
+    currentCritMode = 'expected';
     if (window.damageViewStates && window.damageViewStates[charIndex]) {
         isAdv = window.damageViewStates[charIndex].isAdvantage;
         currentCritMode = window.damageViewStates[charIndex].critMode || 'expected';
@@ -1083,6 +1162,20 @@ function updateDamageDisplay(charIndex = 0) {
 
     const theoryEl = document.getElementById(charIndex === 0 ? 'na-theory-0' : `na-theory-${charIndex}`);
     const capEl = document.getElementById(charIndex === 0 ? 'na-cap-0' : `na-cap-${charIndex}`);
+    const naRangeEl = ensureDamageRangeRow(`na-details-${charIndex}`, `na-range-${charIndex}`);
+    if (naRangeEl) {
+        const naMinResult = isAdv ? resultAdvantageMin : resultNormalMin;
+        const naMaxResult = isAdv ? resultAdvantageMax : resultNormalMax;
+        const naMinPreDef = getPreDefVal(naMinResult);
+        const naMaxPreDef = getPreDefVal(naMaxResult);
+        const naMinRawCritPostDef = new Decimal(naMinPreDef).times(totalCritMult).div(effectiveDefense).toNumber();
+        const naMaxRawCritPostDef = new Decimal(naMaxPreDef).times(totalCritMult).div(effectiveDefense).toNumber();
+        const naMinExtraAmp = isAdv ? extraAmpAdvantage : extraAmpNormal;
+        const naMaxExtraAmp = isAdv ? extraAmpAdvantage : extraAmpNormal;
+        const naMin = sumNaFinalWithRanshu(naMinRawCritPostDef, stats, teshuStats, naMinExtraAmp, capOptions, total_supp, ranshuHits).perSegment;
+        const naMax = sumNaFinalWithRanshu(naMaxRawCritPostDef, stats, teshuStats, naMaxExtraAmp, capOptions, total_supp, ranshuHits).perSegment;
+        naRangeEl.textContent = formatDamageRange(naMin, naMax);
+    }
     if (theoryEl) {
         const finalTheory = isAdv ? tadv.perSegment : tn.perSegment;
         theoryEl.innerHTML = finalTheory.toLocaleString();
@@ -1102,6 +1195,7 @@ function updateDamageDisplay(charIndex = 0) {
     const caDmgEl = document.getElementById('ca-dmg-display-' + charIndex);
     const caTheoryEl = document.getElementById('ca-theory-' + charIndex);
     const caCapEl = document.getElementById('ca-cap-' + charIndex);
+    const caRangeEl = ensureDamageRangeRow(`ca-details-${charIndex}`, `ca-range-${charIndex}`);
     if (caDmgEl) {
         let showCa = true;
         if (charIndex === 0) {
@@ -1113,18 +1207,19 @@ function updateDamageDisplay(charIndex = 0) {
             caDmgEl.classList.remove('is-crit');
             if (caTheoryEl) caTheoryEl.textContent = '-';
             if (caCapEl) caCapEl.textContent = '-';
+            if (caRangeEl) caRangeEl.textContent = '-';
         } else if (typeof window.CaDmgCalc.calculateCaDamageFromUI === 'function') {
             // 优先使用 calculateCaDamage：可以拿到 applyCap 相关的 capCoef，用于填“衰减阈值”
             if (typeof window.CaDmgCalc.calculateCaDamage === 'function') {
                 const caCapOptions = { isClass5: isClass5, worldCapMode: worldCapMode };
-                const caResult = window.CaDmgCalc.calculateCaDamage(panelAtk, stats, hpPercent, {
+                const buildCaOptions = (rangeRandomFactor) => ({
                     defense: defense,
                     defenseDown: defenseDown,
                     charIndex: charIndex,
                     isAdvantage: isAdv,
                     applyCap: true,
                     critMode: currentCritMode,
-                    naOptions: { randomFactor: randomFactor },
+                    naOptions: { randomFactor: rangeRandomFactor },
                     capOptions: caCapOptions,
                     strongCaps: strongCaps,
                     lbStaminaBonus: lbStaminaBonus,
@@ -1133,12 +1228,20 @@ function updateDamageDisplay(charIndex = 0) {
                     adversityWeapon: 0,
                     adversityStrongBonus: adversityFromCharBonus
                 });
+                const caResult = window.CaDmgCalc.calculateCaDamage(panelAtk, stats, hpPercent, buildCaOptions(randomFactor));
 
                 const caVal = caResult && caResult.value != null ? caResult.value : null;
                 caValForTotal = caVal;
                 const caTheoryVal = caResult && caResult.theoryValue != null ? caResult.theoryValue : null;
                 caDmgEl.textContent = caVal != null ? caVal.toLocaleString() : '-';
                 if (caTheoryEl) caTheoryEl.textContent = caTheoryVal != null ? caTheoryVal.toLocaleString() : '-';
+                if (caRangeEl) {
+                    const caMinResult = window.CaDmgCalc.calculateCaDamage(panelAtk, stats, hpPercent, buildCaOptions(0.95));
+                    const caMaxResult = window.CaDmgCalc.calculateCaDamage(panelAtk, stats, hpPercent, buildCaOptions(1.05));
+                    const caMin = caMinResult && caMinResult.value != null ? caMinResult.value : NaN;
+                    const caMax = caMaxResult && caMaxResult.value != null ? caMaxResult.value : NaN;
+                    caRangeEl.textContent = formatDamageRange(caMin, caMax);
+                }
 
                 if (caCapEl) {
                     // “衰减阈值”按你图表定义：
@@ -1163,10 +1266,12 @@ function updateDamageDisplay(charIndex = 0) {
                     caValForTotal = caResult.value;
                     caDmgEl.textContent = caResult.value.toLocaleString();
                     if (caTheoryEl) caTheoryEl.textContent = caResult.value.toLocaleString();
+                    if (caRangeEl) caRangeEl.textContent = '-';
                 } else {
                     caValForTotal = null;
                     caDmgEl.textContent = '-';
                     if (caTheoryEl) caTheoryEl.textContent = '-';
+                    if (caRangeEl) caRangeEl.textContent = '-';
                 }
                 if (caCapEl) caCapEl.textContent = '-';
             }
@@ -1191,14 +1296,73 @@ function updateDamageDisplay(charIndex = 0) {
         const caTotalEl = document.getElementById('theoretical-ca-total');
         const ranshuForUi = ranshuHits;
         const multTotal = 3 * ranshuForUi;
+        const chaseElementNameMap = {
+            fire: '火',
+            water: '水',
+            earth: '土',
+            wind: '风',
+            light: '光',
+            dark: '暗',
+            destruction: '破坏',
+            advantage: '克制'
+        };
+        const chaseElementColorFallback = {
+            火: '#E74C3C',
+            水: '#3980D9',
+            土: '#9C6040',
+            风: '#6FD840',
+            光: '#FEEC59',
+            暗: '#7F45C9',
+            破坏: '#D2FBFE',
+            克制: '#FCF4EC'
+        };
+        const getChaseElementLabel = (effect) => {
+            const raw = effect && effect.element != null ? String(effect.element) : '';
+            return chaseElementNameMap[raw] || raw || '属性';
+        };
+        const getChaseElementColor = (effect) => {
+            const label = getChaseElementLabel(effect);
+            const colorMap = (typeof ELEMENT_COLORS !== 'undefined' && ELEMENT_COLORS) ? ELEMENT_COLORS : {};
+            return colorMap[label] || colorMap[effect && effect.element] || chaseElementColorFallback[label] || '';
+        };
+        const clearDynamicNaChaseRows = () => {
+            if (typeof document === 'undefined') return;
+            document.querySelectorAll('.theoretical-na-chase-dynamic-row').forEach((el) => el.remove());
+        };
+        const appendNaChaseRow = (effect) => {
+            if (!effect || !naChaseDesRowEl || !naChaseDesRowEl.parentElement) return;
+            const pct = Number(effect.pct || 0);
+            const perHit = Number(effect.perHit || 0);
+            if (pct <= 0 || perHit <= 0) return;
+            const row = document.createElement('div');
+            row.className = 'theoretical-total-dmg-row theoretical-na-chase-dynamic-row';
+            const label = document.createElement('span');
+            label.className = 'theoretical-total-dmg-label';
+            const value = document.createElement('span');
+            value.className = 'theoretical-total-dmg-value';
+            const elementLabel = getChaseElementLabel(effect);
+            const zone = effect.zone ? String(effect.zone) : '';
+            label.textContent = `${elementLabel}属性追击（${zone ? zone + '区 ' : ''}${(pct * 100).toFixed(2)}%）`;
+            value.textContent = perHit.toLocaleString();
+            const color = getChaseElementColor(effect);
+            if (color) {
+                label.style.color = color;
+                value.style.color = color;
+            }
+            row.appendChild(label);
+            row.appendChild(value);
+            naChaseDesRowEl.parentElement.insertBefore(row, naChaseDesRowEl);
+        };
 
         // 先硬重置追击显示，避免卸武器/切角色时沿用上一帧残留
+        clearDynamicNaChaseRows();
         if (naChaseERowEl && naChaseELabelEl && naChaseEValueEl) {
             naChaseERowEl.hidden = true;
             naChaseELabelEl.textContent = '属性追击（E类 0%）';
             naChaseEValueEl.textContent = '-';
             naChaseELabelEl.style.color = '';
             naChaseEValueEl.style.color = '';
+            naChaseERowEl.style.display = 'none';
         }
         if (naChaseDesRowEl && naChaseDesLabelEl && naChaseDesValueEl) {
             naChaseDesRowEl.hidden = true;
@@ -1217,6 +1381,7 @@ function updateDamageDisplay(charIndex = 0) {
                 panelAtk,
                 stats,
                 hpPercent,
+                charIndex,
                 teshuStats,
                 isAdv,
                 // 与平A预测同一条「暴击税后基底」：preDef×暴击倍率÷防，再与 sumNaFinalWithRanshu 一致
@@ -1245,11 +1410,13 @@ function updateDamageDisplay(charIndex = 0) {
             : {
                 chaseEPct: 0,
                 chasePerHit: 0,
+                chaseEffects: [],
                 chaseDesPct: 0,
                 chaseDesPerHit: 0
             };
         const chaseEPct = Number(bonusCalcResult.chaseEPct || 0);
         const chasePerHit = Number(bonusCalcResult.chasePerHit || 0);
+        const chaseEffects = Array.isArray(bonusCalcResult.chaseEffects) ? bonusCalcResult.chaseEffects : [];
         const chaseDesPct = Number(bonusCalcResult.chaseDesPct || 0);
         const chaseDesPerHit = Number(bonusCalcResult.chaseDesPerHit || 0);
         const chaseTotal = Math.round(chasePerHit * multTotal);
@@ -1267,38 +1434,8 @@ function updateDamageDisplay(charIndex = 0) {
             naMultCombinedEl.textContent = '× ' + multTotal;
         }
 
-        // 显示/隐藏：平A属性追击（E类）
-        if (naChaseERowEl && naChaseELabelEl && naChaseEValueEl) {
-            // 显示值：每段乱击的追击；总和里会按 hit 数累加（见上方 chaseTotal）
-            if (chaseEPct > 0 && chasePerHit > 0) {
-                naChaseELabelEl.textContent = `属性追击（E类 ${(chaseEPct * 100).toFixed(2)}%）`;
-                naChaseEValueEl.textContent = chasePerHit.toLocaleString();
-
-                // 颜色：按追击来源属性设置（weapon 来源技能会按角色可生效属性结算，不取主手）
-                let weaponEl = null;
-                if (typeof party !== 'undefined' && Array.isArray(party) && party[charIndex]) {
-                    weaponEl = party[charIndex].element || null;
-                }
-                const colorMap = (typeof ELEMENT_COLORS !== 'undefined' && ELEMENT_COLORS) ? ELEMENT_COLORS : null;
-                const elColor = (colorMap && weaponEl && colorMap[weaponEl]) ? colorMap[weaponEl] : null;
-                if (elColor) {
-                    naChaseELabelEl.style.color = elColor;
-                    naChaseEValueEl.style.color = elColor;
-                } else {
-                    // 回退到 CSS 默认色
-                    naChaseELabelEl.style.color = '';
-                    naChaseEValueEl.style.color = '';
-                }
-
-                naChaseERowEl.style.display = '';
-                naChaseERowEl.hidden = false;
-            } else {
-                naChaseELabelEl.style.color = '';
-                naChaseEValueEl.style.color = '';
-                naChaseERowEl.style.display = 'none';
-                naChaseERowEl.hidden = true;
-            }
-        }
+        // 显示/隐藏：平A属性追击。按实际生效分区逐条显示，避免把 E/A1 等追击压成一行。
+        chaseEffects.forEach((effect) => appendNaChaseRow(effect));
 
         // 显示/隐藏：平A破坏属性追击
         if (naChaseDesRowEl && naChaseDesLabelEl && naChaseDesValueEl) {
