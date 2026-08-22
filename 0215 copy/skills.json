@@ -1,5 +1,31 @@
 [
   {
+    "id": "cosmic_sabre",
+    "name": "剑之宇宙",
+    "description": "装备中的「剑」类型武器，面板攻击力与HP上升50%",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "type": "weapon_base_value",
+        "stat": "atk",
+        "weapon_type": "sabre",
+        "boost": "none",
+        "value": "0.5"
+      },
+      {
+        "type": "weapon_base_value",
+        "stat": "hp",
+        "weapon_type": "sabre",
+        "boost": "none",
+        "value": "0.5"
+      }
+    ]
+  },
+  {
     "id": "optimus_majesty_small",
     "name": "神石的神威小",
     "description": "属性角色的攻击力提升（小）\n属性角色的HP最大值提升（小）",
@@ -40,6 +66,28 @@
         "prop": "weapon_ta",
         "boost": "optimus",
         "value": "10:1.35% 15:2%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_trium_small",
+    "name": "神石的三手小",
+    "description": "属性角色的DA、TA几率提升（小）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_da",
+        "boost": "optimus",
+        "value": "10:2.5% 15:3.5%"
+      },
+      {
+        "prop": "weapon_ta",
+        "boost": "optimus",
+        "value": "10:2.5% 15:3.5%"
       }
     ]
   },
@@ -196,6 +244,23 @@
         "prop": "weapon_special_ex_atk",
         "boost": "none",
         "value": "count_axe*0.08"
+      }
+    ]
+  },
+  {
+    "id": "harp_voltage_medium",
+    "name": "琴的增压",
+    "description": "根据装备的「琴」武器的数量，提升ex攻击力（特殊）",
+    "image": "",
+    "element": "all",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_special_ex_atk",
+        "boost": "none",
+        "value": "count_harp*0.08"
       }
     ]
   },
@@ -1257,6 +1322,23 @@
     ]
   },
   {
+    "id": "optimus_might_test",
+    "name": "神石的攻刃大",
+    "description": "属性角色的攻击力提升（大）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "optimus",
+        "value": "0.2"
+      }
+    ]
+  },
+  {
     "id": "celestial sabre_big",
     "name": "剑之极星(5突)",
     "description": "提升ex攻击力、TA、DA、奥义伤害、奥义伤害上限、伤害上限和全属性攻击力,剑得意角色效果额外提升",
@@ -1612,6 +1694,54 @@
         "prop": "weapon_ex_atk",
         "boost": "none",
         "value": "0.1"
+      }
+    ]
+  },
+  {
+    "id": "shenmiegongjijuexingtest",
+    "name": "神灭攻击觉醒测试",
+    "description": "待修改",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "0.2"
+      },
+      {
+        "prop": "weapon_dmg_supp",
+        "boost": "none",
+        "value": "30000"
+      }, {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.1"
+      }
+    ]
+  },
+  {
+    "id": "lmgongjijuexing",
+    "name": "lm攻击觉醒测试",
+    "description": "待修改",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_atk",
+        "boost": "none",
+        "value": "0.4"
+      },
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "0.05"
       }
     ]
   },
@@ -2333,6 +2463,23 @@
         "prop": "weapon_normal_stamina",
         "boost": "optimus",
         "value": "10.5%"
+      }
+    ]
+  },
+  {
+    "id": "element_supremacy",
+    "name": "属性的ex特大",
+    "description": "",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "23%"
       }
     ]
   }

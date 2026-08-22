@@ -7,7 +7,7 @@
 //
 // - 基础伤害：与奥义相同，来自平 A 计算链路的「随机补正」值（防御前）
 // - 技能基础倍率：由 UI 输入（如 3 表示 300%）
-// - 技能伤害加成：常驻「主角技伤伤害」mc_skill_dmg_passive、「角色技伤伤害」chara_skill_dmg_passive（小数，如 23% → 0.23），与倍率相加
+// - 技能伤害加成：优先读取 All Effects 的 skill_dmg 汇总（小数，如 23% → 0.23），与倍率相加
 // - 伤害上升：技伤予伤类固定值（武器/附魔/神器等）
 // - 伤害增幅：与 damage_cap.calculateAmp(..., 'skill') 一致，暴击时附加暴击伤害增幅
 // - 伤害衰减：默认关闭（显示未衰减伤害）；与平 A 的 funcDecay 分离便于研究技伤上限，需衰减时传 applyCap: true
@@ -17,19 +17,23 @@
     'use strict';
 
     /**
-     * 技能伤害加成（小数）：常驻职业/角色被动，与 UI 填写的技能基础倍率相加。
-     * - 主角：mc_skill_dmg_passive（界面「主角技伤伤害」）
-     * - 队友：chara_skill_dmg_passive（「角色技伤伤害」）
-     * 同一槽位通常只会有其一非零，故直接相加。
+     * 技能伤害加成（小数）：优先读取 All Effects 的 skill_dmg 汇总，与 UI 填写的技能基础倍率相加。
      */
-    function getSkillDmgBonusFromStats(stats) {
+    function getSkillDmgBonusFromStats(stats, charIndex) {
         var s = stats || {};
         var mc = Number(s['mc_skill_dmg_passive']) || 0;
+        var nonC5 = Number(s['mc_skill_dmg_passive_non_c5']) || 0;
         var chara = Number(s['chara_skill_dmg_passive']) || 0;
-        return new Decimal(mc).plus(chara).toNumber();
+        var fallback = new Decimal(mc).plus(nonC5).plus(chara).toNumber();
+        if (typeof getAllEffectsTotalForSlot === 'function') {
+            var total = getAllEffectsTotalForSlot(charIndex != null ? charIndex : 0, 'skill_dmg', fallback);
+            if (typeof total === 'number') return total;
+        }
+        return fallback;
     }
 
     var SKILL_SUPP_KEYS = [
+        'weapon_dmg_supp',
         'weapon_skill_dmg_supp',
         'weapon_ax_skill_dmg_supp',
         'weapon_special_skill_dmg_supp',
@@ -111,7 +115,15 @@
         naOptions.defense = defense;
         naOptions.defenseDown = defenseDown;
         naOptions.isAdvantage = isAdvantage;
+        naOptions.charIndex = charIndex;
         if (naOptions.randomFactor == null) naOptions.randomFactor = 1;
+        // 与平A/奥义使用同一组基础伤害乘区，避免技能重算基础伤害时漏掉角色强化。
+        naOptions.strongCaps = options.strongCaps || [];
+        naOptions.lbStaminaBonus = options.lbStaminaBonus || 0;
+        naOptions.charStrongBonus = options.charStrongBonus || 0;
+        naOptions.adversityCharSkill = options.adversityCharSkill || 0;
+        naOptions.adversityWeapon = options.adversityWeapon || 0;
+        naOptions.adversityStrongBonus = options.adversityStrongBonus || 0;
 
         var baseDamage = 0;
         if (typeof window.CaDmgCalc !== 'undefined' && typeof window.CaDmgCalc.getBaseDamageBeforeDefense === 'function') {
@@ -124,9 +136,11 @@
             skillSuppEarring = getEarringDmgSuppFromLevel(currentParty[charIndex].chara_earring_dmg_supp);
         }
         var fallbackSkillSupp = skillSuppWeapon + skillSuppEarring;
-        var skillSupp = (typeof getAllEffectsTotalForSlot === 'function')
-            ? getAllEffectsTotalForSlot(charIndex, 'skill_dmg_supp', fallbackSkillSupp)
-            : fallbackSkillSupp;
+        var skillSupp = options.effectTotals && typeof options.effectTotals === 'object'
+            ? (typeof options.effectTotals.skill_dmg_supp === 'number' ? options.effectTotals.skill_dmg_supp : fallbackSkillSupp)
+            : ((typeof getAllEffectsTotalForSlot === 'function')
+                ? getAllEffectsTotalForSlot(charIndex, 'skill_dmg_supp', fallbackSkillSupp)
+                : fallbackSkillSupp);
 
         var critMult = 1;
         var critFlag = false;
@@ -148,10 +162,16 @@
             critAmpRate = critFlag ? 1 : 0;
         }
 
-        var skillAmp = typeof calculateAmp === 'function' ? calculateAmp(stats, 'skill', teshuStats, { charIndex: charIndex }) : 0;
+        var skillAmp = typeof calculateAmp === 'function'
+            ? calculateAmp(stats, 'skill', teshuStats, {
+                charIndex: charIndex,
+                ignoreTestBuffSettings: options.ignoreTestBuffSettings === true,
+                effectTotals: options.effectTotals
+            })
+            : 0;
         skillAmp += (Number(stats['weapon_critical_hit_amp'] || 0) * critAmpRate);
 
-        var skillDmgBonus = getSkillDmgBonusFromStats(stats);
+        var skillDmgBonus = getSkillDmgBonusFromStats(stats, charIndex);
 
         var raw = calcSkillDamageRaw({
             baseDamage: baseDamage,

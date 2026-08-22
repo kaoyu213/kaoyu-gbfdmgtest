@@ -176,6 +176,7 @@ const BUFF_TYPE_ZONE_RULES = {
       Q:  { rule: 'max' },
       E:  { rule: 'max' },
       P:  { rule: 'max' },
+      SP: { rule: 'max' },
       independent: { rule: 'sum' }
     }
   },
@@ -407,6 +408,7 @@ const BUFF_TYPE_ZONE_RULES = {
       weapon_grid:  { rule: 'sum' },
       charabonus:   { rule: 'sum' },
       chara_skill:  { rule: 'max' },
+      job_passive_extra: { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   },

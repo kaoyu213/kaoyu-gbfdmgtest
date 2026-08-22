@@ -13,6 +13,9 @@ function escapeHtmlCharaBuff(s) {
 
 function buffPropTitle(propId) {
     if (!propId) return '';
+    if (typeof getBuffIconMeta === 'function') {
+        return getBuffIconMeta(propId, '').title || '';
+    }
     const m = (typeof globalBuffIconsMap !== 'undefined' && globalBuffIconsMap[propId])
         ? globalBuffIconsMap[propId]
         : null;
@@ -22,10 +25,11 @@ function buffPropTitle(propId) {
 /** buff_icons.json：在 prop（buff_id）旁显示注册表小图标 */
 function buffPropIconHtml(propId) {
     if (!propId) return '';
-    const m =
-        typeof globalBuffIconsMap !== 'undefined' && globalBuffIconsMap[propId]
+    const m = typeof getBuffIconMeta === 'function'
+        ? getBuffIconMeta(propId, '')
+        : (typeof globalBuffIconsMap !== 'undefined' && globalBuffIconsMap[propId]
             ? globalBuffIconsMap[propId]
-            : null;
+            : null);
     if (!m || !m.icon || String(m.icon).trim() === '') {
         return '<span class="charabuff-effect-buff-icon charabuff-effect-buff-icon--empty" title="未在 buff_icons 配置"></span>';
     }

@@ -165,6 +165,11 @@ function toggleSpecialBuff(id) {
     window.dispatchEvent(new CustomEvent('specialBuffsChanged'));
 }
 
+function normalizeCharaJsonBaseRate(key, value) {
+    var n = Number(value) || 0;
+    return (key === '角色基础da' || key === '角色基础ta') ? n / 100 : n;
+}
+
 // 构建角色额外加成的汇总结果 (charabonussum)
 // hpPercent: 可选，0~100。若传入则「总浑身（强壮）」按当前HP折算显示；不传则显示满血值
 function buildCharabonusSummary(slotIndex, hpPercent) {
@@ -180,7 +185,7 @@ function buildCharabonusSummary(slotIndex, hpPercent) {
     if (!charData) return result;
 
     Object.entries(CHARABONUS_SUM_RULES).forEach(([key, groupKey]) => {
-        const val = charData[key] || 0;
+        const val = normalizeCharaJsonBaseRate(key, charData[key] || 0);
         if (!val) return;
         if (!result[groupKey]) result[groupKey] = 0;
         result[groupKey] += val;
@@ -672,7 +677,8 @@ function getSpecialBonuses() {
  * @param {number} charIndex - 队伍槽位
  * @returns {{ totals: object, sources: array }}
  */
-function buildAllEffectsForSlot(charIndex) {
+function buildAllEffectsForSlot(charIndex, options) {
+    options = options || {};
     var totals = {};
     var sources = [];
 
@@ -718,6 +724,7 @@ function buildAllEffectsForSlot(charIndex) {
     }
 
     function isAdvantageEnabledForSlot() {
+        if (typeof options.isAdvantage === 'boolean') return options.isAdvantage;
         if (typeof window !== 'undefined' && window.damageViewStates && window.damageViewStates[charIndex]) {
             return !!window.damageViewStates[charIndex].isAdvantage;
         }
@@ -799,6 +806,30 @@ function buildAllEffectsForSlot(charIndex) {
     }
     if (Object.keys(summonEntries).length > 0) {
         sources.push({ zone: 'summon', name: '召唤石', color: '#9b59b6', entries: summonEntries });
+    }
+
+    // “属攻”面板输入已经由 calc.js 写入 stats.element_atk 并参与伤害计算。
+    // 此处只把原始输入登记到 All Effects，不能再次写回 stats，否则会重复计算。
+    var panelInputEntries = {};
+    var panelElementAtk = 0;
+    if (typeof document !== 'undefined') {
+        var panelElementAtkInput = document.getElementById('aura-elemental');
+        if (panelElementAtkInput) {
+            panelElementAtk = (parseFloat(panelElementAtkInput.value) || 0) / 100;
+        }
+    }
+    if (panelElementAtk !== 0) {
+        registerEffect('element_atk', 'independent', 'panel_input:element_atk', panelElementAtk);
+        panelInputEntries['panel_input:element_atk'] = {
+            label: '属攻输入框',
+            value: panelElementAtk,
+            format: 'percent',
+            prop: 'element_atk',
+            zone: 'independent'
+        };
+    }
+    if (Object.keys(panelInputEntries).length > 0) {
+        sources.push({ zone: 'independent', name: '面板输入', color: '#00cec9', entries: panelInputEntries });
     }
 
     var passiveEntries = {};
@@ -928,7 +959,7 @@ function buildAllEffectsForSlot(charIndex) {
             var hp01ForStrong = Number.isNaN(currentHp) ? 1 : Math.max(0, Math.min(1, currentHp / 100));
             STAT_CONFIG.forEach(function(cfg) {
                 if (cfg && cfg.zone === 'charabonus' && cfg.prop) {
-                    var val = cp[cfg.key];
+                    var val = normalizeCharaJsonBaseRate(cfg.key, cp[cfg.key]);
                     if (typeof val !== 'number' || val === 0) return;
                     var registerVal = val;
                     var displayFormat = cfg.format;
@@ -966,6 +997,17 @@ function buildAllEffectsForSlot(charIndex) {
                     var summaryValue = (cfg.prop === 'stamina' || cfg.prop === 'enmity') ? val : registerVal;
                     var summaryFormat = (cfg.prop === 'stamina' || cfg.prop === 'enmity') ? 'fixed' : displayFormat;
                     addCharaSummary(cfg.prop, summaryLabel, summaryValue, summaryFormat);
+                    if (cfg.key === '角色基础da' || cfg.key === '角色基础ta') {
+                        charaEntries[cfg.key] = {
+                            label: cfg.label,
+                            value: val,
+                            rawValue: val,
+                            format: cfg.format,
+                            source: '角色强化',
+                            prop: cfg.prop,
+                            zone: cfg.zone
+                        };
+                    }
                 }
                 if (cfg && cfg.category === 'charabonus' && (!cfg.prop || !cfg.zone)) {
                     var rawVal = cp[cfg.key];
@@ -991,57 +1033,80 @@ function buildAllEffectsForSlot(charIndex) {
     }
 
     var charaSkillEntries = {};
+    var seenCharaSkillEntryIds = new Set();
+    function getCharaSkillEffectLabel(entry) {
+        var prop = entry && entry.prop ? String(entry.prop) : '';
+        var meta = typeof getBuffDisplayMeta === 'function'
+            ? getBuffDisplayMeta(prop, entry && entry.zone, entry)
+            : null;
+        var label = meta && meta.label ? meta.label : (entry.label || prop);
+        var parsed = typeof parseBuffProp === 'function' ? parseBuffProp(prop) : { buffType: prop };
+        var zone = entry && entry.zone ? String(entry.zone) : '';
+        if (zone && parsed.buffType === 'bonus_na') {
+            return label + ' ' + zone.toLowerCase();
+        }
+        return label;
+    }
+    function addCharaSkillEntry(entry, fallbackId, sourceName) {
+        if (!entry || !entry.prop || !entry.zone) return;
+        var v = Number(entry.value) || 0;
+        if (v === 0) return;
+        var sourceId = entry.sourceId || fallbackId;
+        var dedupeKey = [sourceId, entry.prop, entry.zone, v].join('|');
+        if (seenCharaSkillEntryIds.has(dedupeKey)) return;
+        seenCharaSkillEntryIds.add(dedupeKey);
+        registerEffect(entry.prop, entry.zone, sourceId, v);
+        var propName = String(entry.prop || '');
+        var showInAllEffects = entry.show_in_all_effects !== false
+            && propName.indexOf('bonus_na_') !== 0
+            && propName !== 'double_strike'
+            && propName !== 'triple_strike';
+        if (!showInAllEffects) return;
+        charaSkillEntries[sourceId] = {
+            label: getCharaSkillEffectLabel(entry),
+            value: v,
+            format: (typeof getBuffDisplayMeta === 'function'
+                ? getBuffDisplayMeta(entry.prop, entry.zone, entry).format
+                : null) || entry.format || 'percent',
+            prop: entry.prop,
+            zone: entry.zone,
+            source: sourceName || entry.source || '角色Buff'
+        };
+    }
     if (typeof STAT_CONFIG !== 'undefined') {
         STAT_CONFIG.forEach(function(cfg) {
             if (cfg && cfg.category === 'charabuff' && cfg.prop && cfg.zone) {
                 var v = stats[cfg.key];
                 if (typeof v !== 'number' || v === 0) return;
                 registerEffect(cfg.prop, cfg.zone, cfg.key, v);
+                seenCharaSkillEntryIds.add([cfg.key, cfg.prop, cfg.zone, v].join('|'));
                 charaSkillEntries[cfg.key] = { label: cfg.label, value: v, format: cfg.format, prop: cfg.prop, zone: cfg.zone };
             }
         });
     }
+    if (party[charIndex] && Array.isArray(party[charIndex].skillZoneEffectEntries)) {
+        party[charIndex].skillZoneEffectEntries.forEach(function(entry, idx) {
+            addCharaSkillEntry(entry, entry.sourceId || ('skill_zone_effect_' + idx), '角色技能Buff');
+        });
+    }
     if (party[charIndex] && Array.isArray(party[charIndex].dynamicBuffEntries)) {
         party[charIndex].dynamicBuffEntries.forEach(function(entry, idx) {
-            if (!entry || !entry.prop || !entry.zone) return;
-            var v = Number(entry.value) || 0;
-            if (v === 0) return;
-            var sourceId = entry.sourceId || ('dynamic_buff_' + idx);
-            registerEffect(entry.prop, entry.zone, sourceId, v);
-            charaSkillEntries[sourceId] = {
-                label: entry.label || entry.prop,
-                value: v,
-                format: entry.format || 'percent',
-                prop: entry.prop,
-                zone: entry.zone,
-                source: 'dynamic'
-            };
+            addCharaSkillEntry(entry, entry.sourceId || ('dynamic_buff_' + idx), '角色技能Buff');
         });
     }
     if (party[charIndex] && Array.isArray(party[charIndex].zoneEffectEntries)) {
         party[charIndex].zoneEffectEntries.forEach(function(entry, idx) {
             if (!entry || !entry.prop || !entry.zone) return;
             if (String(entry.prop).indexOf('bonus_na_') === 0) return;
-            var v = Number(entry.value) || 0;
-            if (v === 0) return;
-            var sourceId = entry.sourceId || ('zone_effect_' + idx);
-            registerEffect(entry.prop, entry.zone, sourceId, v);
-            charaSkillEntries[sourceId] = {
-                label: entry.label || entry.prop,
-                value: v,
-                format: entry.format || 'percent',
-                prop: entry.prop,
-                zone: entry.zone,
-                source: 'charabuff'
-            };
+            addCharaSkillEntry(entry, entry.sourceId || ('zone_effect_' + idx), '角色Buff图鉴');
         });
     }
     if (Object.keys(charaSkillEntries).length > 0) {
-        sources.push({ zone: 'chara_skill', name: '角色技能Buff', color: '#ff7675', entries: charaSkillEntries });
+        sources.push({ zone: 'chara_skill', name: '角色Buff', color: '#ff7675', entries: charaSkillEntries });
     }
 
     var testBuffEntries = {};
-    if (typeof window !== 'undefined' && window.buffSettings) {
+    if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings) {
         var testBuffMap = {
             normal: { prop: 'normal_atk', label: '普刃', format: 'percent' },
             stamina: { prop: 'stamina', label: '浑身', format: 'percent' },
@@ -1122,7 +1187,7 @@ function buildAllEffectsForSlot(charIndex) {
     });
     applyFormulaReadyTotals();
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && options.persist !== false) {
         if (!window.allEffectsBySlot) window.allEffectsBySlot = {};
         window.allEffectsBySlot[charIndex] = { totals: totals, sources: sources };
     }
@@ -1289,7 +1354,9 @@ function renderAllEffectsSummary(charIndex, target) {
             }
             var e = src.entries[k];
             var valStr;
-            if (e.format === 'percent') {
+            if (e.format === 'ta_rate_bonus') {
+                valStr = e.value >= 0 ? '+' + (e.value * 100).toFixed(0) + '%' : (e.value * 100).toFixed(0) + '%';
+            } else if (e.format === 'percent') {
                 valStr = (e.value * 100).toFixed(2) + '%';
             } else if (e.format === 'fixed') {
                 valStr = e.value >= 0 ? '+' + Math.round(e.value) : Math.round(e.value).toString();

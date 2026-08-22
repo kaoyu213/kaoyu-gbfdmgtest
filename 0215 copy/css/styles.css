@@ -90,6 +90,1467 @@
     opacity: 0.45;
 }
 
+/* --- 中央主工作区切换 --- */
+.main-workspace-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 12px 0 14px;
+    padding: 4px;
+    background: #242424;
+    border: 1px solid #444;
+    border-radius: 6px;
+}
+
+.main-workspace-tab {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #aaa;
+    box-shadow: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+}
+
+.main-workspace-tab:hover {
+    transform: none;
+    background: #303030;
+    color: #fff;
+}
+
+.main-workspace-tab.active {
+    background: #2f5f85;
+    border-color: #4586b8;
+    color: #fff;
+}
+
+.main-workspace-panel {
+    display: none;
+}
+
+.main-workspace-panel.active {
+    display: block;
+}
+
+/* --- 单回合爆发模拟器 --- */
+.burst-sim-board {
+    margin-top: 0;
+    background: #2b2b2b;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.burst-sim-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.burst-sim-heading {
+    color: #f39c12;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.burst-sim-subtitle {
+    color: #888;
+    font-size: 0.78rem;
+    margin-top: 3px;
+}
+
+.burst-sim-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.burst-sim-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.burst-sim-field label {
+    color: #aaa;
+    font-size: 0.75rem;
+}
+
+.burst-sim-field input,
+.burst-sim-field select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    background: #1f1f1f;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #e0e0e0;
+    padding: 6px 8px;
+}
+
+.burst-sim-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.burst-sim-shell {
+    display: grid;
+    grid-template-columns: minmax(230px, 0.9fr) minmax(360px, 1.35fr) minmax(270px, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.burst-sim-panel {
+    background: #242424;
+    border: 1px solid #3f3f3f;
+    border-radius: 6px;
+    padding: 12px;
+    min-width: 0;
+}
+
+.burst-panel-title {
+    color: #ddd;
+    font-size: 0.92rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.burst-sim-actors {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.burst-actor-card {
+    border: 1px solid #444;
+    background: #262626;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.burst-actor-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.burst-actor-name {
+    color: #fff;
+    font-weight: bold;
+    font-size: 0.88rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.burst-actor-state {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.burst-small-input {
+    width: 58px;
+    background: #1f1f1f;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #e0e0e0;
+    padding: 4px 6px;
+}
+
+.burst-check-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #bbb;
+    font-size: 0.75rem;
+    user-select: none;
+}
+
+.burst-skill-list {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.burst-skill-btn,
+.burst-action-btn {
+    border-radius: 4px;
+    border: 1px solid #555;
+    background: #303030;
+    color: #ddd;
+    padding: 5px 7px;
+    font-size: 0.75rem;
+    box-shadow: none;
+}
+
+.burst-skill-btn:hover,
+.burst-action-btn:hover {
+    background: #3b3b3b;
+    transform: none;
+}
+
+.burst-skill-btn img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+.burst-action-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 0;
+}
+
+.burst-action-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: #242424;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: #ddd;
+    font-size: 0.8rem;
+}
+
+.burst-action-remove {
+    background: #3a2525;
+    border: 1px solid #6d3333;
+    color: #f2b0a7;
+    padding: 2px 7px;
+    box-shadow: none;
+}
+
+.burst-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px;
+    background: #202b24;
+    border: 1px solid #2f6b42;
+    border-radius: 6px;
+}
+
+.burst-total-label {
+    color: #9bd8a8;
+    font-size: 0.82rem;
+}
+
+.burst-total-value {
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: bold;
+}
+
+.burst-result-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 0.78rem;
+}
+
+.burst-result-table th,
+.burst-result-table td {
+    border-bottom: 1px solid #3a3a3a;
+    padding: 6px 4px;
+    text-align: right;
+}
+
+.burst-result-table th:first-child,
+.burst-result-table td:first-child {
+    text-align: left;
+}
+
+.burst-log {
+    margin-top: 8px;
+    color: #aaa;
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 1450px) {
+    .burst-sim-shell {
+        grid-template-columns: 1fr 1fr;
+    }
+    .burst-result-panel {
+        grid-column: 1 / -1;
+    }
+}
+
+/* --- 单回合爆发：回合轴式布局 --- */
+.burst-axis-board {
+    background: #2b2b2b;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.burst-axis-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.burst-axis-title {
+    color: #f39c12;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.burst-axis-subtitle {
+    color: #888;
+    font-size: 0.78rem;
+    margin-top: 3px;
+}
+
+.burst-axis-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.burst-top-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #aaa;
+    font-size: 0.78rem;
+}
+
+.burst-top-field input,
+.burst-top-field select {
+    width: 86px;
+    background: #1f1f1f;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #e0e0e0;
+    padding: 5px 7px;
+}
+
+.burst-top-field #burst-crit-mode,
+.burst-top-field #burst-world-cap {
+    width: 78px;
+}
+
+.burst-attack-btn {
+    background: #b8582f;
+    border: 1px solid #d27648;
+    color: #fff;
+    box-shadow: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.burst-attack-btn:hover {
+    background: #cf6536;
+    transform: none;
+}
+
+.burst-battle-stage {
+    display: block;
+}
+
+.burst-turn-board,
+.burst-skill-dock {
+    background: #242424;
+    border: 1px solid #3f3f3f;
+    border-radius: 6px;
+}
+
+.burst-section-title {
+    color: #ddd;
+    font-size: 0.95rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.burst-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.burst-field label {
+    color: #aaa;
+    font-size: 0.74rem;
+}
+
+.burst-field input,
+.burst-field select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    background: #1f1f1f;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #e0e0e0;
+    padding: 6px 8px;
+}
+
+.burst-min-damage-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #bbb;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.burst-min-damage-toggle input {
+    margin: 0;
+}
+
+.burst-check-line,
+.burst-check-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #bbb;
+    font-size: 0.78rem;
+    user-select: none;
+}
+
+.burst-enemy-note {
+    margin-top: 12px;
+    color: #777;
+    font-size: 0.74rem;
+    line-height: 1.45;
+}
+
+.burst-turn-board {
+    display: grid;
+    grid-template-columns: minmax(420px, 1fr) minmax(260px, 0.36fr);
+    gap: 12px;
+    padding: 12px;
+    min-width: 0;
+}
+
+.burst-battle-log-column,
+.burst-side-control {
+    min-width: 0;
+}
+
+.burst-side-control {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.burst-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 28px;
+}
+
+.burst-settings-mode {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    border: 1px solid #4d4d4d;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.burst-settings-mode-btn {
+    min-width: 46px;
+    height: 26px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 0;
+    background: #252525;
+    color: #aaa;
+    box-shadow: none;
+    font-size: 0.72rem;
+}
+
+.burst-settings-mode-btn + .burst-settings-mode-btn {
+    border-left: 1px solid #4d4d4d;
+}
+
+.burst-settings-mode-btn:hover {
+    transform: none;
+    background: #303030;
+}
+
+.burst-settings-mode-btn.active {
+    background: #31526a;
+    color: #fff;
+}
+
+.burst-party-column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.burst-frontline-list {
+    overflow: hidden;
+    background: #252525;
+    border: 1px solid #454545;
+    border-radius: 6px;
+}
+
+.burst-actor-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.45fr) minmax(150px, 0.75fr);
+    grid-template-areas:
+        "head controls"
+        "buff actions";
+    gap: 8px 10px;
+    align-items: center;
+    min-height: 88px;
+    background: #292929;
+    border: 1px solid #4a4a4a;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.burst-side-control .burst-actor-row-compact {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+        "select"
+        "controls"
+        "actions";
+    gap: 7px 6px;
+    min-height: auto;
+    padding: 8px;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid #3d3d3d;
+    border-radius: 0;
+}
+
+.burst-side-control .burst-actor-row-compact.with-charge {
+    grid-template-areas:
+        "select"
+        "controls"
+        "charge"
+        "actions";
+}
+
+.burst-side-control .burst-actor-row-compact:last-child {
+    border-bottom: 0;
+}
+
+.burst-side-control .burst-actor-row-compact.selected {
+    background: #2b353b;
+    box-shadow: inset 3px 0 #5f9cc3;
+}
+
+.burst-actor-select {
+    grid-area: select;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    text-align: left;
+}
+
+.burst-actor-select:hover {
+    transform: none;
+    background: transparent;
+}
+
+.burst-actor-head {
+    grid-area: head;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.burst-actor-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 6px;
+    background: #1d1d1d;
+    border: 1px solid #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    font-size: 0.78rem;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.burst-actor-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.burst-actor-meta {
+    min-width: 0;
+}
+
+.burst-actor-name {
+    color: #fff;
+    font-weight: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.burst-actor-element {
+    color: #999;
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+.burst-charge-ui {
+    display: grid;
+    grid-template-columns: auto minmax(40px, 1fr) 38px auto;
+    align-items: center;
+    gap: 4px;
+    margin-top: 5px;
+    max-width: 150px;
+}
+
+.burst-side-control .burst-charge-ui {
+    grid-area: charge;
+    max-width: none;
+    margin: 0 0 0 50px;
+}
+
+.burst-charge-label {
+    color: #ffd88a;
+    font-size: 0.68rem;
+    line-height: 1;
+}
+
+.burst-charge-track {
+    height: 8px;
+    background: #111;
+    border: 1px solid #6a4a1c;
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.7);
+}
+
+.burst-charge-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f08a1d, #ffd35a);
+    box-shadow: 0 0 4px rgba(255, 184, 68, 0.55);
+}
+
+.burst-charge-input {
+    width: 38px;
+    min-width: 0;
+    background: #111;
+    border: 1px solid #6a4a1c;
+    border-radius: 3px;
+    color: #ffd88a;
+    padding: 1px 3px;
+    font-size: 0.68rem;
+    text-align: right;
+}
+
+.burst-charge-percent {
+    color: #ffd88a;
+    font-size: 0.68rem;
+}
+
+.burst-actor-controls {
+    grid-area: controls;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.burst-actor-controls label {
+    color: #bbb;
+    font-size: 0.76rem;
+}
+
+.burst-chain-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.burst-actor-controls input[type="number"] {
+    width: 58px;
+    margin-left: 4px;
+    background: #1f1f1f;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #e0e0e0;
+    padding: 4px 5px;
+}
+
+.burst-actor-controls select {
+    background: #1f1f1f;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #e0e0e0;
+    padding: 4px 5px;
+}
+
+.burst-actor-buffs {
+    grid-area: buff;
+    color: #858585;
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.burst-actor-actions {
+    grid-area: actions;
+    display: grid;
+    grid-template-columns: repeat(4, 42px);
+    gap: 6px;
+    justify-content: flex-start;
+}
+
+.burst-side-control .burst-actor-actions {
+    grid-template-columns: repeat(4, 40px);
+    gap: 6px;
+    justify-content: flex-start;
+    padding-left: 50px;
+}
+
+.burst-side-control .burst-skill-slot {
+    width: 40px;
+    height: 40px;
+}
+
+.burst-actor-combat-controls {
+    grid-area: controls;
+    display: inline-flex;
+    align-items: center;
+    align-self: start;
+    gap: 6px;
+    margin-left: 50px;
+}
+
+.burst-actor-combat-controls select {
+    width: 76px;
+    min-width: 0;
+    background: #191919;
+    border: 1px solid #50585d;
+    border-radius: 4px;
+    color: #ddd;
+    padding: 3px 4px;
+    font-size: 0.72rem;
+}
+
+.burst-actor-ca-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #bbb;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.burst-actor-detail {
+    background: #24282b;
+    border: 1px solid #46545d;
+    border-radius: 6px;
+    padding: 9px;
+}
+
+.burst-actor-detail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #3d484e;
+    color: #999;
+    font-size: 0.74rem;
+}
+
+.burst-actor-detail-head strong {
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.burst-actor-detail-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding-top: 8px;
+}
+
+.burst-actor-detail-fields.is-disabled {
+    opacity: 0.45;
+}
+
+.burst-calc-override {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #c7dbe8;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.burst-calc-override input {
+    margin: 0;
+}
+
+.burst-actor-detail-fields > label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+    color: #aaa;
+    font-size: 0.72rem;
+}
+
+.burst-actor-detail-fields select {
+    width: 100%;
+    min-width: 0;
+    background: #191919;
+    border: 1px solid #50585d;
+    border-radius: 4px;
+    color: #ddd;
+    padding: 4px;
+}
+
+.burst-actor-detail-buffs {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #3d484e;
+    color: #858585;
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.burst-empty-actions {
+    color: #666;
+    font-size: 0.74rem;
+}
+
+.burst-skill-slot {
+    width: 42px;
+    height: 42px;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+.burst-skill-slot.empty {
+    background: #202020;
+    border: 1px dashed #555;
+}
+
+.burst-skill-slot.filled {
+    background: #343434;
+    border: 1px solid #666;
+    color: #ddd;
+    box-shadow: none;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+}
+
+.burst-skill-slot.filled:hover {
+    transform: none;
+    background: #493030;
+    border-color: #8a4a4a;
+}
+
+.burst-skill-slot.owned {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 0;
+    background: #303030;
+    border: 1px solid #5a5a5a;
+    color: #ddd;
+    box-shadow: none;
+}
+
+.burst-skill-slot.owned:hover {
+    transform: none;
+    background: #353d42;
+    border-color: #6aa4c8;
+}
+
+.burst-skill-slot.owned.queued {
+    background: #263841;
+    border-color: #70b2da;
+    box-shadow: inset 0 0 0 1px rgba(112, 178, 218, 0.35);
+}
+
+.burst-skill-order {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 15px;
+    height: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: #111;
+    color: #ffd37a;
+    font-size: 0.65rem;
+    line-height: 1;
+}
+
+.burst-skill-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.burst-placed-skill {
+    background: #343434;
+    border: 1px solid #666;
+    border-radius: 4px;
+    color: #ddd;
+    box-shadow: none;
+    padding: 4px 7px;
+    font-size: 0.74rem;
+}
+
+.burst-placed-skill:hover {
+    transform: none;
+    background: #493030;
+    border-color: #8a4a4a;
+}
+
+.burst-sub-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.burst-enemy-action-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 0.45fr) minmax(260px, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-height: 64px;
+    background: #2f2525;
+    border: 1px solid #674141;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.burst-side-control .burst-enemy-action-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    min-height: auto;
+}
+
+.burst-side-control .burst-enemy-action-body {
+    justify-content: flex-start;
+}
+
+.burst-enemy-action-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.burst-enemy-action-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 6px;
+    background: #3b1f1f;
+    border: 1px solid #7a4646;
+    color: #f0b5aa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.burst-enemy-action-body {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.burst-placed-skill-enemy {
+    background: #4a2c2c;
+    border-color: #8a4a4a;
+    color: #ffd0c8;
+}
+
+.burst-actor-row-sub {
+    min-height: 48px;
+    grid-template-columns: 1fr;
+    grid-template-areas: "head";
+}
+
+.burst-side-control .burst-actor-row-sub {
+    padding: 7px;
+    min-width: 0;
+}
+
+.burst-damage-column {
+    min-width: 0;
+}
+
+.burst-damage-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 540px;
+    background: #202020;
+    border: 1px solid #3f3f3f;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.burst-log-turn-title {
+    color: #f39c12;
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 10px;
+}
+
+.burst-log-empty {
+    color: #777;
+    border: 1px dashed #555;
+    border-radius: 6px;
+    padding: 18px;
+    text-align: center;
+    line-height: 1.6;
+}
+
+.burst-log-action {
+    padding: 8px 0;
+}
+
+.burst-log-action-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 6px;
+}
+
+.burst-log-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 5px;
+    background: #181818;
+    border: 1px solid #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: #aaa;
+    font-size: 0.72rem;
+    flex-shrink: 0;
+}
+
+.burst-log-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.burst-log-actor {
+    color: #9cc9e8;
+    font-size: 0.78rem;
+}
+
+.burst-log-skill {
+    color: #fff;
+    font-weight: bold;
+    margin-top: 2px;
+}
+
+.burst-log-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: #d0d0d0;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    padding: 2px 0 2px 47px;
+}
+
+.burst-log-line strong {
+    color: #fff;
+}
+
+.burst-log-separator {
+    height: 1px;
+    background: #393939;
+    margin: 8px 0;
+}
+
+.burst-log-attack-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #f2b56b;
+    font-weight: bold;
+    margin: 12px 0 8px;
+}
+
+.burst-log-attack-divider::before,
+.burst-log-attack-divider::after {
+    content: "";
+    height: 1px;
+    background: #7a5730;
+    flex: 1;
+}
+
+.burst-log-attack-line {
+    display: grid;
+    grid-template-columns: 42px minmax(90px, 1fr) minmax(92px, auto);
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    margin-bottom: 4px;
+    padding: 4px 6px;
+    background: #282828;
+    border: 1px solid #303030;
+    border-radius: 5px;
+}
+
+.burst-log-attack-avatar {
+    width: 40px;
+    height: 40px;
+    box-sizing: border-box;
+    border: 1px solid #5a5a5a;
+    border-radius: 4px;
+    background: #181818;
+    color: #aaa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 0.66rem;
+}
+
+.burst-log-attack-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.burst-log-attack-name {
+    max-width: 100%;
+    min-width: 0;
+    color: #aaa;
+    font-size: 0.68rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.burst-log-attack-result {
+    min-width: 92px;
+    padding-left: 9px;
+    border-left: 1px solid #3c3c3c;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+}
+
+.burst-log-attack-damage {
+    min-width: 92px;
+    color: #fff;
+    font-size: 0.9rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.burst-log-buff-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    align-items: center;
+    gap: 3px;
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    box-sizing: border-box;
+    padding: 3px 4px;
+    background: #232323;
+    border-radius: 4px;
+}
+
+.burst-log-buff-slot {
+    position: relative;
+    width: 19px;
+    height: 19px;
+    box-sizing: border-box;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 0.58rem;
+    line-height: 1;
+}
+
+.burst-log-buff-slot.filled {
+    background: #1a2024;
+    border: 1px solid #536670;
+    color: #d8ecf7;
+}
+
+.burst-log-buff-slot.filled img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.burst-damage-row,
+.burst-damage-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid #3b3b3b;
+    padding: 7px 0;
+    color: #bbb;
+    font-size: 0.82rem;
+}
+
+.burst-damage-row strong {
+    color: #fff;
+}
+
+.burst-damage-row-muted strong,
+.burst-damage-row-muted span {
+    color: #8fba9b;
+}
+
+.burst-damage-total {
+    border-bottom: none;
+    margin-top: 6px;
+    padding: 10px;
+    background: #202b24;
+    border: 1px solid #2f6b42;
+    border-radius: 6px;
+}
+
+.burst-damage-total span {
+    color: #9bd8a8;
+}
+
+.burst-damage-total strong {
+    color: #fff;
+    font-size: 1.15rem;
+}
+
+.burst-summary-log {
+    margin-top: 8px;
+    color: #9a9a9a;
+    font-size: 0.73rem;
+    line-height: 1.45;
+}
+
+.burst-skill-dock {
+    margin-top: 12px;
+    overflow: hidden;
+    background: #242424;
+    border: 1px solid #3f3f3f;
+    border-radius: 6px;
+}
+
+.burst-skill-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border-bottom: 1px solid #444;
+}
+
+.burst-skill-tab {
+    background: #2b2b2b;
+    border: none;
+    border-right: 1px solid #444;
+    border-bottom: 1px solid #444;
+    border-radius: 0;
+    box-shadow: none;
+    color: #aaa;
+    padding: 10px 10px;
+}
+
+.burst-skill-tab:last-child {
+    border-right: none;
+}
+
+.burst-skill-tab:hover {
+    transform: none;
+    background: #333;
+    color: #fff;
+}
+
+.burst-skill-tab.active {
+    background: #31526a;
+    color: #fff;
+}
+
+.burst-skill-box {
+    min-height: 220px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.burst-skill-context {
+    padding: 7px 12px;
+    border-bottom: 1px solid #3f3f3f;
+    background: #282d30;
+    color: #9cc9e8;
+    font-size: 0.76rem;
+}
+
+.burst-skill-context[hidden] {
+    display: none;
+}
+
+.burst-skill-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    background: #2c2c2c;
+    border: 1px solid #4a4a4a;
+    border-radius: 6px;
+    color: #ddd;
+    box-shadow: none;
+    padding: 8px 10px;
+    text-align: left;
+    width: 100%;
+}
+
+.burst-skill-card:hover {
+    transform: none;
+    border-color: #6aa4c8;
+    background: #333a3f;
+}
+
+.burst-skill-card.queued {
+    background: #29373e;
+    border-color: #5f9cc3;
+}
+
+.burst-library-order {
+    margin-left: auto;
+    color: #ffd37a;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.burst-skill-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 5px;
+    background: #1d1d1d;
+    border: 1px solid #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    font-size: 0.75rem;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.burst-skill-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.burst-skill-meta {
+    min-width: 0;
+}
+
+.burst-skill-name {
+    color: #fff;
+    font-size: 0.84rem;
+    font-weight: bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.burst-skill-owner {
+    color: #999;
+    font-size: 0.72rem;
+    margin-top: 2px;
+}
+
+.burst-custom-placeholder {
+    grid-column: 1 / -1;
+    color: #888;
+    border: 1px dashed #555;
+    border-radius: 6px;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 18px;
+    line-height: 1.6;
+}
+
+@media (max-width: 1350px) {
+    .burst-turn-board {
+        grid-template-columns: minmax(320px, 1fr);
+    }
+    .burst-side-control {
+        grid-column: 1 / -1;
+    }
+}
+
 /* --- GBF 模拟器 v5.0 样式 --- */
 
 /* 全局与基础样式 */
@@ -1057,6 +2518,44 @@ button:hover {
 }
 .party-buff-charabuff-stats .stat-line:last-child {
     border-bottom: none;
+}
+.party-buff-stat-section-title {
+    margin-top: 8px;
+    padding: 4px 0 3px;
+    color: #aaa;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border-bottom: 1px solid #333;
+}
+.party-buff-stat-line span:first-child {
+    color: #d8d8d8;
+}
+.party-buff-unique-box {
+    margin-top: 10px;
+    padding: 9px 10px;
+    border: 1px solid #6f42c1;
+    border-radius: 6px;
+    background: rgba(111, 66, 193, 0.12);
+}
+.party-buff-unique-title {
+    color: #d6b4ff;
+    font-size: 0.96rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+.party-buff-unique-effects {
+    margin: 0;
+    padding-left: 18px;
+    color: #ddd;
+    font-size: 0.84rem;
+    line-height: 1.55;
+}
+.party-buff-unique-effects a {
+    color: #8bd3ff;
+    text-decoration: none;
+}
+.party-buff-unique-effects a:hover {
+    text-decoration: underline;
 }
 .stat-line { 
     display: flex; 
@@ -2030,6 +3529,55 @@ input[type="range"] {
 .dmg-skill-mult-input:focus {
     outline: none;
     border-color: #e74c3c;
+}
+
+.skill-decay-mode-btn {
+    padding: 2px 6px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #242424;
+    color: #ddd;
+    font-size: 0.78em;
+    line-height: 1.3;
+    cursor: pointer;
+}
+
+.skill-decay-mode-btn:hover {
+    border-color: #888;
+    color: #fff;
+}
+
+.skill-dmg-breakdown-row {
+    display: inline-flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    min-width: 120px;
+    line-height: 1.45;
+}
+
+.skill-dmg-breakdown-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex: 0 0 auto;
+    border: 1px solid #555;
+    background: #111;
+}
+
+.skill-dmg-breakdown-icon--text {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #bbb;
+    font-size: 0.8em;
+}
+
+.skill-dmg-breakdown-val {
+    color: #fff;
+    font-weight: 700;
+    white-space: nowrap;
 }
 
 /* 对克属标签按钮样式 */

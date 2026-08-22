@@ -59,6 +59,50 @@
         "150": { "description": "属性角色伤害上限+15%", "effect": "summon_damage_cap:15%" }
       }
     }
+  },
+  {
+    "id": "Versusia",
+    "name": "极妈",
+    "element": "火",
+    "type": "贵族",
+    "image": "summon/100px-Party_main_2040448000.jpg",
+    "maxLevel": 150,
+    "subonly": true,
+    "availableLevels": [150],
+    "effects": {
+      "main": {
+        "150": { "description": "属性攻击力+200%", "effect": "summon_element_atk:200%" }
+      },
+      "friend": {
+        "150": { "description": "属性攻击力+200%", "effect": "summon_element_atk:200%" }
+       
+      },
+      "sub": {
+        "150": { "description": "暂不更新", "effect": "" }
+      }
+    }
+  },
+  {
+    "id": "robur series",
+    "name": "5w石头",
+    "element": "mc",
+    "type": "5wstone",
+    "image": "icon/icon_sort_summon_20.png",
+    "maxLevel": 150,
+    "subonly": true,
+    "availableLevels": [150],
+    "effects": {
+      "main": {
+        "150": { "description": "属性攻击力+120%", "effect": "summon_element_atk:120%" }
+      },
+      "friend": {
+        "150": { "description": "属性攻击力+120%", "effect": "summon_element_atk:120%" }
+       
+      },
+      "sub": {
+        "150": { "description": "全伤害上升5万", "effect": "summon_dmg_supp:50000" }
+      }
+    }
   }
 
 

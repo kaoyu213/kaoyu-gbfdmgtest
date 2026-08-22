@@ -85,7 +85,7 @@
     "image": "",
     "description": "c5职业",
     "bonuses": {
-      
+      "mc_atk_base": 3000
     },
     "battle_bonuses": ""
   },
@@ -130,6 +130,45 @@
     "image": "",
     "description": "ex2职业",
     "bonuses": {
+    
+    },
+    "battle_bonuses": ""
+  },
+  {
+    "id": "ex2_wuniang",
+    "name": "舞娘",
+    "proficiency": [
+      "dagger",
+      "dagger"
+    ],
+    "type": "class_ex2",
+    "image": "",
+    "description": "ex2职业",
+    "bonuses": {
+    
+    },
+    "battle_bonuses": ""
+  },
+  {
+    "id": "c0_staff",
+    "name": "起源巫师",
+    "proficiency": [
+      "staff",
+      "harp"
+    ],
+    "type": "class_0",
+    "image": "",
+    "description": "c0职业",
+    "bonuses": {
+    "mc_atk_base": 10000,
+    "mc_hp_base": 3000,
+    "staff_base_value_hp": 0.5,
+    "staff_base_value_atk": 0.5,
+    "harp_base_value_atk": 0.5,
+    "harp_base_value_hp": 0.5
+
+
+
     
     },
     "battle_bonuses": ""

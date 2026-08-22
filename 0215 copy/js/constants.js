@@ -56,6 +56,12 @@ const SKILL_CURVES = {
     'enmity_optimus_small': { type: 'enmity', base: '1:0.5 10:6.0 15:7.0 20:7.5' }
 };
 
+// 按武器类型提升武器白值的通用加成配置。
+// 技能通过 effect.type = weapon_base_value、effect.stat = atk/hp、
+// effect.weapon_type = sabre/dagger/... 声明目标，不在计算逻辑中写死具体武器类型。
+const WEAPON_BASE_VALUE_BONUS_EFFECT = 'weapon_base_value';
+const WEAPON_BASE_VALUE_STATS = ['atk', 'hp'];
+
 const CHARABONUS_SUM_RULES = {
     // 攻击白值类
     chara_ring_baseatk:        'baseatk',
@@ -73,11 +79,13 @@ const CHARABONUS_SUM_RULES = {
     chara_artifacts_da:        'da',
     chara_lb_da:               'da',
     chara_awakening_da:        'da',
+    '角色基础da':              'da',
     chara_ring_ta:             'ta',
     chara_earring_ta:          'ta',
     chara_artifacts_ta:        'ta',
     chara_lb_ta:               'ta',
-    chara_awakening_ta:        'ta'
+    chara_awakening_ta:        'ta',
+    '角色基础ta':              'ta'
     // 强壮相关不直接在这里求和，而是在 buildCharabonusSummary 中按规则换算
 };
 
@@ -116,7 +124,7 @@ const DEFAULT_MASTERY1 = {
     'mc_all_cap_passive_non_c5': 0.03,
     'mc_def_passive_non_c5': 0.05,
     'mc_heal_cap_passive_non_c5': 0.03,
-    'mc_skill_dmg_amp_passive_non_c5': 0.03,
+    'mc_skill_dmg_passive_non_c5': 0.03,
     'mc_na_dmg_amp_passive_non_c5': 0.03,
     'mc_debuff_success_passive_non_c5': 0.03,
     'main_weapon_bonuses_sabre': 0.06,
@@ -147,7 +155,7 @@ const DEFAULT_MASTERY2 = {
     'mc_all_cap_passive_non_c5': 0.03,
     'mc_def_passive_non_c5': 0.05,
     'mc_heal_cap_passive_non_c5': 0.03,
-    'mc_skill_dmg_amp_passive_non_c5': 0.03,
+    'mc_skill_dmg_passive_non_c5': 0.03,
     'mc_na_dmg_amp_passive_non_c5': 0.03,
     'mc_debuff_success_passive_non_c5': 0.03,
     'main_weapon_bonuses_sabre': 0.06,
@@ -228,7 +236,7 @@ const DISPLAY_NAME_MAP = {
     'mc_all_cap_passive_non_c5': '非C5主角全上限',
     'mc_def_passive_non_c5': '非C5主角防御',
     'mc_heal_cap_passive_non_c5': '非C5主角回复上限',
-    'mc_skill_dmg_amp_passive_non_c5': '非C5主角技能伤害增幅',
+    'mc_skill_dmg_passive_non_c5': '非C5职业技能伤害加成',
     'mc_na_dmg_amp_passive_non_c5': '非C5主角普通攻击伤害增幅',
     'mc_debuff_success_passive_non_c5': '非C5主角弱体成功率',
     'main_weapon_bonuses_sabre': '主手剑攻击力加成',
@@ -317,7 +325,7 @@ const STAT_CONFIG = [
     { "key": "weapon_na_dmg_supp", "label": "普通攻击伤害上升", "cap": 100000, "format": "fixed", "category": "weapon", "prop": "na_dmg_supp", "zone": "weapon_grid" },
     { "key": "weapon_special_na_dmg_supp", "label": "普通攻击伤害上升（特殊）", "cap": 20000, "format": "fixed", "category": "weapon", "prop": "na_dmg_supp", "zone": "weapon_grid" },
     { "key": "weapon_skill_dmg_supp", "label": "技能伤害上升", "cap": 200000, "format": "fixed", "category": "weapon", "prop": "skill_dmg_supp", "zone": "weapon_grid" },
-    { "key": "weapon_skill_special_dmg_supp", "label": "技能伤害上升（特殊）", "cap": 30000, "format": "fixed", "category": "weapon", "prop": "skill_dmg_supp", "zone": "weapon_grid" },
+    { "key": "weapon_special_skill_dmg_supp", "label": "技能伤害上升（特殊）", "cap": 30000, "format": "fixed", "category": "weapon", "prop": "skill_dmg_supp", "zone": "weapon_grid" },
     { "key": "weapon_ca_dmg_supp", "label": "奥义伤害上升", "cap": 1000000, "format": "fixed", "category": "weapon", "prop": "ca_dmg_supp", "zone": "weapon_grid" },
     { "key": "weapon_special_ca_dmg_supp", "label": "奥义伤害上升（特殊）", "cap": 300000, "format": "fixed", "category": "weapon", "prop": "ca_dmg_supp", "zone": "weapon_grid" },
     { "key": "weapon_skill_hit_rate", "label": "技能命中率", "cap": null, "format": "percent", "category": "weapon", "prop": "skill_hit_rate", "zone": "weapon_grid" },
@@ -353,6 +361,10 @@ const STAT_CONFIG = [
     // ==========================================
     // 角色额外加成 (戒指/耳饰/神器/婚戒)
     // ==========================================
+
+    // --- 角色 JSON 基础连击率 ---
+    { "key": "角色基础da", "label": "角色基础da", "cap": null, "format": "percent", "category": "charabonus", "prop": "da_rate", "zone": "charabonus" },
+    { "key": "角色基础ta", "label": "角色基础ta", "cap": null, "format": "percent", "category": "charabonus", "prop": "ta_rate", "zone": "charabonus" },
     
     // --- 戒指 (Ring) ---
     { "key": "chara_ring_baseatk", "label": "戒指攻击力白值", "cap": null, "format": "fixed", "category": "charabonus", "prop": "base_atk", "zone": "charabonus" },
@@ -486,7 +498,7 @@ const STAT_CONFIG = [
     { "key": "mc_cb_cap_passive", "label": "主角CB上限", "cap": null, "format": "percent", "category": "job", "prop": "cb_dmg_cap", "zone": "chara_skill" },
     { "key": "job_na_amp", "label": "非C5职业平A增幅", "cap": null, "format": "percent", "category": "job", "prop": "na_dmg_amp", "zone": "chara_skill" },
     { "key": "mc_all_cap_passive_non_c5", "label": "非C5职业全上限加成", "cap": null, "format": "percent", "category": "job", "prop": "dmg_cap", "zone": "job_passive_extra" },
-    { "key": "mc_skill_dmg_amp_passive_non_c5", "label": "非C5职业技能伤害增幅", "cap": null, "format": "percent", "category": "job", "prop": "skill_dmg_amp", "zone": "chara_skill" },
+    { "key": "mc_skill_dmg_passive_non_c5", "label": "非C5职业技能伤害加成", "cap": null, "format": "percent", "category": "job", "prop": "skill_dmg", "zone": "job_passive_extra" },
     
     // 综合加成类 (如光环、输入框等统筹项)
     

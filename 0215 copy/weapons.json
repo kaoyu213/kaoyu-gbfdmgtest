@@ -87,6 +87,38 @@
         "unlock_level": 150
       }
     ]
+  },{
+    "id": "Harmonia",
+    "name": "un琴",
+    "type": "harp",
+    "element": "光",
+    "category": "lm",
+    "image": "weapons/M_1040814500.jpg",
+    "stats": {
+      "hp": 381,
+      "atk": 2870,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "element_pact",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "harp_voltage_medium",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_quintessence",
+        "unlock_level": 150
+      }
+    ]
   },
   {
     "id": "Katana of Repudiation",
@@ -333,6 +365,34 @@
     ]
   },
   {
+    "id": "Eden",
+    "name": "路枪",
+    "type": "spear",
+    "element": "光",
+    "category": "lm",
+    "image": "weapons/M_1040207000.jpg",
+    "stats": {
+      "hp": 340,
+      "atk": 3140,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_big3",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_stamina_medium",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
     "id": "Fallen Sword",
     "name": "d剑",
     "type": "sabre",
@@ -356,6 +416,39 @@
       {
         "is_slot": false,
         "skill_id": "optimus_stamina_medium",
+        "unlock_level": 150
+      }
+    ]
+  }, 
+  {
+    "id": "Gambanteinn",
+    "name": "io杖",
+    "type": "staff",
+    "element": "光",
+    "category": "lm",
+    "image": "weapons/M_1040404300.jpg",
+    "stats": {
+      "hp": 380,
+      "atk": 2760,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_big3",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_trium_small",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "lmgongjijuexing",
         "unlock_level": 150
       }
     ]
@@ -596,6 +689,40 @@
     "stats": {
       "hp": 233,
       "atk": 3632,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "element_maneuver",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_impalement_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "element_athos",
+        "unlock_level": 0
+      }
+      
+      
+    ]
+  },{
+    "id": "Canifortis",
+    "name": "狗刀",
+    "type": "katana",
+    "element": "光",
+    "category": "lm",
+    "image": "weapons/M_1040917200.jpg",
+    "stats": {
+      "hp": 259,
+      "atk": 3500,
       "max_level": 150,
       "allow_extra": false,
       "weapon_multiplier": 5.0,
@@ -931,6 +1058,39 @@
     ]
   },
   {
+    "id": "Efes",
+    "name": "光芬剑",
+    "type": "sabre",
+    "element": "光",
+    "category": "lm",
+    "image": "weapons/M_1040025900.jpg",
+    "stats": {
+      "hp": 283,
+      "atk": 3357,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_exalto",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_celere_small",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_stratagem_big",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
     "id": "Bridekeeper",
     "name": "花铳",
     "type": "gun",
@@ -1220,6 +1380,42 @@
         "unlock_level": 0
       }
     ]
+  }, 
+  {
+    "id": "Doombringer Gauntlet",
+    "name": "妈弓",
+    "type": "bow",
+    "element": "光",
+    "category": "妈武",
+    "image": "weapons/M_1040714700.jpg",
+    "stats": {
+      "hp": 336,
+      "atk": 3902,
+      "max_level": 200,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "destruction_godblade3",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "rebirth_godshield3",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+        "anklet_of_na",
+        "anklet_of_ca",
+        "anklet_of_skill"],
+        "unlock_level": 0
+      }
+    ]
   },
   {
     "id": "Doombringer Bow",
@@ -1351,6 +1547,46 @@
         "is_slot": true,
         "options": ["all_athos",
         "all_honing"],
+
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Sword of Repudiation",
+    "name": "250光老王法武",
+    "type": "sabre",
+    "element": "光",
+    "category": "fawu",
+    "image": "weapons/1040017000_03.jpg",
+    "stats": {
+      "hp": 363,
+      "atk": 4200,
+      "max_level": 250,
+      "allow_extra": false,
+      "weapon_multiplier": 9.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_apotheosis_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+          "na_albus2",
+          "skill_albus2",
+          "ca_albus2",
+          "cb_albus2"
+        ],
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+      ],
 
         "unlock_level": 0
       }
@@ -1685,6 +1921,64 @@
         "skill_id": "optimus_verity_big",
         "unlock_level": 0
       }
+    ]
+  },
+  {
+    "id": "Mirror-Blade Shard",
+    "name": "神盾短",
+    "type": "dagger",
+    "element": "土",
+    "category": "lm",
+    "image": "weapons/M_1040110600.jpg",
+    "stats": {
+      "hp": 330,
+      "atk": 3180,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_test",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "lmgongjijuexing",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
+    "id": "Exo Heliocentrum",
+    "name": "光神灭杖",
+    "type": "staff",
+    "element": "光",
+    "category": "神灭",
+    "image": "weapons/M_1040424300.jpg",
+    "stats": {
+      "hp": 315,
+      "atk": 2453,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 4.5,
+      "ca_fixed": 3000
+    },
+    "skill_slots": [
+      
+      {
+        "is_slot": false,
+        "skill_id": "element_supremacy",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "shenmiegongjijuexingtest",
+        "unlock_level": 0
+      }
+  
     ]
   }
 ]

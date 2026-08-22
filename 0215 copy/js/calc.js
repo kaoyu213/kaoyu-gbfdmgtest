@@ -350,8 +350,8 @@ function calculateRankStats(rank) {
 }
 
 /**
- * 根据队伍 UI 中已勾选的角色技能，将 charaskills 里 apply_buff 写入 party[i].stats（STAT_CONFIG category=charabuff）。
- * buff_id + parameters.type 经 resolveCharabuffStatKey 映射；未在 STAT_CONFIG 登记则 warn 且不累加。
+ * 根据队伍 UI 中已勾选的角色技能，解析 charaskills.steps 里的 buff 步骤，
+ * 展开为 prop + zone + value 条目后交给 BuffRegistry / buff_zones 统一结算。
  */
 function applyCharaSkillBuffStatsToParty() {
     if (typeof document === 'undefined' || typeof party === 'undefined' || !Array.isArray(party)) return;
@@ -383,34 +383,25 @@ function applyCharaSkillBuffStatsToParty() {
             if (!cb || !cb.checked) continue;
             const sid = `${cid}_${pos}`;
             const skill = charaMap[sid];
-            if (!skill || !Array.isArray(skill.effects)) continue;
-            skill.effects.forEach((effect) => {
-                if (!effect || effect.action_type !== 'apply_buff') return;
-                const p = effect.parameters && typeof effect.parameters === 'object' ? effect.parameters : {};
-                if (p.show_in_party_buff === false) return;
-                const rawProp = p.prop;
-                const raw = p.value;
-                const numVal = typeof raw === 'number' && !isNaN(raw) ? raw : parseFloat(raw);
-                if (isNaN(numVal)) return;
-                if (rawProp && p.zone) {
-                    const zoneEntry = {
-                        prop: String(rawProp).trim(),
-                        zone: String(p.zone).trim(),
-                        value: numVal,
-                        sourceId: sid + ':' + (p.description || rawProp),
-                        label: p.description || rawProp,
-                        format: p.format || 'percent'
-                    };
-                    party[slot].dynamicBuffEntries.push(zoneEntry);
-                    party[slot].skillZoneEffectEntries.push(zoneEntry);
-                    return;
+            if (!skill) continue;
+            if (Array.isArray(skill.steps) && window.StatusResolver && typeof window.StatusResolver.getStatusesFromSkillActions === 'function') {
+                const statuses = window.StatusResolver.getStatusesFromSkillActions(skill, {
+                    skillId: sid,
+                    skillName: skill.name || sid,
+                    ownerSlot: slot
+                });
+                if (window.StatusResolver.collectZoneEntriesFromStatuses) {
+                    const zoneEntries = window.StatusResolver.collectZoneEntriesFromStatuses(statuses);
+                    zoneEntries.forEach((entry) => {
+                        if (!entry || !entry.prop || !entry.zone) return;
+                        party[slot].skillZoneEffectEntries.push(entry);
+                        if (String(entry.prop || '').indexOf('bonus_na_') === 0) {
+                            party[slot].dynamicBuffEntries.push(entry);
+                        }
+                    });
                 }
-                const bid = p.buff_id;
-                if (typeof resolveCharabuffStatKey !== 'function') return;
-                const statKey = resolveCharabuffStatKey(bid, p.type);
-                if (!statKey) return;
-                party[slot].stats[statKey] = (party[slot].stats[statKey] || 0) + numVal;
-            });
+                continue;
+            }
         }
     }
     if (typeof window.applyBuffCodexRowsToPartyStats === 'function') {
@@ -639,15 +630,15 @@ function recalculate() {
             if (currentMC && currentMC.proficiency && Array.isArray(currentMC.proficiency)) {
                 mcProfs = currentMC.proficiency;
             }
-            party.push({ name: "MC", element: mcElement, isMain: true, stats: {}, proficiency: mcProfs });
+            party.push({ name: "MC", element: mcElement, isMain: true, stats: {}, proficiency: mcProfs, weaponBaseValueBonuses: {} });
         } else {
             // 后面的槽位如果有选择角色，则使用角色的属性，目前暂时如果未选，让其默认跟MC一个属性方便测试武器盘加成
             const charData = typeof currentParty !== 'undefined' ? currentParty[i] : null;
             if (charData) {
-                party.push({ name: charData.名称, element: charData.属性, isMain: false, stats: {}, baseHp: charData.角色基础HP || 0, baseAtk: charData.角色基础atk || 0 });
+                party.push({ name: charData.名称, element: charData.属性, isMain: false, stats: {}, baseHp: charData.角色基础HP || 0, baseAtk: charData.角色基础atk || 0, weaponBaseValueBonuses: {} });
             } else {
                 // 占位角色，如果将来不想要占位可以去掉
-                party.push({ name: "角色" + (i + 1), element: mcElement, isMain: false, stats: {}, baseHp: 0, baseAtk: 0 });
+                party.push({ name: "角色" + (i + 1), element: mcElement, isMain: false, stats: {}, baseHp: 0, baseAtk: 0, weaponBaseValueBonuses: {} });
             }
         }
         STAT_CONFIG.forEach(cfg => party[i].stats[cfg.key] = 0);
@@ -821,6 +812,24 @@ function recalculate() {
     // 2. 将 currentMC.bonuses 中的对应职业加成也汇入 stats 中
     if (currentMC && currentMC.bonuses) {
         Object.keys(currentMC.bonuses).forEach(k => {
+            // 职业 bonus 中的 `staff_base_value_hp: 0.5` 这类字段，
+            // 表示全队对应武器类型的白值加成，而不是角色自身面板乘区。
+            const baseValueMatch = String(k).match(/^(.+)_base_value_(atk|hp)$/i);
+            if (baseValueMatch) {
+                const rawType = baseValueMatch[1];
+                const stat = baseValueMatch[2].toLowerCase();
+                const weaponType = WEAPON_TYPE_MAP[rawType] || String(rawType).toLowerCase();
+                const value = Number(currentMC.bonuses[k]);
+                if (WEAPON_BASE_VALUE_STATS.includes(stat) && weaponType && Number.isFinite(value)) {
+                    party.forEach(member => {
+                        if (!member.weaponBaseValueBonuses[weaponType]) {
+                            member.weaponBaseValueBonuses[weaponType] = { atk: 0, hp: 0 };
+                        }
+                        member.weaponBaseValueBonuses[weaponType][stat] += value;
+                    });
+                }
+                return;
+            }
             if (party[0].stats.hasOwnProperty(k)) {
                 party[0].stats[k] += currentMC.bonuses[k];
             }
@@ -832,12 +841,12 @@ function recalculate() {
     const isClass5 = currentJob && currentJob.type === 'class_5';
     // job_na_amp 使用当前用户的 defaultMastery，用户2 可为 0
     party[0].stats['job_na_amp'] = isClass5 ? 0 : (defaultMastery['mc_na_dmg_amp_passive_non_c5'] || 0);
+    party[0].stats['mc_skill_dmg_passive_non_c5'] = isClass5 ? 0 : (defaultMastery['mc_skill_dmg_passive_non_c5'] || 0);
+    party[0].stats['mc_na_dmg_amp_passive_non_c5'] = isClass5 ? 0 : (defaultMastery['mc_na_dmg_amp_passive_non_c5'] || 0);
     
     if (!isClass5) {
         // 如果不是 C5 职业，赋予非 C5 相关的常驻加成
         party[0].stats['mc_all_cap_passive_non_c5'] = defaultMastery['mc_all_cap_passive_non_c5'] || 0;
-        party[0].stats['mc_skill_dmg_amp_passive_non_c5'] = defaultMastery['mc_skill_dmg_amp_passive_non_c5'] || 0;
-        party[0].stats['mc_na_dmg_amp_passive_non_c5'] = defaultMastery['mc_na_dmg_amp_passive_non_c5'] || 0;
     }
 
     party.forEach((member, i) => {
@@ -981,7 +990,17 @@ function recalculate() {
                             .toNumber();
                     }
                     
-                    if (effect.prop === 'weapon_na_ranshu') {
+                    if (effect.type === WEAPON_BASE_VALUE_BONUS_EFFECT) {
+                        const stat = String(effect.stat || '').toLowerCase();
+                        const rawType = effect.weapon_type;
+                        const weaponType = WEAPON_TYPE_MAP[rawType] || (rawType ? String(rawType).toLowerCase() : '');
+                        if (WEAPON_BASE_VALUE_STATS.includes(stat) && weaponType) {
+                            if (!member.weaponBaseValueBonuses[weaponType]) {
+                                member.weaponBaseValueBonuses[weaponType] = { atk: 0, hp: 0 };
+                            }
+                            member.weaponBaseValueBonuses[weaponType][stat] += finalVal;
+                        }
+                    } else if (effect.prop === 'weapon_na_ranshu') {
                         const v = Math.max(1, Math.floor(Math.abs(finalVal)));
                         member.stats['weapon_na_ranshu'] = Math.max(member.stats['weapon_na_ranshu'] || 1, v);
                     } else if (member.stats.hasOwnProperty(effect.prop)) {
@@ -1045,6 +1064,12 @@ function recalculate() {
 
             let wHp = (w.stats && w.stats.hp) ? parseInt(w.stats.hp) : (parseInt(w.hp) || 0);
             let wAtk = (w.stats && w.stats.atk) ? parseInt(w.stats.atk) : (parseInt(w.atk) || 0);
+
+            // 类型限定的白值加成（例如“剑之宇宙”只强化剑武器）
+            const weaponTypeKey = WEAPON_TYPE_MAP[w.type] || (w.type ? String(w.type).toLowerCase() : '');
+            const typeValueBonus = member.weaponBaseValueBonuses?.[weaponTypeKey] || {};
+            const typeAtkBonus = typeValueBonus.atk || 0;
+            const typeHpBonus = typeValueBonus.hp || 0;
             
             // 加蛋加成
             const plusMarks = w.plusMarks || 0;
@@ -1058,12 +1083,12 @@ function recalculate() {
             let atkMultiplier = new Decimal(1.0);
 
             if (i === 0) {
-                // 主角专属：HP 1.2倍，结果四舍五入（与游戏一致）
-                if (isProf) {
-                    memberGridHp = memberGridHp.plus(Math.round(wHp * 1.2));
-                } else {
-                    memberGridHp = memberGridHp.plus(wHp);
-                }
+                // 类型白值加成与原有得意武器加成分别取整后相加。
+                // 例如：round(武器HP×1.2) + round(武器HP×0.5)。
+                const hpBaseMultiplier = isProf ? new Decimal(1.2) : new Decimal(1);
+                const baseWeaponHp = new Decimal(wHp).times(hpBaseMultiplier).round();
+                const typeBonusHp = new Decimal(wHp).times(typeHpBonus).round();
+                memberGridHp = memberGridHp.plus(baseWeaponHp).plus(typeBonusHp);
                 
                 // 主角专属：职业多重得意加成
                 // - 得意武器1·2（prof12）含义：对得意武器1与得意武器2均有加成
@@ -1086,18 +1111,25 @@ function recalculate() {
                     let mhBonus = getDefaultMastery()[key] || 0;
                     atkMultiplier = atkMultiplier.plus(mhBonus); 
                 }
-                
-                // 主角的攻击力补正也按每把武器四舍五入 (沿用旧逻辑)
-                memberGridAtk = memberGridAtk.plus(new Decimal(wAtk).times(atkMultiplier).round());
+
+                // 类型白值加成与原有得意/LB/主手加成分别取整后相加。
+                // 例如：round(武器ATK×1.3) + round(武器ATK×0.5)。
+                const baseWeaponAtk = new Decimal(wAtk).times(atkMultiplier).round();
+                const typeBonusAtk = new Decimal(wAtk).times(typeAtkBonus).round();
+                memberGridAtk = memberGridAtk.plus(baseWeaponAtk).plus(typeBonusAtk);
             } else {
                 // 非主角：HP无得意加成
-                memberGridHp = memberGridHp.plus(wHp);
+                const baseWeaponHp = new Decimal(wHp).round();
+                const typeBonusHp = new Decimal(wHp).times(typeHpBonus).round();
+                memberGridHp = memberGridHp.plus(baseWeaponHp).plus(typeBonusHp);
                 
                 // 非主角：每把武器 wAtk×atkMultiplier 向下取整后累加
                 if (isProf) {
                     atkMultiplier = atkMultiplier.plus(0.2);
                 }
-                memberGridAtk = memberGridAtk.plus(new Decimal(wAtk).times(atkMultiplier).floor());
+                const baseWeaponAtk = new Decimal(wAtk).times(atkMultiplier).floor();
+                const typeBonusAtk = new Decimal(wAtk).times(typeAtkBonus).round();
+                memberGridAtk = memberGridAtk.plus(baseWeaponAtk).plus(typeBonusAtk);
             }
         }
 

@@ -67,12 +67,15 @@ function funcDecay(rawDamage, totalCap, thresholdStages) {
  */
 function calculateTotalCap(stats, capType, teshuStats, options = {}) {
     var charIndex = options.charIndex != null ? options.charIndex : 0;
-    if (typeof getAllEffectsTotalForSlot === 'function') {
-        var mappedCapType = capType === 'na' ? 'na_dmg_cap'
-            : capType === 'skill' ? 'skill_dmg_cap'
-            : capType === 'ca' ? 'ca_dmg_cap'
-            : null;
-        if (mappedCapType) {
+    var mappedCapType = capType === 'na' ? 'na_dmg_cap'
+        : capType === 'skill' ? 'skill_dmg_cap'
+        : capType === 'ca' ? 'ca_dmg_cap'
+        : null;
+    if (mappedCapType) {
+        if (options.effectTotals && typeof options.effectTotals === 'object') {
+            return new Decimal(1.0).plus(Number(options.effectTotals[mappedCapType]) || 0).toNumber();
+        }
+        if (typeof getAllEffectsTotalForSlot === 'function') {
             var allEffectsCap = getAllEffectsTotalForSlot(charIndex, mappedCapType, null);
             if (typeof allEffectsCap === 'number') return new Decimal(1.0).plus(allEffectsCap).toNumber();
         }
@@ -118,7 +121,7 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
         if (teshuStats && teshuStats['ca_dmg_cap']) {
             specificCap = specificCap.plus(teshuStats['ca_dmg_cap']);
         }
-        if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.caCap) {
+        if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings && window.buffSettings.caCap) {
             specificCap = specificCap.plus(window.buffSettings.caCap);
         }
     } else if (capType === 'cb') {
@@ -129,7 +132,7 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
     totalCap = totalCap.plus(allCap).plus(specificCap);
 
     // testbuff
-    if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.dmgCap) {
+    if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings && window.buffSettings.dmgCap) {
         totalCap = totalCap.plus(window.buffSettings.dmgCap);
     }
     
@@ -159,12 +162,15 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
 function calculateAmp(stats, ampType, teshuStats) {
     var options = arguments.length > 3 && arguments[3] ? arguments[3] : {};
     var charIndex = options.charIndex != null ? options.charIndex : 0;
-    if (typeof getAllEffectsTotalForSlot === 'function') {
-        var mappedAmpType = ampType === 'na' ? 'na_dmg_amp'
-            : ampType === 'skill' ? 'skill_dmg_amp'
-            : ampType === 'ca' ? 'ca_dmg_amp'
-            : null;
-        if (mappedAmpType) {
+    var mappedAmpType = ampType === 'na' ? 'na_dmg_amp'
+        : ampType === 'skill' ? 'skill_dmg_amp'
+        : ampType === 'ca' ? 'ca_dmg_amp'
+        : null;
+    if (mappedAmpType) {
+        if (options.effectTotals && typeof options.effectTotals === 'object') {
+            return Number(options.effectTotals[mappedAmpType]) || 0;
+        }
+        if (typeof getAllEffectsTotalForSlot === 'function') {
             var allEffectsAmp = getAllEffectsTotalForSlot(charIndex, mappedAmpType, null);
             if (typeof allEffectsAmp === 'number') return allEffectsAmp;
         }
@@ -180,7 +186,8 @@ function calculateAmp(stats, ampType, teshuStats) {
     
     if (ampType === 'na') {
         amp = amp.plus(stats['weapon_na_dmg_amp'] || 0)
-             .plus(stats['weapon_special_na_dmg_amp'] || 0);
+             .plus(stats['weapon_special_na_dmg_amp'] || 0)
+             .plus((charIndex === 0 && options.isClass5 !== true) ? (stats['job_na_amp'] || 0) : 0);
     } else if (ampType === 'skill') {
         amp = amp.plus(stats['weapon_skill_dmg_amp'] || 0)
              .plus(stats['weapon_special_skill_dmg_amp'] || 0);
@@ -191,7 +198,7 @@ function calculateAmp(stats, ampType, teshuStats) {
         amp = amp.plus(stats['weapon_cb_dmg_amp'] || 0);
     }
 
-    if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.dmgAmp) {
+    if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings && window.buffSettings.dmgAmp) {
         amp = amp.plus(window.buffSettings.dmgAmp);
     }
 
@@ -201,11 +208,14 @@ function calculateAmp(stats, ampType, teshuStats) {
 function calculateTakenDamageAmp() {
     var options = arguments.length > 0 && arguments[0] ? arguments[0] : {};
     var charIndex = options.charIndex != null ? options.charIndex : 0;
+    if (options.effectTotals && typeof options.effectTotals === 'object') {
+        return Number(options.effectTotals.taken_dmg_amp) || 0;
+    }
     if (typeof getAllEffectsTotalForSlot === 'function') {
         var allEffectsTakenAmp = getAllEffectsTotalForSlot(charIndex, 'taken_dmg_amp', null);
         if (typeof allEffectsTakenAmp === 'number') return allEffectsTakenAmp;
     }
-    if (typeof window !== 'undefined' && window.buffSettings && window.buffSettings.takenDmgAmp) {
+    if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings && window.buffSettings.takenDmgAmp) {
         return Number(window.buffSettings.takenDmgAmp) || 0;
     }
     return 0;

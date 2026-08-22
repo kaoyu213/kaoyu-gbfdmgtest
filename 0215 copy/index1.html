@@ -206,10 +206,12 @@
                         </div>
 
                         <div class="theme-custom" style="margin-top: 25px;">
-                            <div class="section-title">LB 加成</div>
-                            <div class="custom-input-area">
-                                <div style="font-size: 12px; color: #999; margin-bottom: 8px;">20个LB槽位，可重复选择同一项</div>
-                                <div class="mc-lb-slot-list"></div>
+                            <div class="section-title toggle-header" onclick="toggleSection(this)">LB 加成</div>
+                            <div class="toggle-content" style="display:none;">
+                                <div class="custom-input-area">
+                                    <div style="font-size: 12px; color: #999; margin-bottom: 8px;">20个LB槽位，可重复选择同一项</div>
+                                    <div class="mc-lb-slot-list"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -493,6 +495,12 @@
             <button class="btn-import" onclick="importConfig()">📥 导入配置</button>
         </div>
 
+        <div class="main-workspace-tabs" aria-label="主工作区切换">
+            <button type="button" class="main-workspace-tab active" data-workspace="grid" onclick="switchMainWorkspace('grid', this)">武器盘编辑</button>
+            <button type="button" class="main-workspace-tab" data-workspace="burst" onclick="switchMainWorkspace('burst', this)">单回合爆发</button>
+        </div>
+
+        <div class="main-workspace-panel active" id="main-workspace-grid">
         <div class="settings-container">
             <div class="settings-group">
                 <label>神石:</label><input type="number" id="aura-optimus" value="0" step="10" class="aura-input" onchange="recalculate(); renderGrid();"> % (+<span id="aura-optimus-passive">0</span>%)
@@ -620,6 +628,24 @@
                 btnElement.classList.add('active');
             }
         </script>
+        </div>
+
+        <div class="main-workspace-panel" id="main-workspace-burst">
+            <div id="burst-workspace-container"></div>
+        </div>
+
+        <script>
+            function switchMainWorkspace(workspaceName, btnElement) {
+                document.querySelectorAll('.main-workspace-panel').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.main-workspace-tab').forEach(el => el.classList.remove('active'));
+                const panel = document.getElementById('main-workspace-' + workspaceName);
+                if (panel) panel.classList.add('active');
+                if (btnElement) btnElement.classList.add('active');
+                if (workspaceName === 'burst' && window.BurstSimulator && typeof window.BurstSimulator.refresh === 'function') {
+                    window.BurstSimulator.refresh();
+                }
+            }
+        </script>
         </div> <!-- end 内部left-panel -->
     </div> <!-- end layout-center -->
 
@@ -662,6 +688,10 @@
                                 <button type="button" onclick="adjustBaseValue(0, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
                                 <button type="button" onclick="resetBaseValue(0)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
                             </span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">防御参考</span>
+                            <span class="char-panel-value" id="char-def-reference-0">-</span>
                         </div>
                     </div>
 
@@ -766,6 +796,10 @@
                                 <button type="button" onclick="resetBaseValue(1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
                             </span>
                         </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">防御参考</span>
+                            <span class="char-panel-value" id="char-def-reference-1">-</span>
+                        </div>
                     </div>
                     <div class="char-panel-grid" style="margin-top: 10px;">
                         <div class="char-panel-item">
@@ -837,6 +871,10 @@
                                 <button type="button" onclick="adjustBaseValue(2, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
                                 <button type="button" onclick="resetBaseValue(2)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
                             </span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">防御参考</span>
+                            <span class="char-panel-value" id="char-def-reference-2">-</span>
                         </div>
                     </div>
                     <div class="char-panel-grid" style="margin-top: 10px;">
@@ -910,6 +948,10 @@
                                 <button type="button" onclick="resetBaseValue(3)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
                             </span>
                         </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">防御参考</span>
+                            <span class="char-panel-value" id="char-def-reference-3">-</span>
+                        </div>
                     </div>
                     <div class="char-panel-grid" style="margin-top: 10px;">
                         <div class="char-panel-item">
@@ -982,6 +1024,10 @@
                                 <button type="button" onclick="resetBaseValue(4)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
                             </span>
                         </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">防御参考</span>
+                            <span class="char-panel-value" id="char-def-reference-4">-</span>
+                        </div>
                     </div>
                     <div class="char-panel-grid" style="margin-top: 10px;">
                         <div class="char-panel-item">
@@ -1053,6 +1099,10 @@
                                 <button type="button" onclick="adjustBaseValue(5, -1)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">-1</button>
                                 <button type="button" onclick="resetBaseValue(5)" style="padding: 1px 6px; font-size: 0.75em; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; color: #aaa; cursor: pointer;">重置</button>
                             </span>
+                        </div>
+                        <div class="char-panel-item">
+                            <span class="char-panel-label">防御参考</span>
+                            <span class="char-panel-value" id="char-def-reference-5">-</span>
                         </div>
                     </div>
                     <div class="char-panel-grid" style="margin-top: 10px;">
@@ -1222,24 +1272,24 @@
             <!-- 角色1 (MC) 内容 -->
             <div class="char-slot-content active" id="char-slot-0">
                 <!-- 主角面板攻击力和HP显示区域 -->
-                <div class="char-panel-stats" id="char-panel-0">
+                <div class="char-panel-stats" id="char-detail-panel-0">
                     <div class="char-panel-title">主角面板</div>
                     <div class="char-panel-grid">
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础HP</span>
-                            <span class="char-panel-value" id="char-grid-hp-0">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-hp-0">-</span>
                         </div>
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础ATK</span>
-                            <span class="char-panel-value" id="char-grid-atk-0">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-atk-0">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">主角面板HP</span>
-                            <span class="char-panel-value" id="char-panel-hp-0">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-hp-0">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">主角面板ATK</span>
-                            <span class="char-panel-value" id="char-panel-atk-0">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-atk-0">-</span>
                         </div>
                     </div>
                     
@@ -1393,10 +1443,12 @@
                     </div>
 
                     <div class="theme-custom" style="margin-top: 25px;">
-                        <div class="section-title">LB 加成</div>
-                        <div class="custom-input-area">
-                            <div style="font-size: 12px; color: #999; margin-bottom: 8px;">20个LB槽位，可重复选择同一项</div>
-                            <div class="mc-lb-slot-list"></div>
+                        <div class="section-title toggle-header" onclick="toggleSection(this)">LB 加成</div>
+                        <div class="toggle-content" style="display:none;">
+                            <div class="custom-input-area">
+                                <div style="font-size: 12px; color: #999; margin-bottom: 8px;">20个LB槽位，可重复选择同一项</div>
+                                <div class="mc-lb-slot-list"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1413,24 +1465,24 @@
             <!-- 角色2-6 内容 (占位) -->
             <div class="char-slot-content" id="char-slot-1">
                 <!-- 角色面板攻击力和HP显示区域 -->
-                <div class="char-panel-stats" id="char-panel-1">
+                <div class="char-panel-stats" id="char-detail-panel-1">
                     <div class="char-panel-title">角色2面板</div>
                     <div class="char-panel-grid">
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础HP</span>
-                            <span class="char-panel-value" id="char-grid-hp-1">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-hp-1">-</span>
                         </div>
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础ATK</span>
-                            <span class="char-panel-value" id="char-grid-atk-1">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-atk-1">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板HP</span>
-                            <span class="char-panel-value" id="char-panel-hp-1">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-hp-1">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板ATK</span>
-                            <span class="char-panel-value" id="char-panel-atk-1">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-atk-1">-</span>
                         </div>
                     </div>
                     
@@ -1547,24 +1599,24 @@
             </div>
             <div class="char-slot-content" id="char-slot-2">
                 <!-- 角色面板攻击力和HP显示区域 -->
-                <div class="char-panel-stats" id="char-panel-2">
+                <div class="char-panel-stats" id="char-detail-panel-2">
                     <div class="char-panel-title">角色3面板</div>
                     <div class="char-panel-grid">
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础HP</span>
-                            <span class="char-panel-value" id="char-grid-hp-2">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-hp-2">-</span>
                         </div>
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础ATK</span>
-                            <span class="char-panel-value" id="char-grid-atk-2">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-atk-2">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板HP</span>
-                            <span class="char-panel-value" id="char-panel-hp-2">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-hp-2">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板ATK</span>
-                            <span class="char-panel-value" id="char-panel-atk-2">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-atk-2">-</span>
                         </div>
                     </div>
                     
@@ -1681,24 +1733,24 @@
             </div>
             <div class="char-slot-content" id="char-slot-3">
                 <!-- 角色面板攻击力和HP显示区域 -->
-                <div class="char-panel-stats" id="char-panel-3">
+                <div class="char-panel-stats" id="char-detail-panel-3">
                     <div class="char-panel-title">角色4面板</div>
                     <div class="char-panel-grid">
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础HP</span>
-                            <span class="char-panel-value" id="char-grid-hp-3">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-hp-3">-</span>
                         </div>
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础ATK</span>
-                            <span class="char-panel-value" id="char-grid-atk-3">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-atk-3">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板HP</span>
-                            <span class="char-panel-value" id="char-panel-hp-3">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-hp-3">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板ATK</span>
-                            <span class="char-panel-value" id="char-panel-atk-3">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-atk-3">-</span>
                         </div>
                     </div>
                     
@@ -1815,24 +1867,24 @@
             </div>
             <div class="char-slot-content" id="char-slot-4">
                 <!-- 角色面板攻击力和HP显示区域 -->
-                <div class="char-panel-stats" id="char-panel-4">
+                <div class="char-panel-stats" id="char-detail-panel-4">
                     <div class="char-panel-title">角色5面板</div>
                     <div class="char-panel-grid">
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础HP</span>
-                            <span class="char-panel-value" id="char-grid-hp-4">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-hp-4">-</span>
                         </div>
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础ATK</span>
-                            <span class="char-panel-value" id="char-grid-atk-4">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-atk-4">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板HP</span>
-                            <span class="char-panel-value" id="char-panel-hp-4">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-hp-4">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板ATK</span>
-                            <span class="char-panel-value" id="char-panel-atk-4">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-atk-4">-</span>
                         </div>
                     </div>
                     
@@ -1949,24 +2001,24 @@
             </div>
             <div class="char-slot-content" id="char-slot-5">
                 <!-- 角色面板攻击力和HP显示区域 -->
-                <div class="char-panel-stats" id="char-panel-5">
+                <div class="char-panel-stats" id="char-detail-panel-5">
                     <div class="char-panel-title">角色6面板</div>
                     <div class="char-panel-grid">
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础HP</span>
-                            <span class="char-panel-value" id="char-grid-hp-5">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-hp-5">-</span>
                         </div>
                         <div class="char-panel-item">
                             <span class="char-panel-label">武器盘基础ATK</span>
-                            <span class="char-panel-value" id="char-grid-atk-5">-</span>
+                            <span class="char-panel-value" id="char-detail-grid-atk-5">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板HP</span>
-                            <span class="char-panel-value" id="char-panel-hp-5">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-hp-5">-</span>
                         </div>
                         <div class="char-panel-item highlight">
                             <span class="char-panel-label">角色面板ATK</span>
-                            <span class="char-panel-value" id="char-panel-atk-5">-</span>
+                            <span class="char-panel-value" id="char-detail-panel-atk-5">-</span>
                         </div>
                     </div>
                     
@@ -2140,6 +2192,7 @@
     <script src="js/buff_directory.js"></script>
     <script src="js/buff_zones.js"></script>
     <script src="js/buff_registry.js"></script>
+    <script src="js/sim/status_resolver.js"></script>
     <script src="js/calc.js"></script>
     <script src="js/threshold_registry.js"></script>
     <script src="js/damage_cap.js"></script>
@@ -2148,6 +2201,7 @@
     <script src="js/na_dmg_calc.js"></script>
     <script src="js/ca_dmg_calc.js"></script>
     <script src="js/skill_dmg_calc.js"></script>
+    <script src="js/sim/sim_burst.js"></script>
     <script src="js/init.js"></script>
     
     <!-- 伤害预测相关函数 -->

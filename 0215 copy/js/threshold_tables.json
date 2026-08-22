@@ -99,6 +99,32 @@
         { "limit": 600000, "slope": 0.05 },
         { "limit": null,   "slope": 0.01 }
       ]
+    },
+    "skill_10.75": {
+      "type": "skill",
+      "multiplier": null,
+      "displayCap": 10.75,
+      "label": "技伤上限10.75万",
+      "stages": [
+        { "limit": 50000,  "slope": 1.0 },
+        { "limit": 100000, "slope": 0.5 },
+        { "limit": 150000, "slope": 0.3 },
+        { "limit": 500000, "slope": 0.05 },
+        { "limit": null,   "slope": 0.01 }
+      ]
+    },
+    "skill_test": {
+      "type": "skill",
+      "multiplier": null,
+      "displayCap": 20,
+      "label": "技伤测试衰减表 skill_test",
+      "stages": [
+        { "limit": 200000,  "slope": 1.0 },
+        { "limit": 300000,  "slope": 0.7 },
+        { "limit": 400000,  "slope": 0.5 },
+        { "limit": 1000000, "slope": 0.05 },
+        { "limit": null,    "slope": 0.01 }
+      ]
     }
   },
   "worldCap": {

@@ -5,6 +5,9 @@
 // 初始化应用
 async function init() {
     try {
+        if (typeof validateBuffDirectoryCoverage === 'function') {
+            validateBuffDirectoryCoverage();
+        }
         // 恢复上次选中的用户（用户1/用户2）
         if (typeof CURRENT_USER_STORAGE_KEY !== 'undefined') {
             const savedUser = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
@@ -146,6 +149,13 @@ async function init() {
         window.addEventListener('specialBuffsChanged', function() {
             if (typeof saveToLocal === 'function') saveToLocal(true);
         });
+
+        if (window.BurstSimulator && typeof window.BurstSimulator.init === 'function') {
+            window.BurstSimulator.init();
+            if (typeof window.BurstSimulator.refresh === 'function') {
+                window.BurstSimulator.refresh();
+            }
+        }
 
         // 添加键盘快捷键
         document.addEventListener('keydown', function(e) {

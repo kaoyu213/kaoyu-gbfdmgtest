@@ -218,6 +218,9 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
         backups: [0, 0, 0, 0, 0],  // 5个备用乘区
         strongCaps: [],           // 强壮乘区各独立技能的满血上限列表
         charIndex: 0,             // 角色槽位索引，用于基础值调整
+        updateBaseValueDisplay: false,
+        ignoreBaseValueAdjustment: false,
+        ignoreTestBuffSettings: false,
         // 逆境乘区来源（当前先作为已按 HP 折算后的实时值传入，后续可根据你提供的曲线在此处或上层计算）
         // - adversityCharSkill: 来自角色技能的逆境
         // - adversityWeapon: 来自武器被动/奥义等的逆境
@@ -258,7 +261,7 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
     const indep_special = aggregateZoneValue('indep_special_atk', stats, teshuStats);
 
     // 应用 testbuff 面板的乘区修正（在进入各 Step 之前统一汇总）
-    const buffs = (typeof window !== 'undefined' && window.buffSettings) ? window.buffSettings : {};
+    const buffs = !opts.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings ? window.buffSettings : {};
     const buffNormal    = buffs.normal    || 0;
     const buffStamina   = buffs.stamina   || 0;
     const buffEnmity    = buffs.enmity    || 0;
@@ -322,20 +325,20 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
     console.log(`Step3 [支援]: ${s3} → ${current}`);
     addLog(`支援 (x${airshipMult3.toFixed(2)})`, current);
 
-    // 存储 Step3 完成后的 current 作为"基础值"，并同步 UI
-    if (typeof window !== 'undefined') {
+    // Step3 完成后的 current 是基础值；只有平 A 主显示流程负责同步 UI。
+    if (!opts.ignoreBaseValueAdjustment && typeof window !== 'undefined') {
         window.baseValues = window.baseValues || {};
-        if (!window.baseValues[charIndex]) {
-            window.baseValues[charIndex] = { original: current, adjustment: 0 };
-        } else {
-            window.baseValues[charIndex].original = current;
+        const baseState = window.baseValues[charIndex] || { original: current, adjustment: 0 };
+        if (opts.updateBaseValueDisplay || !window.baseValues[charIndex]) {
+            baseState.original = current;
         }
-        // 应用手动调整
-        current = current + (window.baseValues[charIndex].adjustment || 0);
-        // 更新 UI 显示
-        const baseEl = document.getElementById('char-base-value-' + charIndex);
-        if (baseEl) {
-            baseEl.textContent = current;
+        window.baseValues[charIndex] = baseState;
+        current = current + (baseState.adjustment || 0);
+        if (opts.updateBaseValueDisplay) {
+            const baseEl = document.getElementById('char-base-value-' + charIndex);
+            if (baseEl) {
+                baseEl.textContent = current;
+            }
         }
     }
     
@@ -691,6 +694,7 @@ function calculateDamageFromUI(charIndex = 0) {
         randomFactor: randomFactor,
         backups: backups,
         charIndex: charIndex,
+        updateBaseValueDisplay: true,
         strongCaps: strongCaps,
         lbStaminaBonus: lbStaminaBonus,
         charStrongBonus: charStrongBonus,
@@ -769,6 +773,186 @@ function sumNaTheoryWithoutDecayWithRanshu(rawPostDef, stats, teshuStats, extraA
 // ==========================================
 // 更新UI显示伤害结果
 // ==========================================
+function escapeSkillDamageHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function getCheckedDamageSkillSteps(charIndex) {
+    const out = [];
+    if (charIndex === 0 || typeof currentParty === 'undefined' || !currentParty[charIndex]) return out;
+    if (typeof globalCharaSkillMap === 'undefined' || !globalCharaSkillMap) return out;
+    if (!window.StatusResolver || typeof window.StatusResolver.getSkillActions !== 'function') return out;
+
+    const charData = currentParty[charIndex];
+    const cid = charData && charData['ID'];
+    if (cid == null) return out;
+
+    for (let pos = 1; pos <= 4; pos++) {
+        const cb = document.querySelector(`.char-skill-enabled-cb[data-slot="${charIndex}"][data-pos="${pos}"]`);
+        if (!cb || !cb.checked) continue;
+        const sid = `${cid}_${pos}`;
+        const skill = globalCharaSkillMap[sid];
+        if (!skill) continue;
+        const actions = window.StatusResolver.getSkillActions(skill, {
+            skillId: sid,
+            skillName: skill.name || sid,
+            element: skill.element || null,
+            ownerSlot: charIndex
+        });
+        actions.forEach((action, actionIdx) => {
+            if (!action || action.type !== 'damage' || !action.damage) return;
+            out.push({
+                skill,
+                skillId: sid,
+                action,
+                actionIdx
+            });
+        });
+    }
+    return out;
+}
+
+if (typeof window !== 'undefined') {
+    window.skillDamageDecayModeByChar = window.skillDamageDecayModeByChar || {};
+}
+
+function getSkillDamageDecayMode(charIndex) {
+    if (typeof window === 'undefined') return 'fuzzy';
+    return window.skillDamageDecayModeByChar && window.skillDamageDecayModeByChar[charIndex] === 'exact'
+        ? 'exact'
+        : 'fuzzy';
+}
+
+function setSkillDamageDecayModeButton(charIndex, hasDamageSkill) {
+    const input = document.getElementById('skill-mult-input-' + charIndex);
+    const wrap = input ? input.closest('.dmg-skill-label-input') : null;
+    if (!wrap) return;
+    let btn = document.getElementById('skill-decay-mode-btn-' + charIndex);
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'skill-decay-mode-btn-' + charIndex;
+        btn.className = 'skill-decay-mode-btn';
+        btn.onclick = function () {
+            const cur = getSkillDamageDecayMode(charIndex);
+            window.skillDamageDecayModeByChar[charIndex] = cur === 'exact' ? 'fuzzy' : 'exact';
+            if (
+                window.skillDamageDecayModeByChar[charIndex] === 'exact'
+                && window.ThresholdRegistry
+                && typeof window.ThresholdRegistry.loadThresholdData === 'function'
+            ) {
+                window.ThresholdRegistry.loadThresholdData().then(function () {
+                    if (typeof recalculate === 'function') recalculate();
+                    else updateDamageDisplay(charIndex);
+                });
+                return;
+            }
+            if (typeof recalculate === 'function') recalculate();
+            else updateDamageDisplay(charIndex);
+        };
+        wrap.appendChild(btn);
+    }
+    btn.style.display = hasDamageSkill ? '' : 'none';
+    btn.textContent = getSkillDamageDecayMode(charIndex) === 'exact' ? '精确' : '模糊';
+    btn.title = '模糊：超过 cap 的部分按 0.01 斜率计算；精确：使用技能阈值表计算';
+}
+
+function getSkillDamageCapCoefForFuzzy(charIndex, stats, capOptions) {
+    const teshuStats = typeof getTeshuStats === 'function' ? getTeshuStats() : {};
+    if (typeof calculateTotalCap === 'function') {
+        return calculateTotalCap(stats || {}, 'skill', teshuStats, Object.assign({}, capOptions || {}, { charIndex }));
+    }
+    if (typeof getAllEffectsTotalForSlot === 'function') {
+        const cap = getAllEffectsTotalForSlot(charIndex, 'skill_dmg_cap', 0);
+        return new Decimal(1).plus(Number(cap) || 0).toNumber();
+    }
+    return 1;
+}
+
+function applyFuzzySkillCap(rawPerHit, capPerHit, capCoef) {
+    const raw = Number(rawPerHit);
+    const cap = new Decimal(Number(capPerHit) || 0)
+        .times(Number(capCoef) || 1)
+        .toNumber();
+    if (!Number.isFinite(raw)) return NaN;
+    if (cap <= 0 || raw <= cap) return raw;
+    return cap + (raw - cap) * 0.01;
+}
+
+function renderCheckedSkillDamageRows(charIndex, skillDmgEl, calcContext) {
+    const damageSteps = getCheckedDamageSkillSteps(charIndex);
+    if (!damageSteps.length) return false;
+    if (!window.SkillDmgCalc || typeof window.SkillDmgCalc.calculateSkillDamage !== 'function') return false;
+
+    const rows = [];
+    const decayMode = getSkillDamageDecayMode(charIndex);
+    damageSteps.forEach((item) => {
+        const damage = item.action.damage || {};
+        const multiplier = Number(damage.multiplier);
+        const hits = Math.max(1, Math.floor(Number(damage.hits) || 1));
+        if (!Number.isFinite(multiplier) || multiplier <= 0) return;
+
+        const capPerHit = Number(damage.cap_per_hit) || 0;
+        const thresholdTableId = damage.threshold_table || null;
+        const exactTable = thresholdTableId && window.ThresholdRegistry && typeof window.ThresholdRegistry.getById === 'function'
+            ? window.ThresholdRegistry.getById(thresholdTableId)
+            : null;
+        const useExact = decayMode === 'exact' && !!exactTable;
+        const skillResult = window.SkillDmgCalc.calculateSkillDamage(
+            calcContext.panelAtk,
+            calcContext.stats,
+            calcContext.hpPercent,
+            {
+                defense: calcContext.defense,
+                defenseDown: calcContext.defenseDown,
+                charIndex: charIndex,
+                isAdvantage: calcContext.isAdv,
+                critMode: calcContext.critMode,
+                naOptions: { randomFactor: calcContext.randomFactor },
+                strongCaps: calcContext.strongCaps,
+                lbStaminaBonus: calcContext.lbStaminaBonus,
+                charStrongBonus: calcContext.charStrongBonus,
+                adversityCharSkill: calcContext.adversityCharSkill,
+                adversityWeapon: calcContext.adversityWeapon,
+                adversityStrongBonus: calcContext.adversityStrongBonus,
+                applyCap: useExact,
+                capOptions: Object.assign({}, calcContext.capOptions || {}, useExact ? { thresholdTableId } : {}),
+                skillBaseMult: multiplier
+            }
+        );
+        const rawPerHit = skillResult && skillResult.value != null ? Number(skillResult.value) : NaN;
+        if (!Number.isFinite(rawPerHit)) return;
+        const fuzzyCapCoef = useExact ? 1 : getSkillDamageCapCoefForFuzzy(charIndex, calcContext.stats, calcContext.capOptions);
+        const perHit = useExact ? rawPerHit : applyFuzzySkillCap(rawPerHit, capPerHit, fuzzyCapCoef);
+        const label = item.skill && item.skill.name ? item.skill.name : item.skillId;
+        const capDetail = capPerHit > 0
+            ? `，cap ${Math.round(new Decimal(capPerHit).times(fuzzyCapCoef)).toLocaleString()}`
+            : '';
+        const detail = `${multiplier}倍 × ${hits}hit${capDetail}${useExact ? `，精确阈值表 ${thresholdTableId}` : '，模糊衰减'}`;
+        const iconRel = item.skill && item.skill.icon ? item.skill.icon : '';
+        const iconSrc = iconRel && typeof buildCharaSkillIconSrc === 'function'
+            ? buildCharaSkillIconSrc(iconRel)
+            : '';
+        const iconHtml = iconSrc
+            ? `<img class="skill-dmg-breakdown-icon" src="${escapeSkillDamageHtml(iconSrc)}" alt="" title="${escapeSkillDamageHtml(label)}">`
+            : `<span class="skill-dmg-breakdown-icon skill-dmg-breakdown-icon--text">${escapeSkillDamageHtml(label.slice(0, 1) || '?')}</span>`;
+        rows.push(`
+            <span class="skill-dmg-breakdown-row" title="${escapeSkillDamageHtml(detail)}">
+                ${iconHtml}
+                <span class="skill-dmg-breakdown-val">${Math.round(perHit).toLocaleString()} × ${hits}</span>
+            </span>
+        `);
+    });
+
+    if (!rows.length) return false;
+    skillDmgEl.innerHTML = rows.join('');
+    return true;
+}
+
 function updateDamageDisplay(charIndex = 0) {
     function ensureDamageRangeRow(detailsId, rangeId) {
         const detailsEl = document.getElementById(detailsId);
@@ -915,6 +1099,7 @@ function updateDamageDisplay(charIndex = 0) {
         defenseDown: defenseDown,
         randomFactor: randomFactor,
         backups: backups,
+        updateBaseValueDisplay: true,
         ...baseAdversityOptions
     });
     
@@ -1469,11 +1654,50 @@ function updateDamageDisplay(charIndex = 0) {
 
     const skillDmgEl = document.getElementById('skill-dmg-display-' + charIndex);
     if (skillDmgEl && window.SkillDmgCalc && typeof window.SkillDmgCalc.calculateSkillDamage === 'function') {
+        const skillMultInput = document.getElementById('skill-mult-input-' + charIndex);
+        const skillLabelWrap = skillMultInput ? skillMultInput.closest('.dmg-skill-label-input') : null;
+        const skillLabel = skillLabelWrap ? skillLabelWrap.querySelector('.dmg-label') : null;
+        const hasCheckedDamageSkill = getCheckedDamageSkillSteps(charIndex).length > 0;
+        setSkillDamageDecayModeButton(charIndex, hasCheckedDamageSkill);
+        const renderedCheckedSkills = renderCheckedSkillDamageRows(charIndex, skillDmgEl, {
+            panelAtk,
+            stats,
+            hpPercent,
+            defense,
+            defenseDown,
+            isAdv,
+            critMode,
+            randomFactor,
+            capOptions,
+            ...baseAdversityOptions
+        });
+        if (renderedCheckedSkills) {
+            if (skillMultInput) skillMultInput.style.display = 'none';
+            if (skillLabel) skillLabel.textContent = '技能伤害';
+            if (totalCritMult > 1.0000001) skillDmgEl.classList.add('is-crit');
+            else skillDmgEl.classList.remove('is-crit');
+            return resultNormal;
+        }
+
+        if (skillMultInput) skillMultInput.style.display = '';
+        if (skillLabel) skillLabel.textContent = '技能预测伤害';
+        setSkillDamageDecayModeButton(charIndex, false);
         const skillMult = window.SkillDmgCalc.readSkillMultFromUI(charIndex);
         if (!Number.isFinite(skillMult) || skillMult <= 0) {
             skillDmgEl.textContent = '-';
             skillDmgEl.classList.remove('is-crit');
         } else {
+            if (
+                window.ThresholdRegistry
+                && typeof window.ThresholdRegistry.loadThresholdData === 'function'
+                && !window.__skillTestThresholdLoadRequested
+            ) {
+                window.__skillTestThresholdLoadRequested = true;
+                window.ThresholdRegistry.loadThresholdData().then(function () {
+                    if (typeof recalculate === 'function') recalculate();
+                    else updateDamageDisplay(charIndex);
+                });
+            }
             const skillResult = window.SkillDmgCalc.calculateSkillDamage(panelAtk, stats, hpPercent, {
                 defense: defense,
                 defenseDown: defenseDown,
@@ -1481,7 +1705,9 @@ function updateDamageDisplay(charIndex = 0) {
                 isAdvantage: isAdv,
                 critMode: critMode,
                 naOptions: { randomFactor: randomFactor },
-                capOptions: capOptions,
+                ...baseAdversityOptions,
+                applyCap: true,
+                capOptions: Object.assign({}, capOptions || {}, { thresholdTableId: 'skill_test' }),
                 skillBaseMult: skillMult
             });
             const skillVal = skillResult && skillResult.value != null ? skillResult.value : null;

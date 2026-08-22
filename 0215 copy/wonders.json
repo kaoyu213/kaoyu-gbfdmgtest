@@ -19,12 +19,13 @@
     "name": "神灭印章",
     "image": "wonders/9009_15.jpg",
     "description": [
-      {"desc": "TA", "effect": {"ta": 0.05}},
+      {"desc": "TA", "effect": {"ta": 0.07}},
       {"desc": "DA", "effect": {"da": 0.06}},
-      {"desc": "回复上限", "effect": {"heal_cap": 0.09}},
-      {"desc": "弱体耐性", "effect": {"debuff_resistance": 0.09}},
+      {"desc": "防御力", "effect": {"def_shenmie": 0.12}},
+      {"desc": "回复上限", "effect": {"heal_cap": 0.12}},
+      {"desc": "弱体耐性", "effect": {"debuff_resistance": 0.1}},
       {"desc": "弱体成功率", "effect": {"debuff_success_rate": 0.05}},
-      {"desc": "受到克制属性伤害减轻", "effect": {"anti_element_reduce": 0.05}}
+      {"desc": "受到克制属性伤害减轻", "effect": {"anti_element_reduce": 0.1}}
     ]
   },
   {

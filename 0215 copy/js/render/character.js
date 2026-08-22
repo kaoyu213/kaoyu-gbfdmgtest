@@ -253,7 +253,9 @@ function appendPartyBuffIconSlot(listEl, disp) {
 /** 技能悬停/标题：description、中文描述、name、类型 */
 function getCharaSkillDisplayTitle(skill) {
     if (!skill || typeof skill !== 'object') return '';
-    const d = skill.description != null && skill.description !== '' ? skill.description : skill['中文描述'];
+    const d = skill.desc != null && skill.desc !== ''
+        ? skill.desc
+        : (skill.description != null && skill.description !== '' ? skill.description : skill['中文描述']);
     if (d != null && d !== '') return String(d);
     if (skill.name != null && skill.name !== '') return String(skill.name);
     if (skill['类型'] != null && skill['类型'] !== '') return String(skill['类型']);
@@ -742,8 +744,8 @@ function formatCharabuffStatLinesHtml(stats) {
         if (cfg.format === 'ta_rate_bonus') {
             if (val <= 0) return;
             any = true;
-            const disp = String(Math.round(val));
-            html += `<div class="stat-line"><span>${cfg.label}</span> <span class="val-highlight">${disp}</span></div>`;
+            const disp = '+' + (val * 100).toFixed(0) + '%';
+            html += `<div class="stat-line"><span>ta</span> <span class="val-highlight">${disp}</span></div>`;
             return;
         }
         if (Math.abs(val) <= 0.0001) return;
@@ -764,19 +766,196 @@ function formatCharabuffStatLinesHtml(stats) {
     return { html, any };
 }
 
+function formatZoneEntryValue(entry) {
+    const value = Number(entry && entry.value);
+    if (!Number.isFinite(value)) return '';
+    const meta = typeof getBuffDisplayMeta === 'function'
+        ? getBuffDisplayMeta(entry && entry.prop, entry && entry.zone, entry)
+        : null;
+    const format = meta && meta.format
+        ? String(meta.format)
+        : (entry && entry.format ? String(entry.format) : (Math.abs(value) <= 10 ? 'percent' : 'fixed'));
+    if (format === 'ta_rate_bonus') return '+' + (value * 100).toFixed(0) + '%';
+    if (format === 'fixed') return String(Math.round(value));
+    return (value >= 0 ? '+' : '') + (value * 100).toFixed(2) + '%';
+}
+
+function escapePartyBuffStatText(value) {
+    if (typeof escapeHtmlCharaBrief === 'function') return escapeHtmlCharaBrief(value);
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function formatZoneEntryLabel(entry) {
+    if (!entry) return '';
+    const prop = entry.prop ? String(entry.prop) : '';
+    const meta = typeof getBuffDisplayMeta === 'function'
+        ? getBuffDisplayMeta(prop, entry.zone, entry)
+        : null;
+    const label = meta && meta.label
+        ? meta.label
+        : (entry.label != null && String(entry.label).trim() !== '' ? String(entry.label).trim() : prop);
+    const zone = entry.zone != null && String(entry.zone).trim() !== ''
+        ? String(entry.zone).trim()
+        : '';
+    const parsed = typeof parseBuffProp === 'function' ? parseBuffProp(prop) : { buffType: prop };
+    const showZone = zone
+        && parsed.buffType === 'bonus_na';
+    return showZone ? `${label} ${zone.toLowerCase()}` : label;
+}
+
+function collectCheckedSkillStatuses(slotIndex) {
+    const statusesOut = [];
+    if (slotIndex === 0 || !window.StatusResolver || typeof window.StatusResolver.getStatusesFromSkillActions !== 'function') {
+        return statusesOut;
+    }
+    const cp = typeof currentParty !== 'undefined' ? currentParty : [];
+    const charData = cp[slotIndex];
+    if (!charData || charData['ID'] == null) return statusesOut;
+    const map = typeof globalCharaSkillMap !== 'undefined' && globalCharaSkillMap ? globalCharaSkillMap : {};
+    const cid = charData['ID'];
+    for (let pos = 1; pos <= 4; pos++) {
+        const cb = document.querySelector(`.char-skill-enabled-cb[data-slot="${slotIndex}"][data-pos="${pos}"]`);
+        if (!cb || !cb.checked) continue;
+        const sid = `${cid}_${pos}`;
+        const skill = map[sid];
+        if (!skill || !Array.isArray(skill.steps)) continue;
+        window.StatusResolver.getStatusesFromSkillActions(skill, {
+            skillId: sid,
+            skillName: skill.name || sid,
+            ownerSlot: slotIndex
+        }).forEach((status) => statusesOut.push(status));
+    }
+    return statusesOut;
+}
+
+function formatUniqueStatusEffect(effect) {
+    if (!effect) return '';
+    if (effect.formula && effect.formula.prop && effect.formula.zone) {
+        const entry = {
+            prop: effect.formula.prop,
+            zone: effect.formula.zone,
+            value: effect.formula.value,
+            format: effect.formula.format || effect.format,
+            label: effect.label || effect.formula.label
+        };
+        return `${escapePartyBuffStatText(formatZoneEntryLabel(entry))} <span>${escapePartyBuffStatText(formatZoneEntryValue(entry))}</span>`;
+    }
+    if (effect.effect_type === 'extra_attack') {
+        return '<a href="https://gbf.huijiwiki.com/wiki/%E5%86%8D%E6%94%BB%E5%87%BB" target="_blank" rel="noopener noreferrer">再攻击</a>';
+    }
+    if (effect.effect_type === 'turn_hp_loss') {
+        const pct = ((Number(effect.percent_max_hp) || 0) * 100).toFixed(0);
+        return `<a href="https://gbf.huijiwiki.com/wiki/%E6%AF%8F%E5%9B%9E%E5%90%88%E4%BC%A4%E5%AE%B3" target="_blank" rel="noopener noreferrer">每回合损失${pct}%HP</a>`;
+    }
+    if (effect.effect_type === 'bonus_damage') {
+        const value = Number(effect.value) || 0;
+        const zone = effect.zone ? ` ${String(effect.zone).toLowerCase()}` : '';
+        return `${escapePartyBuffStatText('追击' + zone)} <span>${escapePartyBuffStatText((value * 100).toFixed(2) + '%')}</span>`;
+    }
+    return escapePartyBuffStatText(effect.effect_type || '');
+}
+
+function formatUniqueStatusBoxesHtml(statuses) {
+    const uniqueStatuses = (Array.isArray(statuses) ? statuses : []).filter((status) => status && status.kind === 'unique');
+    let html = '';
+    uniqueStatuses.forEach((status) => {
+        const effects = Array.isArray(status.effects) ? status.effects : [];
+        const hasStatusOnlyEffect = effects.some((effect) => effect && !effect.formula);
+        if (!hasStatusOnlyEffect) return;
+        const rows = effects
+            .map((effect) => formatUniqueStatusEffect(effect))
+            .filter(Boolean)
+            .map((line) => `<li>${line}</li>`)
+            .join('');
+        if (!rows) return;
+        html += `
+            <div class="party-buff-unique-box">
+                <div class="party-buff-unique-title">${escapePartyBuffStatText(status.name || status.status_id || '独有 Buff')}</div>
+                <ul class="party-buff-unique-effects">${rows}</ul>
+            </div>
+        `;
+    });
+    return { html, any: html !== '' };
+}
+
+function formatStatusZoneEntryLinesHtml(member) {
+    if (!member) return { html: '', any: false };
+    const entries = []
+        .concat(Array.isArray(member.skillZoneEffectEntries) ? member.skillZoneEffectEntries : [])
+        .concat(Array.isArray(member.zoneEffectEntries) ? member.zoneEffectEntries : []);
+    const seen = new Set();
+    let html = '';
+    entries.forEach((entry, idx) => {
+        if (!entry || !entry.prop || !entry.zone) return;
+        const key = [
+            entry.sourceId || idx,
+            entry.prop,
+            entry.zone,
+            entry.value
+        ].join('|');
+        if (seen.has(key)) return;
+        seen.add(key);
+        const label = formatZoneEntryLabel(entry);
+        const valueText = formatZoneEntryValue(entry);
+        if (!label || !valueText) return;
+        html += `<div class="stat-line party-buff-stat-line"><span>${escapePartyBuffStatText(String(label))}</span> <span class="val-highlight">${escapePartyBuffStatText(valueText)}</span></div>`;
+    });
+    return {
+        html: html ? `<div class="party-buff-stat-section-title">角色 Buff</div>${html}` : '',
+        any: html !== ''
+    };
+}
+
+function collectCheckedSkillStatusZoneEntries(slotIndex) {
+    const entries = [];
+    if (!window.StatusResolver) return entries;
+    collectCheckedSkillStatuses(slotIndex).forEach((status) => {
+        if (window.StatusResolver.collectZoneEntriesFromStatuses) {
+            window.StatusResolver.collectZoneEntriesFromStatuses([status]).forEach((entry) => entries.push(entry));
+        }
+    });
+    return entries;
+}
+
+function formatZoneEntryLinesHtml(entries) {
+    return formatStatusZoneEntryLinesHtml({
+        skillZoneEffectEntries: Array.isArray(entries) ? entries : [],
+        zoneEffectEntries: []
+    });
+}
+
 /** 右侧「角色 Buff」下方：STAT_CONFIG category=charabuff 数值（与常驻加成 stat-line 风格一致） */
 function renderPartyBuffCharabuffStats(slotIndex) {
     const out = document.getElementById('party-buff-charabuff-stats');
     if (!out) return;
 
     const gp = typeof window.getCalcParty === 'function' ? window.getCalcParty() : null;
+    const fallbackEntries = collectCheckedSkillStatusZoneEntries(slotIndex);
+    const checkedStatuses = collectCheckedSkillStatuses(slotIndex);
+    const uniqueBoxes = formatUniqueStatusBoxesHtml(checkedStatuses);
     if (!gp || !gp[slotIndex] || !gp[slotIndex].stats) {
-        out.innerHTML =
-            '<div class="stat-line"><span style="color:#666">暂无技能 Buff</span><span style="color:#666">—</span></div>';
+        const fallback = formatZoneEntryLinesHtml(fallbackEntries);
+        const combinedHtml = (fallback.any ? fallback.html : '') + (uniqueBoxes.any ? uniqueBoxes.html : '');
+        out.innerHTML = combinedHtml
+            ? combinedHtml
+            : '<div class="stat-line"><span style="color:#666">暂无技能 Buff</span><span style="color:#666">—</span></div>';
         return;
     }
-    const { html } = formatCharabuffStatLinesHtml(gp[slotIndex].stats);
-    out.innerHTML = html;
+    const member = gp[slotIndex];
+    const legacy = formatCharabuffStatLinesHtml(member.stats);
+    const dynamic = formatStatusZoneEntryLinesHtml(member);
+    const fallback = dynamic.any ? { html: '', any: false } : formatZoneEntryLinesHtml(fallbackEntries);
+    if (!legacy.any && !dynamic.any && !uniqueBoxes.any) {
+        out.innerHTML = fallback.any
+            ? fallback.html
+            : '<div class="stat-line"><span style="color:#666">暂无技能 Buff</span><span style="color:#666">—</span></div>';
+        return;
+    }
+    out.innerHTML = (legacy.any ? legacy.html : '') + (dynamic.any ? dynamic.html : '') + (fallback.any ? fallback.html : '') + (uniqueBoxes.any ? uniqueBoxes.html : '');
 }
 
 /** 右侧「角色 Buff」：仅展示 slotIndex 对应角色（与当前面板切换同步） */
@@ -826,7 +1005,9 @@ function renderPartyBuffPanel(slotIndex) {
                 if (!skill) continue;
 
                 const iconRel = getCharaSkillIconPath(skill);
-                const showSkillIcon = skill.party_buff_show_skill_icon !== false;
+                const showSkillIcon = skill.show_icon !== false
+                    && skill.show_skill_icon_in_buff_bar !== false
+                    && skill.party_buff_show_skill_icon !== false;
                 if (showSkillIcon && iconRel) {
                     const wrap = document.createElement('div');
                     wrap.className = 'party-buff-icon-slot';
@@ -839,10 +1020,18 @@ function renderPartyBuffPanel(slotIndex) {
                     skillTarget.appendChild(wrap);
                 }
 
-                const effects = Array.isArray(skill.effects) ? skill.effects : [];
-                for (let ei = 0; ei < effects.length; ei++) {
-                    const disp = getApplyBuffPartyDisplay(effects[ei]);
-                    if (disp) appendPartyBuffIconSlot(skillTarget, disp);
+                if (Array.isArray(skill.steps) && window.StatusResolver && typeof window.StatusResolver.getStatusesFromSkillActions === 'function') {
+                    const statuses = window.StatusResolver.getStatusesFromSkillActions(skill, {
+                        skillId: sid,
+                        skillName: skill.name || sid,
+                        ownerSlot: slotIndex
+                    });
+                    statuses.forEach((status) => {
+                        const disp = window.StatusResolver.statusToPartyBuffDisplay
+                            ? window.StatusResolver.statusToPartyBuffDisplay(status)
+                            : null;
+                        if (disp) appendPartyBuffIconSlot(skillTarget, disp);
+                    });
                 }
             }
         }
@@ -852,7 +1041,9 @@ function renderPartyBuffPanel(slotIndex) {
 }
 
 function onCharSkillBuffToggle() {
-    if (typeof renderPartyBuffPanel === 'function') {
+    if (typeof recalculate === 'function') {
+        recalculate();
+    } else if (typeof renderPartyBuffPanel === 'function') {
         renderPartyBuffPanel(getActiveCharSlotIndex());
     }
 }
@@ -1245,20 +1436,23 @@ function renderCharPanelStats(teamData) {
     if (!Array.isArray(teamData)) {
         teamData = [teamData];
     }
+
+    const setPanelText = (ids, text) => {
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+        });
+    };
     
     for (let i = 0; i <= 5; i++) {
-        const gridHpEl = document.getElementById('char-grid-hp-' + i);
-        const gridAtkEl = document.getElementById('char-grid-atk-' + i);
-        const panelHpEl = document.getElementById('char-panel-hp-' + i);
-        const panelAtkEl = document.getElementById('char-panel-atk-' + i);
         const actualHpEl = document.getElementById('char-actual-hp-' + i);
         const currentHpEl = document.getElementById('char-current-hp-' + i);
         
         if (teamData[i]) {
-            if (gridHpEl) gridHpEl.textContent = Math.round(teamData[i].gridHp).toLocaleString();
-            if (gridAtkEl) gridAtkEl.textContent = Math.round(teamData[i].gridAtk).toLocaleString();
-            if (panelHpEl) panelHpEl.textContent = Math.round(teamData[i].panelHp).toLocaleString();
-            if (panelAtkEl) panelAtkEl.textContent = Math.round(teamData[i].panelAtk).toLocaleString();
+            setPanelText(['char-grid-hp-' + i, 'char-detail-grid-hp-' + i], Math.round(teamData[i].gridHp).toLocaleString());
+            setPanelText(['char-grid-atk-' + i, 'char-detail-grid-atk-' + i], Math.round(teamData[i].gridAtk).toLocaleString());
+            setPanelText(['char-panel-hp-' + i, 'char-detail-panel-hp-' + i], Math.round(teamData[i].panelHp).toLocaleString());
+            setPanelText(['char-panel-atk-' + i, 'char-detail-panel-atk-' + i], Math.round(teamData[i].panelAtk).toLocaleString());
 
             // 如果存在对应的显示区域，则计算并显示「实际生命值」和「当前生命值」
             if (actualHpEl && currentHpEl && typeof party !== 'undefined' && party[i] && party[i].stats) {
@@ -1303,10 +1497,10 @@ function renderCharPanelStats(teamData) {
                 }
             }
         } else {
-            if (gridHpEl) gridHpEl.textContent = '-';
-            if (gridAtkEl) gridAtkEl.textContent = '-';
-            if (panelHpEl) panelHpEl.textContent = '-';
-            if (panelAtkEl) panelAtkEl.textContent = '-';
+            setPanelText(['char-grid-hp-' + i, 'char-detail-grid-hp-' + i], '-');
+            setPanelText(['char-grid-atk-' + i, 'char-detail-grid-atk-' + i], '-');
+            setPanelText(['char-panel-hp-' + i, 'char-detail-panel-hp-' + i], '-');
+            setPanelText(['char-panel-atk-' + i, 'char-detail-panel-atk-' + i], '-');
             if (i === 0 && actualHpEl && currentHpEl) {
                 actualHpEl.textContent = '-';
                 currentHpEl.textContent = '-';
@@ -2007,8 +2201,8 @@ window.renderCharacterBonuses = function(slotIndex) {
     const summaryMap = {
         'chara_ring_baseatk': 'baseatk', 'chara_artifacts_baseatk': 'baseatk', 'chara_lb_baseatk': 'baseatk', 'chara_awakening_baseatk': 'baseatk',
         'chara_ring_basehp': 'basehp', 'chara_artifacts_basehp': 'basehp', 'chara_lb_basehp': 'basehp', 'chara_awakening_basehp': 'basehp',
-        'chara_ring_da': 'da', 'chara_earring_da': 'da', 'chara_artifacts_da': 'da', 'chara_lb_da': 'da', 'chara_awakening_da': 'da',
-        'chara_ring_ta': 'ta', 'chara_earring_ta': 'ta', 'chara_artifacts_ta': 'ta', 'chara_lb_ta': 'ta', 'chara_awakening_ta': 'ta',
+        'chara_ring_da': 'da', 'chara_earring_da': 'da', 'chara_artifacts_da': 'da', 'chara_lb_da': 'da', 'chara_awakening_da': 'da', '角色基础da': 'da',
+        'chara_ring_ta': 'ta', 'chara_earring_ta': 'ta', 'chara_artifacts_ta': 'ta', 'chara_lb_ta': 'ta', 'chara_awakening_ta': 'ta', '角色基础ta': 'ta',
         'chara_ring_skill_dmg_cap': 'skill_dmg_cap', 'chara_artifacts_skill_dmg_cap': 'skill_dmg_cap', 'chara_lb_skill_dmg_cap': 'skill_dmg_cap',
         'chara_ring_ca_dmg_cap': 'ca_dmg_cap', 'chara_artifacts_ca_dmg_cap': 'ca_dmg_cap', 'chara_lb_ca_dmg_cap': 'ca_dmg_cap', 'chara_awakening_ca_dmg_cap': 'ca_dmg_cap',
         'chara_artifacts_na_dmg_cap': 'na_dmg_cap', 'chara_awakening_na_dmg_cap': 'na_dmg_cap',
@@ -2041,25 +2235,42 @@ window.renderCharacterBonuses = function(slotIndex) {
     };
 
     const independentBonuses = [];
+    const baseRateDetails = [];
+
+    function getDisplayCharaBonusValue(config, rawValue) {
+        let normalizedValue = rawValue;
+        if (config.key === '角色基础da' || config.key === '角色基础ta') {
+            normalizedValue = new Decimal(rawValue).dividedBy(100).toNumber();
+        }
+        let displayVal = normalizedValue;
+        let unit = '';
+        if (config.format === 'percent') {
+            displayVal = new Decimal(normalizedValue).times(100).toDP(1, Decimal.ROUND_HALF_UP).toNumber();
+            unit = '%';
+        } else {
+            displayVal = Math.round(normalizedValue);
+        }
+        return { normalizedValue, displayVal, unit };
+    }
 
     // 遍历所有有值的加成属性
     STAT_CONFIG.filter(c => c.category === 'charabonus').forEach(config => {
         const val = charData[config.key];
         if (val && val !== 0) {
+            const display = getDisplayCharaBonusValue(config, val);
             const summaryKey = summaryMap[config.key];
             if (summaryKey) {
                 // 如果在汇总映射中，则累加
-                summaryData[summaryKey] += val;
+                summaryData[summaryKey] += display.normalizedValue;
+                if (config.key === '角色基础da' || config.key === '角色基础ta') {
+                    baseRateDetails.push(`<span style="background:#222; padding:3px 8px; border-radius:4px; border:1px solid #444; margin-right:5px; margin-bottom:5px; display:inline-block; font-size: 0.9em;">
+                        <span style="color:#aaa; margin-right:3px; font-size:0.85em;">[基础]</span>${config.label}: <span style="color:#fe9; font-weight:bold;">${display.displayVal}${display.unit}</span>
+                    </span>`);
+                }
             } else {
                 // 不归类（例如：暴击、特殊减轻、各种予伤等独立词条）
-                let displayVal = val;
-                let unit = '';
-                if (config.format === 'percent') {
-                    displayVal = new Decimal(val).times(100).toDP(1, Decimal.ROUND_HALF_UP).toNumber();
-                    unit = '%';
-                } else {
-                    displayVal = Math.round(val);
-                }
+                let displayVal = display.displayVal;
+                let unit = display.unit;
 
                 // 提取来源标记
                 let sourcePrefix = "";
@@ -2100,6 +2311,12 @@ window.renderCharacterBonuses = function(slotIndex) {
         finalHtml += `<div style="margin-bottom: 8px;">
             <div style="font-size:0.8em; color:#888; margin-bottom: 4px; border-bottom:1px dashed #444; padding-bottom:2px;">[汇总属性]</div>
             ${summaryHtmls.join('')}
+        </div>`;
+    }
+    if (baseRateDetails.length > 0) {
+        finalHtml += `<div style="margin-bottom: 8px;">
+            <div style="font-size:0.8em; color:#888; margin-bottom: 4px; border-bottom:1px dashed #444; padding-bottom:2px;">[基础属性]</div>
+            ${baseRateDetails.join('')}
         </div>`;
     }
     if (independentBonuses.length > 0) {

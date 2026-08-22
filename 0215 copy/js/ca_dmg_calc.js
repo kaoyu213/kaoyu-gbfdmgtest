@@ -303,7 +303,7 @@
         var caFixed;
         if (isMC && mainHand) {
             caMultiplier = options.caMultiplier != null ? options.caMultiplier : getWeaponCaMultiplier(mainHand);
-            caFixed = getWeaponCaFixed(mainHand);
+            caFixed = options.caFixed != null ? options.caFixed : getWeaponCaFixed(mainHand);
         } else if (isMC) {
             // 主角无有效主手：沿用武器盘奥义固定值汇总；倍率默认 3
             caMultiplier = options.caMultiplier != null ? options.caMultiplier : 3;
@@ -354,11 +354,17 @@
         // 武器盘 = CA_DMG_WEAPON_GRID_KEYS；其余 = 其余所有来源奥义伤害加成（非武器盘）= CA_DMG_OTHER_KEYS + 特殊
         var weaponGrid = sumWeaponGridKeys(CA_DMG_WEAPON_GRID_KEYS, stats);
         var other = sumKeys(CA_DMG_OTHER_KEYS, stats, teshuStats);
-        var buffs = (typeof window !== 'undefined' && window.buffSettings) ? window.buffSettings : {};
+        var buffs = !options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings ? window.buffSettings : {};
         weaponGrid += Number(buffs.caWeaponDmg || 0);
         other += Number(buffs.caDmg || 0);
-        if (typeof getAllEffectsTotalForSlot === 'function') {
+        if (options.effectTotals && typeof options.effectTotals === 'object') {
+            if (typeof options.effectTotals.ca_dmg_weapon_grid === 'number') weaponGrid = options.effectTotals.ca_dmg_weapon_grid;
+        } else if (typeof getAllEffectsTotalForSlot === 'function') {
             weaponGrid = getAllEffectsTotalForSlot(charIndex, 'ca_dmg_weapon_grid', weaponGrid);
+        }
+        if (options.effectTotals && typeof options.effectTotals === 'object') {
+            if (typeof options.effectTotals.ca_dmg_other === 'number') other = options.effectTotals.ca_dmg_other;
+        } else if (typeof getAllEffectsTotalForSlot === 'function') {
             other = getAllEffectsTotalForSlot(charIndex, 'ca_dmg_other', other);
         }
         var caDmgSuppWeapon = sumSupp(CA_DMG_SUPP_WEAPON_GRID_KEYS, stats);
@@ -368,9 +374,11 @@
             caDmgSuppEarring = getEarringDmgSuppFromLevel(currentParty[charIndex].chara_earring_dmg_supp);
         }
         var fallbackCaDmgSupp = caDmgSuppWeapon + caDmgSuppOther + caDmgSuppEarring + (Number(buffs.dmgSupp || 0)) + (Number(buffs.caDmgSupp || 0));
-        var caDmgSupp = (typeof getAllEffectsTotalForSlot === 'function')
-            ? getAllEffectsTotalForSlot(charIndex, 'ca_dmg_supp', fallbackCaDmgSupp)
-            : fallbackCaDmgSupp;
+        var caDmgSupp = options.effectTotals && typeof options.effectTotals === 'object'
+            ? (typeof options.effectTotals.ca_dmg_supp === 'number' ? options.effectTotals.ca_dmg_supp : fallbackCaDmgSupp)
+            : ((typeof getAllEffectsTotalForSlot === 'function')
+                ? getAllEffectsTotalForSlot(charIndex, 'ca_dmg_supp', fallbackCaDmgSupp)
+                : fallbackCaDmgSupp);
         var critMult = 1;
         var critFlag = false;
         var critAmpRate = 0;
@@ -400,11 +408,19 @@
         if (isAdvantage) {
             fallbackCaDmgAmp += aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats);
         }
-        var caDmgAmp = (typeof getAllEffectsTotalForSlot === 'function')
-            ? getAllEffectsTotalForSlot(charIndex, 'ca_dmg_amp', fallbackCaDmgAmp)
-            : fallbackCaDmgAmp;
+        var caDmgAmp = options.effectTotals && typeof options.effectTotals === 'object'
+            ? (typeof options.effectTotals.ca_dmg_amp === 'number' ? options.effectTotals.ca_dmg_amp : fallbackCaDmgAmp)
+            : ((typeof getAllEffectsTotalForSlot === 'function')
+                ? getAllEffectsTotalForSlot(charIndex, 'ca_dmg_amp', fallbackCaDmgAmp)
+                : fallbackCaDmgAmp);
         caDmgAmp += critOnlyAmp;
-        var takenDmgAmp = (typeof calculateTakenDamageAmp === 'function') ? calculateTakenDamageAmp({ charIndex: charIndex }) : 0;
+        var takenDmgAmp = (typeof calculateTakenDamageAmp === 'function')
+            ? calculateTakenDamageAmp({
+                charIndex: charIndex,
+                ignoreTestBuffSettings: options.ignoreTestBuffSettings === true,
+                effectTotals: options.effectTotals
+            })
+            : 0;
 
         var raw = calcCaDamageRaw({
             baseDamage: baseDamage,

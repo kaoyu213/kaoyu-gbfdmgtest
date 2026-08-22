@@ -1,152 +1,195 @@
 {
-  "version": 1,
-  "_说明": "角色技能数据。以下划线 _ 开头的键（如 _comment、_字段注释）仅供人读，解析时可忽略。",
-  "_字段注释": {
-    "version": "整文件格式版本，便于迁移",
-    "skills": "技能数组",
-
-    "id": "唯一 id。若使用 skill_{角色数字ID}_{1~4}，加载时会自动同步注册 {角色ID}_{位次} 供界面槽位查找",
-    "name": "技能名称（短标题，UI 可用）",
-    "icon": "图标相对路径（相对 images/ 目录）",
-    "skill_type": "逻辑类型：active / passive 等",
-    "element": "技能主属性：dark / light / fire / water / wind / earth 等（与计算逻辑约定一致即可）",
-    "类型": "【UI】技能颜色槽：红 / 黄 / 蓝 / 绿 / 紫",
-    "description": "【展示用】中文效果全文（与旧字段「中文描述」二选一或并存，界面优先读 description）",
-    "中文描述": "【兼容旧数据】同 description，可择一填写",
-    "效果对象": "【概要】作用对象一句话，如：自身 / 敌方单体 / 我方全体（可与 effects 里 target 并存）",
-    "cooldown": "冷却。base 为基准回合；可按等级键扩展，如 level_55、level_75（键名自定，由你后续逻辑读取）",
-    "activation_conditions": "【可选】允许玩家点击施放的前置条件列表，无则 []",
-    "trigger": "【可选】被动或时点触发；主动技能一般用 null",
-    "party_buff_show_skill_icon": "【可选】默认 true。设为 false 时左侧「角色 Buff」不显示本技能图标，仅显示 effects 里 apply_buff 的衍生图标",
-    "effects": "结构化效果列表。apply_buff 的 buff_id 若在 buff_icons.json 的 buffs 中配置（或 effect 带 party_buff_ui 覆盖），左侧「角色 Buff」栏会显示对应图标",
-    "party_buff_ui": "【可选】写在某个 effect 上，覆盖注册表：{ icon, title, abbrev }，icon 相对 images/",
-    "parameters.show_in_party_buff": "【可选】设为 false 时该 apply_buff 不参与左侧 Buff 栏展示",
-    "meta": "【可选】任意扩展字段（版本、标签、关联 buff 表 id 等），由你后续补充",
-    "效果": "【可选】旧版自由结构，与 effects 并存；无则 {}"
+  "version": 4,
+  "_说明": "角色技能数据。steps 按数组顺序执行，每一步用 do 指定行为；新增行为时扩展 do 的可选值。",
+  "_schema": {
+    "id": "技能唯一 id，推荐 skill_{character_id}_{slot}",
+    "character_id": "角色数字 ID",
+    "slot": "技能槽位",
+    "name": "技能名",
+    "icon": "技能图标路径，相对 images/",
+    "desc": "展示用说明，不参与计算",
+    "show_icon": "false 时，角色 Buff 栏只显示技能赋予的 buff 图标，不显示技能图标本身",
+    "steps": "按顺序执行。每个 step 必须填写且只填写一个 do 行为。",
+    "damage_step": "do=damage；填写 target、damage_type、element、mult、hits、threshold_table、cap。",
+    "buff_step": "do=buff；单效果填写 prop、zone、value；专用 Buff 的多个小效果填写在 effects 中。"
   },
   "skills": [
     {
       "id": "skill_3040616000_1",
+      "character_id": "3040616000",
+      "slot": 1,
       "name": "珍爱人偶",
       "icon": "chara skill/icon_skill_3040616000_1.webp",
-      "skill_type": "active",
-      "element": "dark",
-      "类型": "红",
-      "description": "对敌方单体造成2次攻击，每次造成3倍暗属性伤害（单次上限约31万）。自身获得以下强化，持续1回合：必定TA，暗属性追击 A2类（50%）",
-      "party_buff_show_skill_icon": false,
-      "效果对象": "敌方单体、自身",
-      "cooldown": {
-        "base": 6,
-        "level_55": 5
-      },
-      "activation_conditions": [],
-      "trigger": null,
-      "effects": [
+      "desc": "对敌方单体造成2次3倍暗属性伤害。自身获得ta+1000%、暗属性追击A2 50%。",
+      "show_icon": false,
+      "steps": [
         {
-          "_comment": "动作1：造成伤害",
-          "action_type": "damage",
-          "target": "enemy_single",
-          "parameters": {
-            "damage_type": "skill",
-            "element": "dark",
-            "multiplier": 3.0,
-            "hits": 2,
-            "cap_per_hit": 310000
-          }
+          "do": "damage",
+          "target": "enemy",
+          "damage_type": "skill",
+          "element": "dark",
+          "mult": 3,
+          "hits": 2,
+          "cap": 310000
         },
         {
-          "_comment": "动作2：附加 必定TA Buff",
-          "action_type": "apply_buff",
+          "do": "buff",
           "target": "self",
-          "parameters": {
-            "description":"必定TA",
-            "buff_id": "charabuff_ta",
-            "duration_turns": 1,
-            "value": 10
-          }
+          "prop": "ta_rate",
+          "zone": "chara_skill_must",
+          "turns": 1,
+          "value": 10,
+          "format": "ta_rate_bonus",
+          "icon": "buff icon/ta.png",
+          "name": "ta"
         },
         {
-          "_comment": "动作3：附加 追击 Buff",
-          "action_type": "apply_buff",
+          "do": "buff",
           "target": "self",
-          "parameters": {
-            "description":"暗属性平A追击 A2类（50%）",
-            "prop": "bonus_na_dark",
-            "zone": "A2",
-            "duration_turns": 1,
-            "value": 0.5
-          }
+          "prop": "bonus_na_dark",
+          "zone": "A2",
+          "turns": 1,
+          "value": 0.5,
+          "icon": "buff icon/bonus_na_dmg.png",
+          "name": "暗属性追击"
         }
-      ],
-      "meta": {},
-      "效果": {}
+      ]
     },
     {
       "id": "skill_3040616000_2",
+      "character_id": "3040616000",
+      "slot": 2,
       "name": "辉光开膛手",
       "icon": "chara skill/icon_skill_3040616000_2.webp",
-      "skill_type": "active",
-      "element": "dark",
-      "类型": "黄",
-      "description": "初期12回合冷却，75级时10回合。自身获得「辉光开膛手」状态，持续5回合（消去不可）。该状态下：再攻击；每回合损失15%HP。",
-      "party_buff_show_skill_icon": false,
-      "效果对象": "自身",
-      "cooldown": {
-        "base": 12,
-        "level_75": 10
-      },
-      "activation_conditions": [],
-      "trigger": null,
-      "effects": [
+      "desc": "自身获得「辉光开膛手」状态：再攻击；每回合损失15%HP。",
+      "show_icon": false,
+      "steps": [
         {
-          "_comment": "自身获得辉光开膛手：Buff 栏 1 个图标，内含 2 条子效果（供展示/后续结算解析）",
-          "action_type": "apply_buff",
+          "do": "buff",
           "target": "self",
-          "parameters": {
-            "buff_id": "charabuff_radiant_ripper",
-            "description": "辉光开膛手（消去不可）",
-            "duration_turns": 5,
-            "dispel_immune": true,
-            "sub_effects": [
-              {
-                "_comment": "再攻击",
-                "kind": "extra_attack",
-                "description": "再攻击"
-              },
-              {
-                "_comment": "每回合损失最大HP的15%",
-                "kind": "turn_hp_loss",
-                "description": "每回合损失15%HP",
-                "percent_max_hp": 0.15,
-                "per": "turn_start"
-              }
-            ]
-          }
+          "unique": true,
+          "id": "unique_3040616000_radiant_ripper",
+          "name": "辉光开膛手",
+          "icon": "buff icon/3040616000_2.png",
+          "turns": 5,
+          "dispel_immune": true,
+          "effects": [
+            {
+              "effect": "double_strike",
+              "value": 1
+            },
+            {
+              "event": "turn_hp_loss",
+              "value": 0.15
+            }
+          ]
         }
-      ],
-      "meta": {
-        "wiki_status_main": "3087",
-        "wiki_status_sub": "6107"
-      },
-      "效果": {}
+      ]
     },
     {
-      "id": "skill_3040616000_3",
-      "name": "",
-      "icon": "chara skill/icon_skill_3040616000_3.webp",
-      "skill_type": "active",
-      "element": "dark",
-      "类型": "黄",
-      "description": "",
-      "效果对象": "",
-      "cooldown": {
-        "base": 0
-      },
-      "activation_conditions": [],
-      "trigger": null,
-      "effects": [],
-      "meta": {},
-      "效果": {}
+      "id": "skill_3040547000_2",
+      "character_id": "3040547000",
+      "slot": 2,
+      "name": "久远测试",
+      "icon": "chara skill/0.jpg",
+      "desc": "测试用：自身获得久远区独立攻刃 +30%。",
+      "show_icon": false,
+      "steps": [
+        {
+          "do": "buff",
+          "target": "self",
+          "name": "久远攻刃",
+          "icon": "buff icon/dmg_supp.png",
+          "turns": 1,
+          "prop": "perpetuity_atk",
+          "zone": "chara_skill",
+          "value": 0.3
+        }
+      ]
+    },
+    {
+      "id": "skill_3040239000_1",
+      "character_id": "3040239000",
+      "slot": 1,
+      "name": "魔法境界线",
+      "icon": "chara skill/SK_1010_3.webp",
+      "desc": "自身获得「Magic Horizons」：久远区独立攻刃 +50%，ta+1000%，土属性追击SP 80%。防御力-70%暂未写入。",
+      "show_icon": false,
+      "steps": [
+        {
+          "do": "buff",
+          "target": "self",
+          "unique": true,
+          "id": "unique_3040239000_magic_horizons",
+          "name": "Magic Horizons",
+          "icon": "buff icon/status_6687.png",
+          "turns": 9,
+          "dispel_immune": true,
+          "effects": [
+            {
+              "prop": "perpetuity_atk",
+              "zone": "independent",
+              "value": 0.5
+            },
+            {
+              "prop": "ta_rate",
+              "zone": "chara_skill_must",
+              "value": 10,
+              "format": "ta_rate_bonus"
+            },
+            {
+              "prop": "bonus_na_earth",
+              "zone": "SP",
+              "value": 0.8
+            }
+          ],
+          "omitted": [
+            "防御力-70% 暂未写入"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skill_3040239000_3",
+      "character_id": "3040239000",
+      "slot": 3,
+      "name": "女巫与弓神",
+      "icon": "chara skill/SK_1012_1.webp",
+      "desc": "对敌方单体进行2次攻击，每次造成3.5倍土属性伤害（单次上限约33万）。强化效果延长暂未写入。",
+      "show_icon": false,
+      "steps": [
+        {
+          "do": "damage",
+          "target": "enemy",
+          "damage_type": "skill",
+          "element": "earth",
+          "mult": 4.5,
+          "hits": 2,
+          "threshold_table": "skill_test",
+          "cap": 330000
+        }
+      ]
+    },
+    {
+      "id": "skill_3040547000_1",
+      "character_id": "3040547000",
+      "slot": 1,
+      "name": "1技能",
+      "icon": "chara skill/SK_2413_1.webp",
+      "desc": "对敌方单体进行10次攻击，每次造成1倍土属性伤害（单次上限10万）。",
+      "show_icon": false,
+      "steps": [
+        {
+          "do": "damage",
+          "target": "enemy",
+          "damage_type": "skill",
+          "element": "earth",
+          "mult": 1,
+          "hits": 10,
+          "threshold_table": "skill_10.75",
+          "cap": 100000
+        }
+      ]
     }
   ]
 }
