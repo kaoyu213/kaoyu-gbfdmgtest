@@ -25,10 +25,20 @@ function updateMCJob(forceId) {
     const jobData = allClasses.find(c => c.id === jobId);
     if (!jobData) return;
 
+    const previousJobId = currentMC && currentMC.jobId ? currentMC.jobId : null;
+    const isRestoringMcConfig = typeof window !== 'undefined' && window.isRestoringMcConfig === true;
+    if (!isRestoringMcConfig && previousJobId && previousJobId !== jobData.id && typeof rememberCurrentMcLbSelectionsForJob === 'function') {
+        rememberCurrentMcLbSelectionsForJob(previousJobId);
+    }
+
     currentMC.jobId = jobData.id;
     currentMC.proficiency = jobData.proficiency || [];
     currentMC.bonuses = jobData.bonuses || {}; 
     currentMC.battleBonuses = jobData.battle_bonuses || "";
+
+    if (typeof loadMcLbSelectionsForJob === 'function') {
+        loadMcLbSelectionsForJob(currentMC.jobId);
+    }
 
     const jobNameDisplay = document.getElementById('mc-job-name-display');
     const avatarDisplay = document.getElementById('mc-avatar-display');
@@ -82,6 +92,9 @@ function updateMCJob(forceId) {
     
     renderGrid();
     try { recalculate(); } catch(e) { console.error('recalculate error:', e); }
+    if (!isRestoringMcConfig && previousJobId && previousJobId !== currentMC.jobId && typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') {
+        saveToLocal(true);
+    }
 }
 
 // 渲染加成显示

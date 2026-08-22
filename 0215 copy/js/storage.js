@@ -127,7 +127,10 @@ function saveToLocal(silent) {
             mc: {
                 jobId: currentMC.jobId,
                 rank: parseInt(document.getElementById('mc-rank-input')?.value) || 406,
-                lbSlots: (typeof getMcLbSelections === 'function') ? getMcLbSelections() : []
+                lbSlots: (typeof getMcLbSelections === 'function') ? getMcLbSelections() : [],
+                lbSlotsByJob: (typeof getMcLbSlotsByJobForStorage === 'function')
+                    ? getMcLbSlotsByJobForStorage(currentMC.jobId)
+                    : {}
             },
             
             // 3. 神石设置
@@ -247,7 +250,9 @@ function loadFromLocal(silent) {
             document.querySelectorAll('[id="mc-rank-input"]').forEach(el => { el.value = rankVal; });
             
             if (typeof ensureMcLbUI === 'function') ensureMcLbUI();
-            if (Array.isArray(data.mc.lbSlots)) {
+            if (typeof restoreMcLbSlotsByJobFromStorage === 'function') {
+                restoreMcLbSlotsByJobFromStorage(data.mc.lbSlotsByJob, data.mc.lbSlots, data.mc.jobId);
+            } else if (Array.isArray(data.mc.lbSlots)) {
                 data.mc.lbSlots.forEach((slot, i) => {
                     const typeEl = document.getElementById(`mc-lb-type-${i}`);
                     const lvlEl = document.getElementById(`mc-lb-lvl-${i}`);
@@ -260,8 +265,16 @@ function loadFromLocal(silent) {
             if (data.mc.jobId) {
                 const jobExists = allClasses.some(c => c.id === data.mc.jobId);
                 if (jobExists) {
-                    updateMCJob(data.mc.jobId);
+                    if (typeof window !== 'undefined') window.isRestoringMcConfig = true;
+                    try {
+                        updateMCJob(data.mc.jobId);
+                    } finally {
+                        if (typeof window !== 'undefined') window.isRestoringMcConfig = false;
+                    }
                 }
+            }
+            if (!data.mc.jobId && Array.isArray(data.mc.lbSlots) && typeof setMcLbSelections === 'function') {
+                setMcLbSelections(data.mc.lbSlots);
             }
         }
         
@@ -660,7 +673,10 @@ function exportToClipboard() {
             mc: {
                 jobId: currentMC.jobId,
                 rank: parseInt(document.getElementById('mc-rank-input')?.value) || 404,
-                lbSlots: (typeof getMcLbSelections === 'function') ? getMcLbSelections() : []
+                lbSlots: (typeof getMcLbSelections === 'function') ? getMcLbSelections() : [],
+                lbSlotsByJob: (typeof getMcLbSlotsByJobForStorage === 'function')
+                    ? getMcLbSlotsByJobForStorage(currentMC.jobId)
+                    : {}
             },
             
             // 神石设置
@@ -741,6 +757,9 @@ function resetConfig() {
         const mcRankInput = document.getElementById('mc-rank-input');
         if (mcRankInput) mcRankInput.value = '404';
         if (typeof ensureMcLbUI === 'function') ensureMcLbUI();
+        if (typeof restoreMcLbSlotsByJobFromStorage === 'function') {
+            restoreMcLbSlotsByJobFromStorage({}, null, null);
+        }
         for (let i = 0; i < 20; i++) {
             const typeEl = document.getElementById(`mc-lb-type-${i}`);
             const lvlEl = document.getElementById(`mc-lb-lvl-${i}`);

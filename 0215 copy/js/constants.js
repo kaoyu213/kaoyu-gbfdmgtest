@@ -297,6 +297,7 @@ const STAT_CONFIG = [
     { "key": "weapon_turn_dmg_reduce", "label": "回合类伤害减轻", "cap": null, "format": "percent", "category": "weapon", "prop": "turn_dmg_reduce", "zone": "weapon_grid" },
     { "key": "weapon_dmg_cap", "label": "全上限", "cap": 0.2, "format": "percent", "category": "weapon", "prop": "dmg_cap", "zone": "weapon_grid" },
     { "key": "weapon_special_dmg_cap", "label": "全上限（特殊）", "cap": 0.2, "format": "percent", "category": "weapon", "prop": "dmg_cap", "zone": "weapon_grid" },
+    { "key": "overcap_dmg_cap_relaxation", "label": "D上限缓和", "cap": 0.2, "format": "percent", "category": "derived", "prop": "dmg_cap_relaxation", "zone": "weapon_grid" },
     { "key": "weapon_dmg_amp", "label": "全伤害增幅", "cap": 0.2, "format": "percent", "category": "weapon", "prop": "dmg_amp", "zone": "weapon_grid" },
     { "key": "weapon_dmg_to_elemental_amp", "label": "对有利属性伤害增幅", "cap": null, "format": "percent", "category": "weapon", "prop": "dmg_to_elemental_amp", "zone": "weapon_grid" },
     { "key": "weapon_dmg_to_non_elemental_amp", "label": "对无属性伤害增幅", "cap": null, "format": "percent", "category": "weapon", "prop": "dmg_to_non_elemental_amp", "zone": "weapon_grid" },

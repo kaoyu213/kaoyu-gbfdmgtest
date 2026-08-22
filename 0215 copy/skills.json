@@ -38,12 +38,12 @@
       {
         "prop": "weapon_normal_atk",
         "boost": "optimus",
-        "value": "10:10% 15:12%"
+        "value": "10:10% 15:12% 20:12.5%"
       },
       {
         "prop": "weapon_hp",
         "boost": "optimus",
-        "value": "10:10% 15:12%"
+        "value": "10:10% 15:12% 20:12.5%"
       }
     ]
   },
@@ -2480,6 +2480,40 @@
         "prop": "weapon_ex_atk",
         "boost": "none",
         "value": "23%"
+      }
+    ]
+  },
+  {
+    "id": "xianzhewu_ex",
+    "name": "贤者武的ex攻刃",
+    "description": "",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_ex_atk",
+        "boost": "none",
+        "value": "25.5%"
+      }
+    ]
+  },
+  {
+    "id": "xianzhewu_cap",
+    "name": "贤者武的全上限",
+    "description": "",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_dmg_cap",
+        "boost": "none",
+        "value": "5%"
       }
     ]
   }

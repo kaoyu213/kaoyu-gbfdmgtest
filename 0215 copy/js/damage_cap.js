@@ -11,12 +11,14 @@
  * @param {number} rawDamage - 理论面板伤害 (未衰减, 已除防御)
  * @param {number} totalCap - 总上限系数 (1.0 + sum(caps))
  * @param {Array<{limit:number,slope:number}>} thresholdStages - 分段阈值表（stages 数组）
+ * @param {number} capRelaxation - D上限缓和（0～0.2）；仅提高低于 100% 的衰减比例
  * @returns {Decimal} 衰减后的伤害 (Decimal 精度)
  */
-function funcDecay(rawDamage, totalCap, thresholdStages) {
+function funcDecay(rawDamage, totalCap, thresholdStages, capRelaxation = 0) {
     // 确保使用 Decimal 进行高精度计算
     let damage = new Decimal(rawDamage);
     const cap = new Decimal(totalCap);
+    const relaxation = new Decimal(Math.min(0.2, Math.max(0, Number(capRelaxation) || 0)));
     
     let decayedDamage = new Decimal(0);
     let previousThreshold = new Decimal(0);
@@ -43,8 +45,14 @@ function funcDecay(rawDamage, totalCap, thresholdStages) {
             effectiveDamageInStage = new Decimal(0);
         }
         
-        // 累加衰减后的伤害: 有效量 * 斜率
-        decayedDamage = decayedDamage.plus(effectiveDamageInStage.times(stage.slope));
+        // D上限缓和只放大已经发生衰减的区间；100% 区间保持不变。
+        const baseSlope = new Decimal(Number(stage.slope) || 0);
+        const effectiveSlope = baseSlope.lt(1)
+            ? Decimal.min(baseSlope.times(new Decimal(1).plus(relaxation)), 1)
+            : baseSlope;
+
+        // 累加衰减后的伤害: 有效量 * 缓和后的斜率
+        decayedDamage = decayedDamage.plus(effectiveDamageInStage.times(effectiveSlope));
         
         // 如果伤害小于当前阈值，后续区间无需计算
         if (damage.lte(currentThreshold)) {
@@ -55,6 +63,22 @@ function funcDecay(rawDamage, totalCap, thresholdStages) {
     }
     
     return decayedDamage;
+}
+
+/**
+ * 从 All Effects 读取“过量技能·上限”的 D上限缓和值。
+ * 计算路径不直接读取派生 stats，确保 All Effects 是唯一公式数据源。
+ */
+function getOvercapDmgCapRelaxation(options = {}) {
+    const charIndex = options.charIndex != null ? options.charIndex : 0;
+    let raw = 0;
+    if (options.effectTotals && typeof options.effectTotals === 'object') {
+        raw = Number(options.effectTotals.dmg_cap_relaxation) || 0;
+    } else if (typeof getAllEffectsTotalForSlot === 'function') {
+        const allEffectsRelaxation = getAllEffectsTotalForSlot(charIndex, 'dmg_cap_relaxation', 0);
+        raw = Number(allEffectsRelaxation) || 0;
+    }
+    return Math.min(0.2, Math.max(0, raw));
 }
 
 /**
@@ -279,11 +303,12 @@ function applyWorldCap(ampedDamage, type, stats, worldCapMode) {
  * @param {number} extraAmp - 额外的增幅系数（仅用于汇总 ampCoef，不在此处应用）
  * @param {object} options - 额外选项
  *   { thresholdTableId: string, caMultiplier: number, worldCapMode: string, isClass5: boolean }
- * @returns {object} { decayedDamage, capCoef, ampCoef, takenDmgAmpCoef, thresholdTableId }
+ * @returns {object} { decayedDamage, capCoef, capRelaxation, ampCoef, takenDmgAmpCoef, thresholdTableId }
  */
 function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, options = {}) {
     // 1. 计算总上限系数 C
     const C = calculateTotalCap(stats, type, teshuStats, options);
+    const capRelaxation = getOvercapDmgCapRelaxation(options);
     
     // 2. 获取阈值表
     let thresholdStages;
@@ -314,7 +339,7 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
     }
     
     // 3. 执行衰减 (Func_Decay)
-    const decayedDamage = funcDecay(rawDamage, C, thresholdStages);
+    const decayedDamage = funcDecay(rawDamage, C, thresholdStages, capRelaxation);
     
     // 4. 计算增幅系数 Amp（仅汇总，不应用乘算）
     const baseAmp = calculateAmp(stats, type, teshuStats, options);
@@ -323,11 +348,12 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
     // 5. 承受伤害增幅系数（仅汇总，不应用乘算）
     const takenDmgAmp = calculateTakenDamageAmp(options);
     
-    console.log(`[Cap Debug ${type}] Table: ${usedTableId}, Raw: ${rawDamage}, C: ${C.toFixed(4)}, Decayed: ${new Decimal(decayedDamage).toNumber()}, Amp: ${totalAmp.toFixed(6)}, TakenAmp: ${takenDmgAmp.toFixed(6)}`);
+    console.log(`[Cap Debug ${type}] Table: ${usedTableId}, Raw: ${rawDamage}, C: ${C.toFixed(4)}, Relaxation: ${capRelaxation.toFixed(4)}, Decayed: ${new Decimal(decayedDamage).toNumber()}, Amp: ${totalAmp.toFixed(6)}, TakenAmp: ${takenDmgAmp.toFixed(6)}`);
     
     return {
         decayedDamage: new Decimal(decayedDamage).toNumber(),
         capCoef: C,
+        capRelaxation: capRelaxation,
         ampCoef: totalAmp,
         takenDmgAmpCoef: takenDmgAmp,
         thresholdTableId: usedTableId
@@ -338,6 +364,7 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         funcDecay,
+        getOvercapDmgCapRelaxation,
         calculateTotalCap,
         calculateAmp,
         calculateTakenDamageAmp,

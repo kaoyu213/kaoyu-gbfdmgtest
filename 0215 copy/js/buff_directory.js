@@ -52,6 +52,7 @@ const BUFF_DIRECTORY = {
 
   // ========== 伤害上限 ==========
   dmg_cap:         { label: '全上限',             icon: '', hasSubtype: false },
+  dmg_cap_relaxation: { label: 'D上限缓和',       icon: '', hasSubtype: false },
   na_dmg_cap:      { label: '平A上限',            icon: '', hasSubtype: false },
   skill_dmg_cap:   { label: '技伤上限',           icon: '', hasSubtype: false },
   ca_dmg_cap:      { label: '奥义上限',           icon: '', hasSubtype: false },

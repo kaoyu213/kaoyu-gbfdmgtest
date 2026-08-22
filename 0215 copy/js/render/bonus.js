@@ -1246,6 +1246,7 @@ function renderAllEffectsSummary(charIndex, target) {
         { bt: 'ca_dmg_weapon_grid', label: '武器盘奥义伤害' },
         { bt: 'ca_dmg_other', label: '其他区奥义伤害' },
         { bt: 'dmg_cap', label: '全上限' },
+        { bt: 'dmg_cap_relaxation', label: 'D上限缓和' },
         { bt: 'na_dmg_cap', label: '普攻上限' },
         { bt: 'skill_dmg_cap', label: '技伤上限' },
         { bt: 'ca_dmg_cap', label: '奥义上限' },

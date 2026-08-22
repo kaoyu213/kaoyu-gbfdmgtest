@@ -873,14 +873,15 @@ function getSkillDamageCapCoefForFuzzy(charIndex, stats, capOptions) {
     return 1;
 }
 
-function applyFuzzySkillCap(rawPerHit, capPerHit, capCoef) {
+function applyFuzzySkillCap(rawPerHit, capPerHit, capCoef, capRelaxation) {
     const raw = Number(rawPerHit);
     const cap = new Decimal(Number(capPerHit) || 0)
         .times(Number(capCoef) || 1)
         .toNumber();
     if (!Number.isFinite(raw)) return NaN;
     if (cap <= 0 || raw <= cap) return raw;
-    return cap + (raw - cap) * 0.01;
+    const relaxation = Math.min(0.2, Math.max(0, Number(capRelaxation) || 0));
+    return cap + (raw - cap) * 0.01 * (1 + relaxation);
 }
 
 function renderCheckedSkillDamageRows(charIndex, skillDmgEl, calcContext) {
@@ -927,7 +928,14 @@ function renderCheckedSkillDamageRows(charIndex, skillDmgEl, calcContext) {
         const rawPerHit = skillResult && skillResult.value != null ? Number(skillResult.value) : NaN;
         if (!Number.isFinite(rawPerHit)) return;
         const fuzzyCapCoef = useExact ? 1 : getSkillDamageCapCoefForFuzzy(charIndex, calcContext.stats, calcContext.capOptions);
-        const perHit = useExact ? rawPerHit : applyFuzzySkillCap(rawPerHit, capPerHit, fuzzyCapCoef);
+        const fuzzyCapRelaxation = useExact
+            ? 0
+            : (typeof getOvercapDmgCapRelaxation === 'function'
+                ? getOvercapDmgCapRelaxation(Object.assign({}, calcContext.capOptions || {}, { charIndex: charIndex }))
+                : 0);
+        const perHit = useExact
+            ? rawPerHit
+            : applyFuzzySkillCap(rawPerHit, capPerHit, fuzzyCapCoef, fuzzyCapRelaxation);
         const label = item.skill && item.skill.name ? item.skill.name : item.skillId;
         const capDetail = capPerHit > 0
             ? `，cap ${Math.round(new Decimal(capPerHit).times(fuzzyCapCoef)).toLocaleString()}`
@@ -1274,6 +1282,7 @@ function updateDamageDisplay(charIndex = 0) {
     console.log(`Pre-Def: ${preDefNormalVal}`);
     console.log(`Post-Def (Raw): ${rawPostDefNormal}`);
     console.log(`Total Cap Coeff: ${capResultNormal.capCoef}`);
+    console.log(`D Cap Relaxation: ${capResultNormal.capRelaxation || 0}`);
     console.log(`Decayed: ${capResultNormal.decayedDamage}`);
     console.log(`Amp Coeff: ${capResultNormal.ampCoef}`);
     console.log(`Final Non-Crit: ${naDmgNormal}`);

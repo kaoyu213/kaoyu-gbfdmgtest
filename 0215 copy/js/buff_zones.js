@@ -216,6 +216,14 @@ const BUFF_TYPE_ZONE_RULES = {
     }
   },
 
+  // 过量技能·上限的派生值。独立于普通“全上限”，不能与 dmg_cap 简单加算。
+  dmg_cap_relaxation: {
+    label: 'D上限缓和',
+    zones: {
+      weapon_grid: { rule: 'sum', cap: 0.2 }
+    }
+  },
+
   na_dmg_cap: {
     label: '平A上限',
     zones: {

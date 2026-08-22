@@ -454,6 +454,72 @@
     ]
   },
   {
+    "id": "Parazonium",
+    "name": "人偶短",
+    "type": "dagger",
+    "element": "暗",
+    "category": "lm",
+    "image": "weapons/M_1040108700.jpg",
+    "stats": {
+      "hp": 310,
+      "atk": 3200,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_might_big3",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_trium_small",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "lmgongjijuexing",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
+    "id": "Pain of Death",
+    "name": "死亡短",
+    "type": "dagger",
+    "element": "暗",
+    "category": "lm",
+    "image": "weapons/M_1040113200.jpg",
+    "stats": {
+      "hp": 312,
+      "atk": 3173,
+      "max_level": 200,
+      "allow_extra": false,
+      "weapon_multiplier": 9.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "xianzhewu_ex",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_majesty_small",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "xianzhewu_cap",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
     "id": "ceshiwuqi",
     "name": "测试武器",
     "type": "axe",

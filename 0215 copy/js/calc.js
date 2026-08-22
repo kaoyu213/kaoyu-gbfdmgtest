@@ -6,6 +6,7 @@
 let party = [];
 
 const MC_LB_SLOT_COUNT = 20;
+let mcLbSlotsByJob = {};
 const MC_LB_OPTIONS = [
     { id: 'atk', label: '攻击力', values: [500, 1500, 3000], kind: 'fixed', apply: 'baseAtk' },
     { id: 'def', label: '防御力', values: [1, 3, 5], kind: 'percent', apply: 'mcDef' },
@@ -53,13 +54,13 @@ function ensureMcLbUI() {
             <div class="lb-slot" style="background:#2a2a2a;padding:5px;border-radius:4px;display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                 <div style="font-size:0.8em;color:#888;width:25px;text-align:center;">${i + 1}</div>
                 <div style="flex:1;">
-                    <select class="mc-form-control mc-lb-type-select" id="mc-lb-type-${i}" style="width:100%;font-size:0.85em;" onchange="recalculate(); if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') saveToLocal(true);">
+                    <select class="mc-form-control mc-lb-type-select" id="mc-lb-type-${i}" style="width:100%;font-size:0.85em;" onchange="handleMcLbChange();">
                         <option value="none">-</option>
                         ${optionHtml}
                     </select>
                 </div>
                 <div style="width:74px;">
-                    <select class="mc-form-control mc-lb-level-select" id="mc-lb-lvl-${i}" style="width:100%;font-size:0.85em;" onchange="recalculate(); if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') saveToLocal(true);">
+                    <select class="mc-form-control mc-lb-level-select" id="mc-lb-lvl-${i}" style="width:100%;font-size:0.85em;" onchange="handleMcLbChange();">
                         <option value="0">-</option>
                         <option value="1">★1</option>
                         <option value="2">★2</option>
@@ -83,8 +84,102 @@ function getMcLbSelections() {
     }
     return selections;
 }
+
+function getEmptyMcLbSelections() {
+    return Array.from({ length: MC_LB_SLOT_COUNT }, () => ({ type: 'none', lvl: 0 }));
+}
+
+function normalizeMcLbSlot(slot) {
+    const rawType = slot && slot.type != null ? String(slot.type) : 'none';
+    const type = rawType === 'none' || MC_LB_OPTION_MAP[rawType] ? rawType : 'none';
+    const rawLvl = parseInt(slot && slot.lvl, 10);
+    const lvl = rawLvl >= 1 && rawLvl <= 3 ? rawLvl : 0;
+    return { type, lvl: type === 'none' ? 0 : lvl };
+}
+
+function normalizeMcLbSelections(slots) {
+    const source = Array.isArray(slots) ? slots : [];
+    const normalized = getEmptyMcLbSelections();
+    for (let i = 0; i < MC_LB_SLOT_COUNT; i++) {
+        normalized[i] = normalizeMcLbSlot(source[i]);
+    }
+    return normalized;
+}
+
+function setMcLbSelections(slots) {
+    ensureMcLbUI();
+    const normalized = normalizeMcLbSelections(slots);
+    normalized.forEach((slot, i) => {
+        const typeEl = document.getElementById(`mc-lb-type-${i}`);
+        const lvlEl = document.getElementById(`mc-lb-lvl-${i}`);
+        if (typeEl) typeEl.value = slot.type;
+        if (lvlEl) lvlEl.value = String(slot.lvl);
+    });
+    return normalized;
+}
+
+function rememberCurrentMcLbSelectionsForJob(jobId) {
+    const key = jobId || (typeof currentMC !== 'undefined' ? currentMC.jobId : null);
+    if (!key) return;
+    mcLbSlotsByJob[String(key)] = normalizeMcLbSelections(getMcLbSelections());
+}
+
+function loadMcLbSelectionsForJob(jobId) {
+    const key = jobId ? String(jobId) : '';
+    const slots = key && mcLbSlotsByJob[key] ? mcLbSlotsByJob[key] : getEmptyMcLbSelections();
+    setMcLbSelections(slots);
+    if (key) {
+        mcLbSlotsByJob[key] = normalizeMcLbSelections(slots);
+    }
+    if (typeof window.getMcLbTotals === 'function') {
+        window.getMcLbTotals();
+    }
+}
+
+function getMcLbSlotsByJobForStorage(currentJobId) {
+    if (currentJobId) {
+        rememberCurrentMcLbSelectionsForJob(currentJobId);
+    }
+    const out = {};
+    Object.keys(mcLbSlotsByJob).forEach((jobId) => {
+        out[jobId] = normalizeMcLbSelections(mcLbSlotsByJob[jobId]);
+    });
+    return out;
+}
+
+function restoreMcLbSlotsByJobFromStorage(savedByJob, legacySlots, legacyJobId) {
+    const next = {};
+    if (savedByJob && typeof savedByJob === 'object' && !Array.isArray(savedByJob)) {
+        Object.keys(savedByJob).forEach((jobId) => {
+            if (!jobId) return;
+            next[String(jobId)] = normalizeMcLbSelections(savedByJob[jobId]);
+        });
+    }
+    if (legacyJobId && Array.isArray(legacySlots) && !next[String(legacyJobId)]) {
+        next[String(legacyJobId)] = normalizeMcLbSelections(legacySlots);
+    }
+    mcLbSlotsByJob = next;
+    return getMcLbSlotsByJobForStorage();
+}
+
+function handleMcLbChange() {
+    if (typeof currentMC !== 'undefined' && currentMC.jobId) {
+        rememberCurrentMcLbSelectionsForJob(currentMC.jobId);
+    }
+    try { recalculate(); } catch(e) { console.error('recalculate error:', e); }
+    if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') {
+        saveToLocal(true);
+    }
+}
+
 window.getMcLbSelections = getMcLbSelections;
 window.ensureMcLbUI = ensureMcLbUI;
+window.setMcLbSelections = setMcLbSelections;
+window.getMcLbSlotsByJobForStorage = getMcLbSlotsByJobForStorage;
+window.restoreMcLbSlotsByJobFromStorage = restoreMcLbSlotsByJobFromStorage;
+window.rememberCurrentMcLbSelectionsForJob = rememberCurrentMcLbSelectionsForJob;
+window.loadMcLbSelectionsForJob = loadMcLbSelectionsForJob;
+window.handleMcLbChange = handleMcLbChange;
 
 window.getMcLbTotals = function() {
     ensureMcLbUI();
@@ -1012,6 +1107,32 @@ function recalculate() {
     });
 
     // =====================================
+    // 过量技能·上限
+    // 「全上限」与「全上限（特殊）」各自超过 20% 的部分合计：
+    // 总溢出至少 2% 时，按 1% 溢出 → 0.5% D上限缓和换算，效果上限 20%。
+    // 必须在武器盘 cap 生效前保存结果，之后普通上限仍各自按原规则封顶。
+    // =====================================
+    function updateOvercapDmgCapRelaxation(statsObj) {
+        if (!statsObj) return;
+        const normalOverflow = Decimal.max(
+            new Decimal(Number(statsObj['weapon_dmg_cap']) || 0).minus(0.2),
+            0
+        );
+        const specialOverflow = Decimal.max(
+            new Decimal(Number(statsObj['weapon_special_dmg_cap']) || 0).minus(0.2),
+            0
+        );
+        const totalOverflow = normalOverflow.plus(specialOverflow);
+        const relaxation = totalOverflow.gte(0.02)
+            ? Decimal.min(totalOverflow.times(0.5), 0.2)
+            : new Decimal(0);
+
+        statsObj['_overcap_dmg_cap_overflow'] = totalOverflow.toDecimalPlaces(10).toNumber();
+        // 注册字段会由 BuffRegistry 汇入 All Effects 的 dmg_cap_relaxation。
+        statsObj['overcap_dmg_cap_relaxation'] = relaxation.toDecimalPlaces(10).toNumber();
+    }
+
+    // =====================================
     // 武器盘加成上限处理（只处理 category=weapon 的字段）
     // 规则：只有武器盘提供的加成需要 cap，其他来源不做上限处理
     // =====================================
@@ -1029,7 +1150,10 @@ function recalculate() {
         });
     }
 
-    party.forEach(m => applyWeaponCaps(m.stats));
+    party.forEach(m => {
+        updateOvercapDmgCapRelaxation(m.stats);
+        applyWeaponCaps(m.stats);
+    });
 
     // =====================================
     // 武器盘白值和面板最终显示统一在下方按各个角色独立计算
@@ -1233,6 +1357,7 @@ function recalculate() {
         // 过量技能·暴击：显示阈值 1%（小于 1% 不显示）
         const excessCritDamageUpRaw = Decimal.min(new Decimal(overflowCritRate).times(0.5), 1.0).toNumber();
         const excessCritDamageUp = (excessCritDamageUpRaw >= 0.01) ? excessCritDamageUpRaw : 0;
+        const excessDmgCapRelaxation = Number(member.stats['overcap_dmg_cap_relaxation']) || 0;
 
         STAT_CONFIG.forEach(cfg => {
             if (cfg.category !== 'weapon') return; 
@@ -1263,6 +1388,10 @@ function recalculate() {
                 html += `<div class="stat-line"><span>过量技能·暴击</span> <span class="val-highlight" style="color:#f39c12;">${excessDisplayVal}</span></div>`;
             }
         });
+        if (excessDmgCapRelaxation > 0) {
+            const excessCapDisplayVal = (excessDmgCapRelaxation * 100).toFixed(2) + "%";
+            html += `<div class="stat-line"><span>过量技能·上限</span> <span class="val-highlight" style="color:#f39c12;">${excessCapDisplayVal}</span></div>`;
+        }
         html += `</div>`;
     });
 
