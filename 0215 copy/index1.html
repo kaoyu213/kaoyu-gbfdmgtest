@@ -209,7 +209,7 @@
                             <div class="section-title toggle-header" onclick="toggleSection(this)">LB 加成</div>
                             <div class="toggle-content" style="display:none;">
                                 <div class="custom-input-area">
-                                    <div style="font-size: 12px; color: #999; margin-bottom: 8px;">20个LB槽位，可重复选择同一项</div>
+                                    <div style="font-size: 12px; color: #999; margin-bottom: 8px;">30个LB槽位，可重复选择同一项</div>
                                     <div class="mc-lb-slot-list"></div>
                                 </div>
                             </div>
@@ -497,7 +497,9 @@
 
         <div class="main-workspace-tabs" aria-label="主工作区切换">
             <button type="button" class="main-workspace-tab active" data-workspace="grid" onclick="switchMainWorkspace('grid', this)">武器盘编辑</button>
-            <button type="button" class="main-workspace-tab" data-workspace="burst" onclick="switchMainWorkspace('burst', this)">单回合爆发</button>
+            <button type="button" class="main-workspace-tab" data-workspace="burst" onclick="switchMainWorkspace('burst', this)">回合模拟（自动）</button>
+            <button type="button" class="main-workspace-tab" data-workspace="burst-manual" onclick="switchMainWorkspace('burst-manual', this)">回合模拟（手动）</button>
+            <button type="button" class="main-workspace-tab" data-workspace="decay-inference" onclick="switchMainWorkspace('decay-inference', this)">衰减表推算</button>
         </div>
 
         <div class="main-workspace-panel active" id="main-workspace-grid">
@@ -634,6 +636,92 @@
             <div id="burst-workspace-container"></div>
         </div>
 
+        <div class="main-workspace-panel" id="main-workspace-burst-manual">
+            <div id="manual-burst-workspace-container"></div>
+        </div>
+
+        <div class="main-workspace-panel" id="main-workspace-decay-inference">
+            <section class="decay-inference-board" id="decay-inference-board">
+                <div class="decay-infer-header">
+                    <div>
+                        <h2>技伤衰减表推算</h2>
+                        <p>每次换好盘面后输入游戏实测的单hit伤害范围；1组即可穷举估算，新增数据后自动收敛。</p>
+                    </div>
+                    <div class="decay-infer-badge">标准五段表</div>
+                </div>
+
+                <div class="decay-infer-setup-grid">
+                    <div class="decay-infer-card">
+                        <h3>技能资料</h3>
+                        <div class="decay-infer-fields">
+                            <label>角色槽位
+                                <select id="decay-infer-char">
+                                    <option value="0">主角</option>
+                                    <option value="1">角色2（空位）</option>
+                                    <option value="2">角色3（空位）</option>
+                                    <option value="3">角色4（空位）</option>
+                                    <option value="4">角色5（空位）</option>
+                                    <option value="5">角色6（空位）</option>
+                                </select>
+                            </label>
+                            <label>Wiki技能倍率
+                                <input type="number" id="decay-infer-multiplier" value="1.5" min="0.01" step="0.1">
+                            </label>
+                            <label>Wiki模糊基础上限（万）
+                                <input type="number" id="decay-infer-fuzzy-cap" value="29" min="0.01" step="0.1">
+                            </label>
+                            <label>damage_limit_type（可选）
+                                <input type="text" id="decay-infer-limit-type" placeholder="例：100018">
+                            </label>
+                            <label>阈值取整单位
+                                <input type="number" id="decay-infer-threshold-step" value="50000" min="1000" step="1000">
+                            </label>
+                        </div>
+                        <div class="decay-infer-theory-line">
+                            <span>当前单hit理论极值（完整加成、无衰减）</span>
+                            <strong id="decay-infer-current-theory">点击加入时自动计算</strong>
+                        </div>
+                        <p class="decay-infer-help" id="decay-infer-current-breakdown">点击加入时自动读取当前盘面的完整加成。</p>
+                    </div>
+
+                    <div class="decay-infer-card">
+                        <h3>实测伤害范围</h3>
+                        <div class="decay-infer-range-fields">
+                            <label>单hit最小值
+                                <input type="number" id="decay-infer-final-min" min="1" step="1" placeholder="例：287420">
+                            </label>
+                            <label>单hit最大值
+                                <input type="number" id="decay-infer-final-max" min="1" step="1" placeholder="例：289110">
+                            </label>
+                        </div>
+                        <p class="decay-infer-help">多hit技能仍只填单hit范围；相同理论值的6hit只算1组样本。</p>
+                        <div class="decay-infer-actions">
+                            <button type="button" class="decay-infer-primary" id="decay-infer-add">加入当前盘面</button>
+                            <button type="button" class="decay-infer-secondary" id="decay-infer-clear">清空样本</button>
+                        </div>
+                        <div class="decay-infer-status" id="decay-infer-status"></div>
+                    </div>
+                </div>
+
+                <div class="decay-infer-guidance" id="decay-infer-guidance"></div>
+
+                <div class="decay-infer-card decay-infer-samples-card">
+                    <div class="decay-infer-section-head">
+                        <h3>盘面样本 <span id="decay-infer-sample-count">0</span></h3>
+                        <button type="button" class="decay-infer-primary" id="decay-infer-run">开始推算</button>
+                    </div>
+                    <div class="decay-infer-table-wrap">
+                        <table class="decay-infer-table">
+                            <thead><tr><th>#</th><th>无衰减理论 / 衰减前本体</th><th>游戏实测范围</th><th>倍率</th><th>自动记录加成</th><th></th></tr></thead>
+                            <tbody id="decay-infer-sample-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="decay-infer-card decay-infer-result" id="decay-infer-result"></div>
+            </section>
+        </div>
+
         <script>
             function switchMainWorkspace(workspaceName, btnElement) {
                 document.querySelectorAll('.main-workspace-panel').forEach(el => el.classList.remove('active'));
@@ -643,6 +731,12 @@
                 if (btnElement) btnElement.classList.add('active');
                 if (workspaceName === 'burst' && window.BurstSimulator && typeof window.BurstSimulator.refresh === 'function') {
                     window.BurstSimulator.refresh();
+                }
+                if (workspaceName === 'burst-manual' && window.ManualBurstSimulator && typeof window.ManualBurstSimulator.refresh === 'function') {
+                    window.ManualBurstSimulator.refresh();
+                }
+                if (workspaceName === 'decay-inference' && window.DecayTableInferenceUI && typeof window.DecayTableInferenceUI.refresh === 'function') {
+                    window.DecayTableInferenceUI.refresh();
                 }
             }
         </script>
@@ -719,7 +813,7 @@
                                 </div>
                                 <div class="dmg-input-group dmg-input-small">
                                     <label title="对boss的防御力down效果">防down%</label>
-                                    <input type="number" id="def-down-input" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)">
+                                    <input type="number" id="def-down-input" value="0" min="0" max="99" placeholder="0~99" onchange="syncDefDownAndRecalculate(this)">
                                 </div>
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 0)">660万</button>
                                 <div class="dmg-btn-group">
@@ -816,7 +910,7 @@
                         <div class="dmg-section-content">
                             <div class="dmg-controls">
                                 <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-1" value="10" min="0" onchange="recalculate()"></div>
-                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-1" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-1" value="0" min="0" max="99" placeholder="0~99" onchange="syncDefDownAndRecalculate(this)"></div>
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 1)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 1)">理论值</button>
@@ -892,7 +986,7 @@
                         <div class="dmg-section-content">
                             <div class="dmg-controls">
                                 <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-2" value="10" min="0" onchange="recalculate()"></div>
-                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-2" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-2" value="0" min="0" max="99" placeholder="0~99" onchange="syncDefDownAndRecalculate(this)"></div>
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 2)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 2)">理论值</button>
@@ -968,7 +1062,7 @@
                         <div class="dmg-section-content">
                             <div class="dmg-controls">
                                 <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-3" value="10" min="0" onchange="recalculate()"></div>
-                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-3" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-3" value="0" min="0" max="99" placeholder="0~99" onchange="syncDefDownAndRecalculate(this)"></div>
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 3)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 3)">理论值</button>
@@ -1044,7 +1138,7 @@
                         <div class="dmg-section-content">
                             <div class="dmg-controls">
                                 <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-4" value="10" min="0" onchange="recalculate()"></div>
-                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-4" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-4" value="0" min="0" max="99" placeholder="0~99" onchange="syncDefDownAndRecalculate(this)"></div>
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 4)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 4)">理论值</button>
@@ -1120,7 +1214,7 @@
                         <div class="dmg-section-content">
                             <div class="dmg-controls">
                                 <div class="dmg-input-group"><label>防御值</label><input type="number" id="def-input-5" value="10" min="0" onchange="recalculate()"></div>
-                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-5" value="0" min="0" max="80" placeholder="0~80" onchange="syncDefDownAndRecalculate(this)"></div>
+                                <div class="dmg-input-group dmg-input-small"><label title="对boss的防御力down效果">防down%</label><input type="number" id="def-down-input-5" value="0" min="0" max="99" placeholder="0~99" onchange="syncDefDownAndRecalculate(this)"></div>
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 5)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 5)">理论值</button>
@@ -1446,7 +1540,7 @@
                         <div class="section-title toggle-header" onclick="toggleSection(this)">LB 加成</div>
                         <div class="toggle-content" style="display:none;">
                             <div class="custom-input-area">
-                                <div style="font-size: 12px; color: #999; margin-bottom: 8px;">20个LB槽位，可重复选择同一项</div>
+                                <div style="font-size: 12px; color: #999; margin-bottom: 8px;">30个LB槽位，可重复选择同一项</div>
                                 <div class="mc-lb-slot-list"></div>
                             </div>
                         </div>
@@ -2180,6 +2274,9 @@
     <!-- 引入JS模块 (按依赖顺序) -->
     <script src="js/constants.js"></script>
     <script src="js/state.js"></script>
+    <script src="js/skill_registry.js"></script>
+    <script src="js/summon_registry.js"></script>
+    <script src="js/charabuff_registry.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/render/utils.js"></script>
 <script src="js/render/mc.js"></script>
@@ -2193,6 +2290,8 @@
     <script src="js/buff_zones.js"></script>
     <script src="js/buff_registry.js"></script>
     <script src="js/sim/status_resolver.js"></script>
+    <script src="js/sim/condition_evaluator.js"></script>
+    <script src="js/sim/resolution_engine.js"></script>
     <script src="js/calc.js"></script>
     <script src="js/threshold_registry.js"></script>
     <script src="js/damage_cap.js"></script>
@@ -2201,7 +2300,12 @@
     <script src="js/na_dmg_calc.js"></script>
     <script src="js/ca_dmg_calc.js"></script>
     <script src="js/skill_dmg_calc.js"></script>
+    <script src="js/decay_table_inference.js"></script>
+    <script src="js/decay_table_inference_ui.js"></script>
     <script src="js/sim/sim_burst.js"></script>
+    <script src="js/sim/manual_custom_skills.js"></script>
+    <script src="js/sim/manual_resolution.js"></script>
+    <script src="js/sim/sim_manual.js"></script>
     <script src="js/init.js"></script>
     
     <!-- 伤害预测相关函数 -->
@@ -2227,10 +2331,18 @@
 
         // 防down同步：修改任意角色的防down时，同步到所有角色
         function syncDefDownAndRecalculate(inputEl) {
-            const val = inputEl.value;
-            document.querySelectorAll('[id^="def-down-input"]').forEach(el => {
-                el.value = val;
-            });
+            const entered = Math.min(99, Math.max(0, Number(inputEl.value) || 0));
+            const buffBonus = typeof window.getStaticEnemyDefenseDownBonus === 'function'
+                ? window.getStaticEnemyDefenseDownBonus()
+                : 0;
+            window.staticEnemyDefenseDownManual = Math.max(0, entered - buffBonus);
+            if (typeof window.syncStaticEnemyDefenseDownInputs === 'function') {
+                window.syncStaticEnemyDefenseDownInputs();
+            } else {
+                document.querySelectorAll('[id^="def-down-input"]').forEach(el => {
+                    el.value = String(entered);
+                });
+            }
             recalculate();
             if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') setTimeout(() => saveToLocal(true), 100);
         }

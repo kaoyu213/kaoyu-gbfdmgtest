@@ -1,19 +1,91 @@
 {
-  "version": 4,
+  "version": 6,
   "_说明": "角色技能数据。steps 按数组顺序执行，每一步用 do 指定行为；新增行为时扩展 do 的可选值。",
   "_schema": {
     "id": "技能唯一 id，推荐 skill_{character_id}_{slot}",
     "character_id": "角色数字 ID",
+    "owner_type": "技能归属类型：main_character、job、character、weapon、summon 等",
+    "owner_id": "技能归属对象 id；角色旧数据可继续使用 character_id",
     "slot": "技能槽位",
+    "cooldown": "主动技能使用间隔（回合）；例如 5 表示 T1 使用后 T6 可再次使用",
     "name": "技能名",
     "icon": "技能图标路径，相对 images/",
     "desc": "展示用说明，不参与计算",
+    "kind": "active 表示主动技能；passive 表示被动技能。旧数据未填写时默认 active。",
+    "trigger": "被动触发条件；开局被动使用 { event: battle_start, once: true }。",
     "show_icon": "false 时，角色 Buff 栏只显示技能赋予的 buff 图标，不显示技能图标本身",
     "steps": "按顺序执行。每个 step 必须填写且只填写一个 do 行为。",
     "damage_step": "do=damage；填写 target、damage_type、element、mult、hits、threshold_table、cap。",
     "buff_step": "do=buff；单效果填写 prop、zone、value；专用 Buff 的多个小效果填写在 effects 中。"
   },
+  "_resolution_schema": {
+    "events": "通用时点示例：battle_start、turn_start、attack_action_start、before_command、before_damage、damage_resolved、normal_attack_resolved、triple_attack_resolved、charge_attack_resolved、status_applied、attack_action_end、turn_end。新机制优先复用通用事件，也可通过 do=emit_event 发布新事件。",
+    "trigger": "被动技能可填写 trigger，或用 triggers 定义多个触发器。字段包括 event、watch、priority、insertion、conditions、counter、limits、once、steps。",
+    "watch": "any、self、ally_party（前排）、ally_all（含后排）。",
+    "insertion": "interrupt=立即插入后返回原结算；modifier=在原命令前修改状态或参数；follow_up=当前动作完成后；replace=替换当前命令；deferred=推迟到 window 指定时点。",
+    "conditions": "支持 all、any、not 递归组合；叶节点使用 path/field、op、value，例如 { path: event.attackActionIndex, op: >=, value: 2 }。",
+    "counter": "触发器计数器字段：id、scope、add、threshold、on_threshold；party_shared 可用于全队共享的每3次TA等机制。",
+    "limits": "支持 max_per_turn、max_per_battle、ignore_tags；once=true 等同整场最多一次。",
+    "action_duration": "只覆盖当前一次行动的状态使用 duration: { type: action, value: 1, tick: attack_action_end }；触发时会绑定当前 actionId、行动序号和行动角色，并在对应行动结束后移除。",
+    "stacking": "可叠层状态使用 stacking: { mode: add, add: 1, max: 5, refresh_duration: false }；同 status_id 再次获得时增加层数而不是覆盖。scale_effects=true 时公式效果量乘以当前层数。",
+    "extensible_steps": "当前通用扩展步骤：counter、set_flag、remove_status、extend_status、reduce_cooldown、schedule_action、cancel_action、replace_action、emit_event。新的 do 可通过 StatusResolver.registerStepHandler 与 BattleResolution.registerEffectExecutor 注册。",
+    "note": "技能数据只描述触发条件与效果步骤；伤害公式、Buff分区合并和结算顺序仍分别由计算层、BuffRegistry与结算引擎负责。"
+  },
   "skills": [
+    {
+      "id": "mc_skill_rage_3",
+      "owner_type": "main_character",
+      "owner_id": "mc",
+      "slot": 1,
+      "name": "狂怒3",
+      "icon": "chara skill/SK_14_3.webp",
+      "desc": "我方全体获得攻刃【普刃】+30%，持续3回合。",
+      "cooldown": 5,
+      "kind": "active",
+      "typeLabel": "主角技能",
+      "show_icon": false,
+      "steps": [
+        {
+          "do": "buff",
+          "id": "status_rage_3_normal_atk",
+          "target": "ally_party",
+          "name": "攻刃【普刃】+30%",
+          "icon": "buff icon/normal_atk.png",
+          "prop": "normal_atk",
+          "zone": "chara_skill",
+          "value": 0.3,
+          "format": "percent",
+          "turns": 3
+        }
+      ]
+    },
+    {
+      "id": "c0_staff_passive_dmg_supp",
+      "owner_type": "job",
+      "owner_id": "c0_staff",
+      "name": "起源巫师：伤害上升",
+      "kind": "passive",
+      "typeLabel": "职业被动",
+      "icon": "buff icon/dmg_supp.png",
+      "description": "战斗开始时，主角获得永久的伤害上升30000。该效果位于独立分区，与其他伤害上升效果共存。",
+      "trigger": {
+        "event": "battle_start",
+        "once": true
+      },
+      "steps": [
+        {
+          "do": "buff",
+          "id": "c0_staff_permanent_dmg_supp",
+          "target": "self",
+          "name": "伤害上升",
+          "icon": "buff icon/dmg_supp.png",
+          "prop": "dmg_supp",
+          "zone": "independent",
+          "value": 30000,
+          "format": "fixed"
+        }
+      ]
+    },
     {
       "id": "skill_3040616000_1",
       "character_id": "3040616000",
@@ -40,7 +112,7 @@
           "turns": 1,
           "value": 10,
           "format": "ta_rate_bonus",
-          "icon": "buff icon/ta.png",
+          "icon": "buff icon/ta_rate.png",
           "name": "ta"
         },
         {
@@ -188,6 +260,205 @@
           "hits": 10,
           "threshold_table": "skill_10.75",
           "cap": 100000
+        }
+      ]
+    },
+    {
+      "id": "summon_test_1_call",
+      "owner_type": "summon",
+      "owner_id": "test_summon_1_position_double_strike",
+      "name": "前三位二动",
+      "kind": "active",
+      "typeLabel": "召唤",
+      "icon": "icon/icon_sort_summon_20.png",
+      "desc": "赋予1、2、3号位角色二动，持续1回合。主角为1号位。",
+      "steps": [
+        {
+          "do": "buff",
+          "id": "summon_test_1_double_strike",
+          "target": "ally_slots",
+          "target_slots": [0, 1, 2],
+          "name": "二动",
+          "icon": "buff icon/3040616000_2.png",
+          "turns": 1,
+          "effects": [
+            {
+              "effect": "double_strike",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "summon_test_2_call",
+      "owner_type": "summon",
+      "owner_id": "test_summon_2_multihit_party_buff",
+      "name": "十五连击与全体强化",
+      "kind": "active",
+      "typeLabel": "召唤",
+      "icon": "icon/icon_sort_summon_06.png",
+      "desc": "对敌方造成15次1倍伤害；我方全体获得独立伤害上升10万，主角额外获得二动，均持续1回合。",
+      "steps": [
+        {
+          "do": "damage",
+          "target": "enemy",
+          "damage_type": "skill",
+          "element": "mc",
+          "mult": 1,
+          "hits": 15
+        },
+        {
+          "do": "buff",
+          "id": "summon_test_2_party_dmg_supp",
+          "target": "ally_party",
+          "name": "伤害上升10万",
+          "icon": "buff icon/dmg_supp.png",
+          "prop": "dmg_supp",
+          "zone": "independent",
+          "value": 100000,
+          "format": "fixed",
+          "turns": 1
+        },
+        {
+          "do": "buff",
+          "id": "summon_test_2_mc_double_strike",
+          "target": "self",
+          "name": "二动",
+          "icon": "buff icon/3040616000_2.png",
+          "turns": 1,
+          "effects": [
+            {
+              "effect": "double_strike",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "summon_test_3_sub_passive",
+      "owner_type": "summon",
+      "owner_id": "test_summon_3_constraint_feather",
+      "name": "约束之羽",
+      "kind": "passive",
+      "typeLabel": "召唤石Sub被动",
+      "icon": "buff icon/dmg_supp.png",
+      "desc": "主角使用技能或发动奥义时获得2层约束之羽（最大12层、消去不可）。每层提高主角2%独立攻刃【久远】；12层时我方所有角色获得10%全伤害增幅。",
+      "triggers": [
+        {
+          "event": "skill_used",
+          "watch": "self",
+          "insertion": "follow_up",
+          "steps": [
+            {
+              "do": "buff",
+              "id": "summon_constraint_feather",
+              "target": "self",
+              "name": "约束之羽",
+              "icon": "buff icon/dmg_supp.png",
+              "dispel_immune": true,
+              "stacking": {
+                "mode": "add",
+                "add": 2,
+                "max": 12,
+                "refresh_duration": false,
+                "scale_effects": true
+              },
+              "stacks": 2,
+              "prop": "perpetuity_atk",
+              "zone": "independent",
+              "value": 0.02,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "event": "charge_attack_resolved",
+          "watch": "self",
+          "insertion": "follow_up",
+          "steps": [
+            {
+              "do": "buff",
+              "id": "summon_constraint_feather",
+              "target": "self",
+              "name": "约束之羽",
+              "icon": "buff icon/dmg_supp.png",
+              "dispel_immune": true,
+              "stacking": {
+                "mode": "add",
+                "add": 2,
+                "max": 12,
+                "refresh_duration": false,
+                "scale_effects": true
+              },
+              "stacks": 2,
+              "prop": "perpetuity_atk",
+              "zone": "independent",
+              "value": 0.02,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "event": "status_applied",
+          "watch": "self",
+          "insertion": "follow_up",
+          "conditions": {
+            "all": [
+              { "path": "event.statusId", "op": "==", "value": "summon_constraint_feather" },
+              { "path": "event.stacks", "op": ">=", "value": 12 }
+            ]
+          },
+          "limits": {
+            "max_per_battle": 1
+          },
+          "steps": [
+            {
+              "do": "buff",
+              "id": "summon_constraint_feather_party_amp",
+              "target": "ally_all",
+              "name": "全伤害增幅10%",
+              "icon": "buff icon/dmg_supp.png",
+              "prop": "dmg_amp",
+              "zone": "summon",
+              "value": 0.1,
+              "format": "percent"
+            }
+          ]
+        }
+      ],
+      "steps": []
+    },
+    {
+      "id": "summon_test_4_sub_passive",
+      "owner_type": "summon",
+      "owner_id": "test_summon_4_high_hp_supplemental",
+      "name": "高血量伤害上升",
+      "kind": "passive",
+      "typeLabel": "召唤石Sub被动",
+      "icon": "buff icon/dmg_supp.png",
+      "desc": "生命值大于80%的角色获得5万伤害上升（召唤石区）。",
+      "trigger": {
+        "event": "battle_start",
+        "once": true
+      },
+      "steps": [
+        {
+          "do": "buff",
+          "id": "summon_high_hp_dmg_supp",
+          "target": "ally_all",
+          "name": "高血量伤害上升5万",
+          "icon": "buff icon/dmg_supp.png",
+          "prop": "dmg_supp",
+          "zone": "summon",
+          "value": 50000,
+          "format": "fixed",
+          "conditions": {
+            "path": "actor.hpPercent",
+            "op": ">",
+            "value": 80
+          }
         }
       ]
     }

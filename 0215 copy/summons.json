@@ -55,8 +55,20 @@
        
       },
       "sub": {
-        "100": { "description": "属性角色伤害上限+10%", "effect": "summon_damage_cap:10%" },
-        "150": { "description": "属性角色伤害上限+15%", "effect": "summon_damage_cap:15%" }
+        "100": {
+          "description": "属性角色伤害上限+10%",
+          "effect": "summon_damage_cap:10%",
+          "stats": [
+            { "stat_key": "summon_dmg_cap", "prop": "dmg_cap", "zone": "summon", "value": 0.1, "target": "ally_all" }
+          ]
+        },
+        "150": {
+          "description": "属性角色伤害上限+15%",
+          "effect": "summon_damage_cap:15%",
+          "stats": [
+            { "stat_key": "summon_dmg_cap", "prop": "dmg_cap", "zone": "summon", "value": 0.15, "target": "ally_all" }
+          ]
+        }
       }
     }
   },
@@ -101,6 +113,102 @@
       },
       "sub": {
         "150": { "description": "全伤害上升5万", "effect": "summon_dmg_supp:50000" }
+      }
+    }
+  },
+  {
+    "id": "test_summon_1_position_double_strike",
+    "name": "测试召唤石1：前三位二动",
+    "element": "mc",
+    "type": "测试召唤石",
+    "image": "icon/icon_sort_summon_20.png",
+    "maxLevel": 1,
+    "availableLevels": [1],
+    "call_skill_ref": "summon_test_1_call",
+    "callable_slots": ["main", "friend", "sub"],
+    "effects": {
+      "main": {
+        "1": { "description": "召唤：赋予1、2、3号位角色二动。", "effect": "" }
+      },
+      "friend": {
+        "1": { "description": "召唤：赋予1、2、3号位角色二动。", "effect": "" }
+      },
+      "sub": {
+        "1": { "description": "召唤：赋予1、2、3号位角色二动。", "effect": "" }
+      }
+    }
+  },
+  {
+    "id": "test_summon_2_multihit_party_buff",
+    "name": "测试召唤石2：十五连击",
+    "element": "mc",
+    "type": "测试召唤石",
+    "image": "icon/icon_sort_summon_06.png",
+    "maxLevel": 1,
+    "availableLevels": [1],
+    "call_skill_ref": "summon_test_2_call",
+    "callable_slots": ["main", "friend", "sub"],
+    "effects": {
+      "main": {
+        "1": { "description": "召唤：15次1倍伤害；全体获得独立伤害上升10万；主角获得二动。", "effect": "" }
+      },
+      "friend": {
+        "1": { "description": "召唤：15次1倍伤害；全体获得独立伤害上升10万；主角获得二动。", "effect": "" }
+      },
+      "sub": {
+        "1": { "description": "召唤：15次1倍伤害；全体获得独立伤害上升10万；主角获得二动。", "effect": "" }
+      }
+    }
+  },
+  {
+    "id": "test_summon_3_constraint_feather",
+    "name": "测试召唤石3：约束之羽",
+    "element": "mc",
+    "type": "测试Sub被动",
+    "image": "icon/icon_sort_summon_04.png",
+    "maxLevel": 1,
+    "subonly": true,
+    "availableLevels": [1],
+    "passive_slots": ["sub"],
+    "effects": {
+      "main": {
+        "1": { "description": "无主召测试效果。", "effect": "" }
+      },
+      "friend": {
+        "1": { "description": "无友召测试效果。", "effect": "" }
+      },
+      "sub": {
+        "1": {
+          "description": "主角使用技能或发动奥义时获得2层约束之羽；12层时全体获得10%全伤害增幅。",
+          "effect": "",
+          "passive_skill_refs": ["summon_test_3_sub_passive"]
+        }
+      }
+    }
+  },
+  {
+    "id": "test_summon_4_high_hp_supplemental",
+    "name": "测试召唤石4：高血量伤害上升",
+    "element": "mc",
+    "type": "测试Sub被动",
+    "image": "icon/icon_sort_summon_04.png",
+    "maxLevel": 1,
+    "subonly": true,
+    "availableLevels": [1],
+    "passive_slots": ["sub"],
+    "effects": {
+      "main": {
+        "1": { "description": "无主召测试效果。", "effect": "" }
+      },
+      "friend": {
+        "1": { "description": "无友召测试效果。", "effect": "" }
+      },
+      "sub": {
+        "1": {
+          "description": "生命值大于80%的角色获得5万伤害上升（召唤石区）。",
+          "effect": "",
+          "passive_skill_refs": ["summon_test_4_sub_passive"]
+        }
       }
     }
   }

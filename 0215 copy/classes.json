@@ -166,11 +166,12 @@
     "staff_base_value_atk": 0.5,
     "harp_base_value_atk": 0.5,
     "harp_base_value_hp": 0.5
-
-
-
-    
     },
-    "battle_bonuses": ""
+    "skill_refs": {
+      "passive": [
+        
+      ]
+    },
+    "battle_bonuses": "开局时主角获得永久伤害上升30000（独立分区，可与其他伤害上升效果共存）。"
   }
 ]

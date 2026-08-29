@@ -71,7 +71,7 @@
     ]
   },
   {
-    "id": "summonbuff_Orologia_1",
+    "id": "summonbuff_Orologia_2",
     "name": "召唤-时龙-主动",
     "source": "",
     "image": "chara skill/SK_2516_3.webp",
@@ -166,6 +166,79 @@
         "prop": "perpetuity_atk",
         "zone": "charabonus",
         "value": "10%"
+      }
+    ]
+  },
+  {
+    "id": "test_enemy_defense_down_50",
+    "name": "测试：敌方防御下降50%",
+    "source": "test",
+    "image": "constants icon/04_icon_penetrate_def.png",
+    "status_icon": "constants icon/04_icon_penetrate_def.png",
+    "element": "all",
+    "target": "enemy_single",
+    "contexts": ["static", "battle"],
+    "duration": {
+      "type": "permanent"
+    },
+    "level": 1,
+    "maxlevel": 1,
+    "cd": "永续",
+    "description": "敌方防御下降50%。静态模拟时计入防down%输入；回合模拟时作为敌方状态持续生效。",
+    "effects": [
+      {
+        "prop": "def_down",
+        "zone": "normal",
+        "value": "50%"
+      }
+    ]
+  },
+  {
+    "id": "test_enemy_independent_defense_down_10",
+    "name": "测试：敌方独立防御下降10%",
+    "source": "test",
+    "image": "constants icon/04_icon_penetrate_def.png",
+    "status_icon": "constants icon/04_icon_penetrate_def.png",
+    "element": "all",
+    "target": "enemy_single",
+    "contexts": ["static", "battle"],
+    "duration": {
+      "type": "permanent"
+    },
+    "level": 1,
+    "maxlevel": 1,
+    "cd": "永续",
+    "description": "敌方独立防御下降10%。在普通减防50%上限结算后追加，可使合计减防达到60%。",
+    "effects": [
+      {
+        "prop": "def_down",
+        "zone": "independent",
+        "value": "10%"
+      }
+    ]
+  },
+  {
+    "id": "test_party_double_strike_1t",
+    "name": "测试：己方全体二动",
+    "source": "test",
+    "image": "buff icon/extra_attack.png",
+    "status_icon": "buff icon/extra_attack.png",
+    "element": "all",
+    "target": "ally_party",
+    "contexts": ["battle"],
+    "duration": {
+      "type": "turns",
+      "value": 1,
+      "tick": "turn_end"
+    },
+    "level": 1,
+    "maxlevel": 1,
+    "cd": "1回合",
+    "description": "己方前排全体获得二动，持续1回合；攻击阶段每名角色行动2次。",
+    "effects": [
+      {
+        "prop": "charabuff_double_strike",
+        "value": "1"
       }
     ]
   }

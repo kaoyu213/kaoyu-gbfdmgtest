@@ -1,4 +1,5 @@
 {
+  "fallbackTableId": "na_1.0_44.5",
   "tables": {
     "na_1.0_44.5": {
       "type": "na",
@@ -12,6 +13,19 @@
         { "limit": 500000, "slope": 0.6 },
         { "limit": 600000, "slope": 0.05 },
         { "limit": null,   "slope": 0.01 }
+      ]
+    },
+    "na_zhan_116": {
+      "type": "na",
+      "multiplier": 1.0,
+      "displayCap": 116,
+      "label": "平A斩衰减表 上限116万",
+      "stages": [
+        { "limit": 1000000, "slope": 1.0 },
+        { "limit": 1200000, "slope": 0.6 },
+        { "limit": 1300000, "slope": 0.3 },
+        { "limit": 1500000, "slope": 0.05 },
+        { "limit": null,    "slope": 0.01 }
       ]
     },
     "ca_168.5": {
@@ -86,23 +100,10 @@
         { "limit": null,     "slope": 0.01 }
       ]
     },
-    "skill_default_44.5": {
-      "type": "skill",
-      "multiplier": null,
-      "displayCap": 44.5,
-      "label": "技伤默认衰减表 上限44.5万",
-      "isDefault": true,
-      "stages": [
-        { "limit": 300000, "slope": 1.0 },
-        { "limit": 400000, "slope": 0.8 },
-        { "limit": 500000, "slope": 0.6 },
-        { "limit": 600000, "slope": 0.05 },
-        { "limit": null,   "slope": 0.01 }
-      ]
-    },
     "skill_10.75": {
       "type": "skill",
       "multiplier": null,
+      "damage_limit_type": "",
       "displayCap": 10.75,
       "label": "技伤上限10.75万",
       "stages": [
@@ -113,9 +114,108 @@
         { "limit": null,   "slope": 0.01 }
       ]
     },
+    "skill_18.5": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "100018",
+      "displayCap": 18.5,
+      "label": "技伤上限18.5万",
+      "stages": [
+        { "limit": 100000, "slope": 1.0 },
+        { "limit": 150000, "slope": 0.6 },
+        { "limit": 250000, "slope": 0.4 },
+        { "limit": 400000, "slope": 0.1 },
+        { "limit": null,   "slope": 0.01 }
+      ]
+    },
+    "skill_21.5": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "1000004",
+      "displayCap": 21.5,
+      "label": "技伤上限21.5万",
+      "stages": [
+        { "limit": 100000,  "slope": 1.0 },
+        { "limit": 200000,  "slope": 0.5 },
+        { "limit": 300000,  "slope": 0.3 },
+        { "limit": 1000000, "slope": 0.05 },
+        { "limit": null,    "slope": 0.01 }
+      ]
+    },
+    "skill_48.5": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "3000008",
+      "displayCap": 48.5,
+      "label": "技伤上限48.5万",
+      "stages": [
+        { "limit": 300000,  "slope": 1.0 },
+        { "limit": 400000,  "slope": 0.9 },
+        { "limit": 500000,  "slope": 0.7 },
+        { "limit": 1000000, "slope": 0.05 },
+        { "limit": null,    "slope": 0.01 }
+      ]
+    },
+    "skill_73": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "6000001",
+      "displayCap": 73,
+      "label": "技伤上限73万",
+      "stages": [
+        { "limit": 600000,  "slope": 1.0 },
+        { "limit": 700000,  "slope": 0.7 },
+        { "limit": 800000,  "slope": 0.5 },
+        { "limit": 1000000, "slope": 0.05 },
+        { "limit": null,    "slope": 0.01 }
+      ]
+    },
+    "skill_80": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "7000002",
+      "displayCap": 80,
+      "label": "技伤上限80万",
+      "stages": [
+        { "limit": 700000,  "slope": 1.0 },
+        { "limit": 800000,  "slope": 0.7 },
+        { "limit": 900000,  "slope": 0.25 },
+        { "limit": 1000000, "slope": 0.05 },
+        { "limit": null,    "slope": 0.01 }
+      ]
+    },
+    "skill_116": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "1000001",
+      "displayCap": 116,
+      "label": "技伤上限116万",
+      "stages": [
+        { "limit": 1000000, "slope": 1.0 },
+        { "limit": 1200000, "slope": 0.6 },
+        { "limit": 1300000, "slope": 0.3 },
+        { "limit": 1500000, "slope": 0.05 },
+        { "limit": null,    "slope": 0.01 }
+      ]
+    },
+    "skill_58": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "5000001",
+      "displayCap": 58,
+      "label": "技伤上限58万",
+      "stages": [
+        { "limit": 500000, "slope": 1.0 },
+        { "limit": 600000, "slope": 0.5 },
+        { "limit": 700000, "slope": 0.25 },
+        { "limit": 800000, "slope": 0.05 },
+        { "limit": null,   "slope": 0.01 }
+      ]
+    },
     "skill_test": {
       "type": "skill",
       "multiplier": null,
+      "damage_limit_type": "",
       "displayCap": 20,
       "label": "技伤测试衰减表 skill_test",
       "stages": [
@@ -139,6 +239,25 @@
       { "limit": 14000000, "slope": 0.5 },
       { "limit": 15000000, "slope": 0.1 },
       { "limit": null,     "slope": 0.001 }
+    ]
+  },
+  "testPresets": [
+    { "id": "na_base", "label": "普攻基础表 (0~30/40/50/60万)", "tableId": "na_1.0_44.5" },
+    { "id": "mc_ca_3", "label": "主角奥义(倍率3) (0~30/40/50/60万)", "tableId": "na_1.0_44.5" },
+    { "id": "ca_4.5", "label": "奥义4.5倍率 (0~150/170/180/250万)", "tableId": "ca_168.5" },
+    { "id": "ca_5", "label": "奥义5倍率 (0~150/170/180/250万)", "tableId": "ca_168.5", "isDefault": true },
+    { "id": "ca_test", "label": "奥义测试表 (0~180/200/220/300万)", "tableId": "ca_202" },
+    { "id": "ca_210", "label": "奥义210万起 (0~210/230/250/300万)", "tableId": "ca_230.5" },
+    { "id": "world_660", "label": "世界上限660万 (0~600/700/800万)", "worldCapMode": "660" },
+    { "id": "world_1310", "label": "世界上限1310万 (0~1200/1400/1500万)", "worldCapMode": "1310" }
+  ],
+  "customEditorExample": {
+    "我的测试表": [
+      { "limit": 1000000, "slope": 1.0 },
+      { "limit": 2000000, "slope": 0.6 },
+      { "limit": 3000000, "slope": 0.3 },
+      { "limit": 4000000, "slope": 0.05 },
+      { "limit": null, "slope": 0.01 }
     ]
   }
 }

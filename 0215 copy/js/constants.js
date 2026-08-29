@@ -223,6 +223,7 @@ const DISPLAY_NAME_MAP = {
     'mc_atk_passive': '主角基础攻击加成',
     'mc_def_passive': '主角防御力加成',
     'mc_all_cap_passive': '主角全上限',
+    'mc_na_dmg_cap_passive': '主角平A伤害上限',
     'mc_skill_dmg_passive': '主角技伤伤害',
     'mc_skill_dmg_cap_passive': '主角技能上限',
     'mc_debuff_resistance_passive': '主角弱体耐性',
@@ -495,6 +496,7 @@ const STAT_CONFIG = [
 
     // 职业加成类 (全职业常驻/特定职业被动)
     { "key": "mc_all_cap_passive", "label": "主角全上限", "cap": null, "format": "percent", "category": "job", "prop": "dmg_cap", "zone": "chara_skill" },
+    { "key": "mc_na_dmg_cap_passive", "label": "主角平A伤害上限", "cap": null, "format": "percent", "category": "job", "prop": "na_dmg_cap", "zone": "chara_skill" },
     { "key": "mc_skill_dmg_cap_passive", "label": "主角技能上限", "cap": null, "format": "percent", "category": "job", "prop": "skill_dmg_cap", "zone": "chara_skill" },
     { "key": "mc_cb_cap_passive", "label": "主角CB上限", "cap": null, "format": "percent", "category": "job", "prop": "cb_dmg_cap", "zone": "chara_skill" },
     { "key": "job_na_amp", "label": "非C5职业平A增幅", "cap": null, "format": "percent", "category": "job", "prop": "na_dmg_amp", "zone": "chara_skill" },

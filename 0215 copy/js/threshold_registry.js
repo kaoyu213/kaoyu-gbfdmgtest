@@ -16,6 +16,79 @@
     var LOADED = false;
     var LOAD_PROMISE = null;
 
+    function validateStages(name, stages) {
+        if (!Array.isArray(stages) || stages.length === 0) {
+            throw new Error(name + '.stages 不能为空');
+        }
+        var previousLimit = 0;
+        stages.forEach(function (stage, index) {
+            if (!stage || !Number.isFinite(stage.slope) || stage.slope < 0 || stage.slope > 1) {
+                throw new Error(name + ' 第 ' + (index + 1) + ' 段 slope 必须在 0~1 之间');
+            }
+            if (stage.limit === null) {
+                if (index !== stages.length - 1) {
+                    throw new Error(name + ' 只能在末段使用 limit:null');
+                }
+                return;
+            }
+            if (!Number.isFinite(stage.limit) || stage.limit <= previousLimit) {
+                throw new Error(name + ' 第 ' + (index + 1) + ' 段 limit 必须严格递增');
+            }
+            previousLimit = stage.limit;
+        });
+        if (stages[stages.length - 1].limit !== null) {
+            throw new Error(name + ' 末段必须使用 limit:null 表示无穷大');
+        }
+    }
+
+    function validateThresholdData(data) {
+        if (!data || !data.tables || Object.keys(data.tables).length === 0) {
+            throw new Error('tables 不能为空');
+        }
+        var damageLimitTypes = {};
+        Object.keys(data.tables).forEach(function (id) {
+            var entry = data.tables[id];
+            validateStages('tables.' + id, entry.stages);
+            if (entry.type === 'skill') {
+                if (!Object.prototype.hasOwnProperty.call(entry, 'damage_limit_type')) {
+                    throw new Error('tables.' + id + ' 缺少 damage_limit_type 字段');
+                }
+                if (typeof entry.damage_limit_type !== 'string') {
+                    throw new Error('tables.' + id + '.damage_limit_type 必须是字符串');
+                }
+                if (entry.damage_limit_type) {
+                    if (damageLimitTypes[entry.damage_limit_type]) {
+                        throw new Error('damage_limit_type ' + entry.damage_limit_type + ' 同时被 ' + damageLimitTypes[entry.damage_limit_type] + ' 和 ' + id + ' 使用');
+                    }
+                    damageLimitTypes[entry.damage_limit_type] = id;
+                }
+            }
+        });
+        Object.keys(data.worldCap || {}).forEach(function (mode) {
+            validateStages('worldCap.' + mode, data.worldCap[mode]);
+        });
+        if (!data.fallbackTableId || !data.tables[data.fallbackTableId]) {
+            throw new Error('fallbackTableId 必须指向 tables 中存在的表');
+        }
+        (data.testPresets || []).forEach(function (preset) {
+            var hasTable = Boolean(preset.tableId);
+            var hasWorldCap = Boolean(preset.worldCapMode);
+            if (!preset.id || hasTable === hasWorldCap) {
+                throw new Error('testPresets 每项必须有 id，且只引用 tableId/worldCapMode 中的一种');
+            }
+            if (hasTable && !data.tables[preset.tableId]) {
+                throw new Error('testPresets.' + preset.id + ' 引用了不存在的 tableId');
+            }
+            if (hasWorldCap && !(data.worldCap || {})[preset.worldCapMode]) {
+                throw new Error('testPresets.' + preset.id + ' 引用了不存在的 worldCapMode');
+            }
+        });
+        Object.keys(data.customEditorExample || {}).forEach(function (name) {
+            validateStages('customEditorExample.' + name, data.customEditorExample[name]);
+        });
+        return data;
+    }
+
     /**
      * 从 threshold_tables.json 加载数据
      * @returns {Promise}
@@ -23,12 +96,13 @@
     function loadThresholdData() {
         if (LOAD_PROMISE) return LOAD_PROMISE;
 
-        LOAD_PROMISE = fetch('js/threshold_tables.json')
+        LOAD_PROMISE = fetch('js/threshold_tables.json', { cache: 'no-store' })
             .then(function (res) {
                 if (!res.ok) throw new Error('Failed to load threshold_tables.json: ' + res.status);
                 return res.json();
             })
             .then(function (data) {
+                validateThresholdData(data);
                 THRESHOLD_DATA = data;
                 LOADED = true;
                 console.log('[ThresholdRegistry] Loaded OK, tables:', Object.keys(data.tables || {}).length, 'worldCap modes:', Object.keys(data.worldCap || {}).length);
@@ -127,6 +201,35 @@
     }
 
     /**
+     * 列出某一伤害类型的所有衰减表，供技能编辑器下拉框使用。
+     */
+    function getAll(type) {
+        var data = ensureData();
+        var requestedType = type == null ? '' : String(type);
+        return Object.keys(data.tables || {})
+            .filter(function (id) {
+                return !requestedType || data.tables[id].type === requestedType;
+            })
+            .map(function (id) { return normalizeEntry(data.tables[id], id); })
+            .sort(function (left, right) {
+                var leftCap = Number(left.displayCap);
+                var rightCap = Number(right.displayCap);
+                if (Number.isFinite(leftCap) && Number.isFinite(rightCap) && leftCap !== rightCap) {
+                    return leftCap - rightCap;
+                }
+                return String(left.tableId).localeCompare(String(right.tableId));
+            });
+    }
+
+    /**
+     * 获取配置文件指定的全局兜底表。
+     */
+    function getFallback() {
+        var data = ensureData();
+        return getById(data.fallbackTableId) || getDefault('na') || null;
+    }
+
+    /**
      * 统一解析入口：type + displayCap + tableId
      * 优先级：tableId 精确 > type+displayCap > type 默认
      * @param {string} type
@@ -152,8 +255,8 @@
         if (def) return def;
 
         // 4. 最终兜底：na 的默认表
-        console.warn('[ThresholdRegistry] No table found for type=' + type + ', falling back to na default');
-        return getDefault('na') || null;
+        console.warn('[ThresholdRegistry] No table found for type=' + type + ', using configured fallback');
+        return getFallback();
     }
 
     /**
@@ -163,12 +266,37 @@
      */
     function getWorldCap(mode) {
         var data = ensureData();
-        var stages = data.worldCap && data.worldCap[mode];
+        var stages = data.worldCap && data.worldCap[String(mode)];
         if (!stages) return null;
-        // 直接返回 normalized stages（worldCap 无额外元数据）
-        return stages.map(function (s) {
-            return { limit: s.limit === null ? Infinity : s.limit, slope: s.slope };
+        return normalizeStages(stages);
+    }
+
+    /**
+     * 为独立衰减测试页解析预设项，预设只引用表 ID，不再复制阈值。
+     */
+    function getTestPresets() {
+        var data = ensureData();
+        return (data.testPresets || []).map(function (preset) {
+            var stages = preset.tableId
+                ? (getById(preset.tableId) || {}).stages
+                : getWorldCap(preset.worldCapMode);
+            return {
+                id: preset.id,
+                label: preset.label || preset.id,
+                tableId: preset.tableId || null,
+                worldCapMode: preset.worldCapMode || null,
+                isDefault: preset.isDefault === true,
+                stages: stages || []
+            };
         });
+    }
+
+    /**
+     * 返回自定义编辑器示例的可序列化副本。
+     */
+    function getCustomEditorExample() {
+        var data = ensureData();
+        return JSON.parse(JSON.stringify(data.customEditorExample || {}));
     }
 
     /**
@@ -179,12 +307,17 @@
             tableId: tableId,
             type: entry.type,
             multiplier: entry.multiplier,
+            damage_limit_type: entry.type === 'skill' ? entry.damage_limit_type : null,
             displayCap: entry.displayCap,
             label: entry.label || '',
-            stages: (entry.stages || []).map(function (s) {
-                return { limit: s.limit === null ? Infinity : s.limit, slope: s.slope };
-            })
+            stages: normalizeStages(entry.stages || [])
         };
+    }
+
+    function normalizeStages(stages) {
+        return stages.map(function (s) {
+            return { limit: s.limit === null ? Infinity : s.limit, slope: s.slope };
+        });
     }
 
     // 预加载（但允许同步兜底，保证旧代码不崩溃）
@@ -196,8 +329,13 @@
         getById: getById,
         getByDisplayCap: getByDisplayCap,
         getDefault: getDefault,
+        getAll: getAll,
+        getFallback: getFallback,
         resolve: resolve,
         getWorldCap: getWorldCap,
+        getTestPresets: getTestPresets,
+        getCustomEditorExample: getCustomEditorExample,
+        validateThresholdData: validateThresholdData,
         _ensureData: ensureData
     };
 })();

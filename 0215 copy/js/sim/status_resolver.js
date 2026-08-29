@@ -1,11 +1,18 @@
 // ==========================================
 //  GBF 模拟器 - Status / skill actions 解析工具
 // ==========================================
-(function () {
+(function (global) {
     'use strict';
 
     function cloneJson(value) {
         return value == null ? value : JSON.parse(JSON.stringify(value));
+    }
+
+    function copyConditions(source, target) {
+        if (!source || !target) return target;
+        if (source.conditions != null) target.conditions = cloneJson(source.conditions);
+        else if (source.condition != null) target.conditions = cloneJson(source.condition);
+        return target;
     }
 
     function normalizeStepTarget(target) {
@@ -18,10 +25,21 @@
     function normalizeSimpleEffect(effect) {
         if (!effect || typeof effect !== 'object') return null;
 
+        if (effect.effect === 'enemy_defense_down') {
+            const value = Math.max(0, Number(effect.value) || 0);
+            return copyConditions(effect, {
+                effect_type: 'enemy_defense_down',
+                prop: effect.prop || 'def_down',
+                zone: effect.zone || 'normal',
+                value,
+                format: effect.format || 'percent'
+            });
+        }
+
         if (effect.prop && effect.zone) {
             const value = Number(effect.value);
             if (!Number.isFinite(value) || value === 0) return null;
-            return {
+            return copyConditions(effect, {
                 effect_type: effect.effect_type || effect.effect || 'stat_mod',
                 value,
                 formula: {
@@ -30,12 +48,12 @@
                     value,
                     format: effect.format
                 }
-            };
+            });
         }
 
         if (effect.effect === 'double_strike') {
             const value = Number(effect.value) || 1;
-            return {
+            return copyConditions(effect, {
                 effect_type: 'extra_attack',
                 mode: 'double_strike',
                 count: value,
@@ -44,19 +62,41 @@
                     zone: effect.zone || 'chara_skill',
                     value
                 }
-            };
+            });
         }
 
         if (effect.event === 'turn_hp_loss') {
-            return {
+            return copyConditions(effect, {
                 effect_type: 'turn_hp_loss',
                 timing: effect.timing || 'turn_start',
                 percent_max_hp: Number(effect.value) || 0,
                 can_reduce_to_zero: effect.can_reduce_to_zero === true
-            };
+            });
         }
 
         return cloneJson(effect);
+    }
+
+    function normalizeDuration(step) {
+        if (step && step.duration && typeof step.duration === 'object') {
+            const duration = cloneJson(step.duration);
+            duration.type = duration.type || 'turns';
+            if (duration.value != null) duration.value = Math.max(0, Number(duration.value) || 0);
+            if (!duration.tick) duration.tick = duration.type === 'action' ? 'attack_action_end' : 'turn_end';
+            return duration;
+        }
+        if (step && step.duration_type === 'action') {
+            return {
+                type: 'action',
+                value: Math.max(1, Number(step.actions) || 1),
+                tick: step.duration_tick || 'attack_action_end'
+            };
+        }
+        return step && step.turns != null ? {
+            type: 'turns',
+            value: Number(step.turns) || 0,
+            tick: 'turn_end'
+        } : null;
     }
 
     function normalizeDamageStep(step, context) {
@@ -109,22 +149,23 @@
                 context && context.skillId ? context.skillId : 'skill',
                 idx
             ].join('_');
-            return {
+            const normalized = {
                 type: 'apply_status',
                 target: normalizeStepTarget(step.target),
+                target_slots: Array.isArray(step.target_slots) ? step.target_slots.map(Number) : undefined,
                 status: {
                     status_id: statusId,
                     kind: 'generic',
                     name: step.name || (displayMeta && displayMeta.title) || statusId,
                     icon: step.icon || (displayMeta && displayMeta.icon) || '',
                     source_display: step.source_display || (context && context.skillName) || '',
-                    duration: step.turns != null ? {
-                        type: 'turns',
-                        value: Number(step.turns) || 0,
-                        tick: 'turn_end'
-                    } : null,
+                    duration: normalizeDuration(step),
+                    triggers: Array.isArray(step.triggers) ? cloneJson(step.triggers) : undefined,
+                    stacking: step.stacking && typeof step.stacking === 'object' ? cloneJson(step.stacking) : null,
+                    stacks: step.stacking ? Math.max(1, Number(step.stacks) || 1) : null,
+                    flags: step.dispel_immune != null ? { dispel_immune: step.dispel_immune === true } : {},
                     effects: [
-                        {
+                        copyConditions(step, {
                             effect_type: step.effect_type || 'stat_mod',
                             value,
                             formula: {
@@ -133,10 +174,11 @@
                                 value,
                                 format: step.format
                             }
-                        }
+                        })
                     ]
                 }
             };
+            return normalized;
         }
 
         const statusId = step.id || [
@@ -150,11 +192,10 @@
             name: step.name || statusId,
             icon: step.icon || '',
             source_display: step.source_display || (context && context.skillName) || '',
-            duration: step.turns != null ? {
-                type: 'turns',
-                value: Number(step.turns) || 0,
-                tick: 'turn_end'
-            } : null,
+            duration: normalizeDuration(step),
+            triggers: Array.isArray(step.triggers) ? cloneJson(step.triggers) : undefined,
+            stacking: step.stacking && typeof step.stacking === 'object' ? cloneJson(step.stacking) : null,
+            stacks: step.stacking ? Math.max(1, Number(step.stacks) || 1) : null,
             flags: step.dispel_immune != null ? { dispel_immune: step.dispel_immune === true } : {},
             effects: (Array.isArray(step.effects) ? step.effects : [])
                 .map((effect) => normalizeSimpleEffect(effect))
@@ -168,16 +209,52 @@
         return {
             type: 'apply_status',
             target: normalizeStepTarget(step.target),
+            target_slots: Array.isArray(step.target_slots) ? step.target_slots.map(Number) : undefined,
             status
         };
     }
 
-    const STEP_HANDLERS = {
+    const STEP_HANDLERS = Object.create(null);
+
+    function registerStepHandler(behavior, handler) {
+        const key = String(behavior || '').trim();
+        if (!key || typeof handler !== 'function') {
+            throw new Error('技能步骤处理器需要 behavior 和处理函数');
+        }
+        STEP_HANDLERS[key] = handler;
+        return handler;
+    }
+
+    function hasStepHandler(behavior) {
+        return typeof STEP_HANDLERS[String(behavior || '').trim()] === 'function';
+    }
+
+    function normalizeExtensibleStep(step) {
+        const command = cloneJson(step) || {};
+        command.type = String(command.do || '').trim();
+        command.target = normalizeStepTarget(command.target);
+        delete command.do;
+        return command;
+    }
+
+    Object.entries({
         damage: normalizeDamageStep,
         buff: normalizeBuffStep,
         ca: normalizeCaStep,
         na: normalizeNaStep
-    };
+    }).forEach(([behavior, handler]) => registerStepHandler(behavior, handler));
+
+    [
+        'counter',
+        'set_flag',
+        'remove_status',
+        'extend_status',
+        'reduce_cooldown',
+        'schedule_action',
+        'cancel_action',
+        'replace_action',
+        'emit_event'
+    ].forEach((behavior) => registerStepHandler(behavior, normalizeExtensibleStep));
 
     function normalizeStepToAction(step, context, idx) {
         if (!step || typeof step !== 'object') return null;
@@ -205,6 +282,7 @@
         if (!action.status || typeof action.status !== 'object') return null;
         const status = cloneJson(action.status);
         status.target = action.target || status.target || null;
+        status.target_slots = Array.isArray(action.target_slots) ? action.target_slots.slice() : status.target_slots;
         status.source_skill_id = context && context.skillId ? context.skillId : status.source_skill_id;
         return status;
     }
@@ -216,11 +294,22 @@
             .filter(Boolean);
     }
 
-    function statusEffectToZoneEntry(status, effect, idx) {
+    function effectConditionsMatch(effect, context) {
+        const conditions = effect && effect.conditions != null ? effect.conditions : effect && effect.condition;
+        if (conditions == null) return true;
+        const evaluator = global.BattleConditions && global.BattleConditions.evaluator;
+        return !!(evaluator && typeof evaluator.evaluate === 'function' && evaluator.evaluate(conditions, context || {}));
+    }
+
+    function statusEffectToZoneEntry(status, effect, idx, context) {
         if (!status || !effect) return null;
+        if (!effectConditionsMatch(effect, context)) return null;
         const formula = effect.formula && typeof effect.formula === 'object' ? effect.formula : null;
         if (!formula || !formula.prop || !formula.zone) return null;
-        const value = Number(formula.value);
+        const stackMultiplier = status.stacking && status.stacking.scale_effects === true
+            ? Math.max(1, Number(status.stacks) || 1)
+            : 1;
+        const value = Number(formula.value) * stackMultiplier;
         if (!Number.isFinite(value) || value === 0) return null;
         const meta = typeof getBuffDisplayMeta === 'function'
             ? getBuffDisplayMeta(formula.prop, formula.zone, {
@@ -239,22 +328,35 @@
         };
     }
 
-    function collectZoneEntriesFromStatuses(statuses) {
+    function collectZoneEntriesFromStatuses(statuses, context) {
         const entries = [];
         (Array.isArray(statuses) ? statuses : []).forEach((status) => {
             const effects = Array.isArray(status.effects) ? status.effects : [];
             effects.forEach((effect, idx) => {
-                const entry = statusEffectToZoneEntry(status, effect, idx);
+                const entry = statusEffectToZoneEntry(status, effect, idx, context || {});
                 if (entry) entries.push(entry);
             });
         });
         return entries;
     }
 
+    function isStatusDisplayActive(status, context) {
+        const effects = Array.isArray(status && status.effects) ? status.effects : [];
+        const conditionalEffects = effects.filter((effect) => effect && (effect.conditions != null || effect.condition != null));
+        if (conditionalEffects.length === 0) return true;
+        return conditionalEffects.some((effect) => effectConditionsMatch(effect, context || {}));
+    }
+
     function statusToPartyBuffDisplay(status) {
         if (!status) return null;
         const name = status.name || status.status_id || '';
-        const duration = status.duration && status.duration.value ? `，持续${status.duration.value}回合` : '';
+        const durationValue = status.remaining_turns != null
+            ? Number(status.remaining_turns)
+            : status.duration && status.duration.value != null
+                ? Number(status.duration.value)
+                : null;
+        const duration = durationValue != null && durationValue > 0 ? `，剩余${durationValue}回合` : '';
+        const stacks = status.stacks != null ? `，${Math.max(1, Number(status.stacks) || 1)}层` : '';
         const subs = (Array.isArray(status.effects) ? status.effects : [])
             .map((effect) => {
                 if (!effect) return '';
@@ -265,6 +367,10 @@
                 }
                 if (effect.effect_type === 'multiattack') return effect.mode || 'multiattack';
                 if (effect.effect_type === 'extra_attack') return '再攻击';
+                if (effect.effect_type === 'enemy_defense_down') {
+                    const zone = effect.zone === 'independent' ? '（独立）' : '';
+                    return `防御下降${zone}${((Number(effect.value) || 0) * 100).toFixed(0)}%`;
+                }
                 if (effect.effect_type === 'turn_hp_loss') return `每回合损失${((Number(effect.percent_max_hp) || 0) * 100).toFixed(0)}%HP`;
                 return effect.effect_type || '';
             })
@@ -273,14 +379,21 @@
             icon: status.icon || '',
             title: name,
             abbrev: name.slice(0, 2) || '?',
-            tooltip: `${name}${duration}${subs.length ? '\n' + subs.join('；') : ''}`
+            tooltip: `${name}${stacks}${duration}${subs.length ? '\n' + subs.join('；') : ''}`
         };
     }
 
-    window.StatusResolver = {
+    const api = {
         getSkillActions,
         getStatusesFromSkillActions,
         collectZoneEntriesFromStatuses,
-        statusToPartyBuffDisplay
+        isStatusDisplayActive,
+        statusToPartyBuffDisplay,
+        normalizeStepToAction,
+        registerStepHandler,
+        hasStepHandler
     };
-})();
+    global.StatusResolver = api;
+    if (typeof module !== 'undefined' && module.exports) module.exports = api;
+
+})(typeof window !== 'undefined' ? window : globalThis);

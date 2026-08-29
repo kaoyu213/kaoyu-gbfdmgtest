@@ -2516,6 +2516,28 @@
         "value": "5%"
       }
     ]
+  },
+  {
+    "id": "anshu_test",
+    "name": "暗书测试",
+    "description": "",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_skill_dmg_amp",
+        "boost": "none",
+        "value": "20%"
+      },
+      {
+        "prop": "weapon_bonus_skill_own_element",
+        "boost": "none",
+        "value": "10%"
+      }
+    ]
   }
   
 ]

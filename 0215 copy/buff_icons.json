@@ -3,13 +3,13 @@
   "_说明": "集中存放「左侧角色 Buff」等 UI 用的 Buff 展示配置。charaskills.json 里 apply_buff 只需写 parameters.buff_id，无需重复写图标路径。",
   "_约定": {
     "buffs 的键": "与 charaskills 里 parameters.buff_id 一致",
-    "icon": "相对项目根目录下 images/ 的路径（例如 buff icon/ta.webp）",
+    "icon": "相对项目根目录下 images/ 的路径（例如 buff icon/ta_rate.png）",
     "title": "鼠标悬停完整说明",
     "abbrev": "无图标时圆圈内短字，建议 2～3 字；有图标时也可用作悬停补充"
   },
   "buffs": {
     "charabuff_ta": {
-      "icon": "buff icon/ta.png",
+      "icon": "buff icon/ta_rate.png",
       "title": "TA率提升",
       "abbrev": "TA"
     },
@@ -39,9 +39,14 @@
       "abbrev": "伤害上升"
     },
     "charabuff_double_strike": {
-      "icon": "buff icon/double_strike.png",
+      "icon": "buff icon/extra_attack.png",
       "title": "再攻击",
       "abbrev": "再攻击"
+    },
+    "def_down": {
+      "icon": "constants icon/04_icon_penetrate_def.png",
+      "title": "敌方防御下降",
+      "abbrev": "防御DOWN"
     }
   }
 }

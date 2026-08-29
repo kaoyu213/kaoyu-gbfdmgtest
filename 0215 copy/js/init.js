@@ -5,6 +5,13 @@
 // 初始化应用
 async function init() {
     try {
+        // 伤害计算不再内置衰减表，启动后必须先等待统一配置加载完成。
+        if (window.ThresholdRegistry && typeof window.ThresholdRegistry.loadThresholdData === 'function') {
+            const thresholdData = await window.ThresholdRegistry.loadThresholdData();
+            if (!thresholdData.tables || Object.keys(thresholdData.tables).length === 0) {
+                throw new Error('衰减表配置 js/threshold_tables.json 加载失败或内容为空');
+            }
+        }
         if (typeof validateBuffDirectoryCoverage === 'function') {
             validateBuffDirectoryCoverage();
         }
@@ -17,13 +24,13 @@ async function init() {
         const [wRes, sRes, cRes, charaRes, specialRes, summonRes, charaSkillsRes, buffIconsRes, charaBuffRes] = await Promise.all([
             fetch('./weapons.json'),
             fetch('./skills.json'),
-            fetch('./classes.json'),
+            fetch('./classes.json', { cache: 'no-store' }),
             fetch('./chara.json'),
             fetch('./wonders.json'),
-            fetch('./summons.json'),
-            fetch('./charaskills.json'),
-            fetch('./buff_icons.json'),
-            fetch('./charabuff.json')
+            fetch('./summons.json', { cache: 'no-store' }),
+            fetch('./charaskills.json', { cache: 'no-store' }),
+            fetch('./buff_icons.json', { cache: 'no-store' }),
+            fetch('./charabuff.json', { cache: 'no-store' })
         ]);
 
         const wRaw = await wRes.json();
@@ -59,21 +66,31 @@ async function init() {
             console.warn('charabuff.json 未找到或无法加载');
         }
         allCharaBuffs = Array.isArray(charaBuffRaw) ? charaBuffRaw : [];
+        if (window.CharabuffRegistry && typeof window.CharabuffRegistry.load === 'function') {
+            window.CharabuffRegistry.load(allCharaBuffs);
+        }
 
-        globalCharaSkillMap = {};
         const charaSkillsList = (charaSkillsRaw && charaSkillsRaw.skills) ? charaSkillsRaw.skills : [];
-        charaSkillsList.forEach(s => {
-            if (!s || !s.id) return;
-            globalCharaSkillMap[s.id] = s;
-            // id 为 skill_{角色数字ID}_{1~4} 时，同步注册 {角色ID}_{位次}，与角色槽位 sid 一致
-            const m = String(s.id).match(/^skill_(\d+)_(\d+)$/);
-            if (m) globalCharaSkillMap[`${m[1]}_${m[2]}`] = s;
-        });
+        if (window.SkillRegistry && typeof window.SkillRegistry.load === 'function') {
+            window.SkillRegistry.load(charaSkillsList);
+            globalCharaSkillMap = window.SkillRegistry.getLegacyMap();
+        } else {
+            globalCharaSkillMap = {};
+            charaSkillsList.forEach(s => {
+                if (!s || !s.id) return;
+                globalCharaSkillMap[s.id] = s;
+                const m = String(s.id).match(/^skill_(\d+)_(\d+)$/);
+                if (m) globalCharaSkillMap[`${m[1]}_${m[2]}`] = s;
+            });
+        }
         
         sRaw.forEach(s => globalSkillMap[s.id] = s);
         allClasses = cRaw;
         allCharacters = charaRaw;
         allSummons = summonRaw;
+        if (window.SummonRegistry && typeof window.SummonRegistry.load === 'function') {
+            window.SummonRegistry.load(allSummons);
+        }
         
         // 加载特殊加成数据
         specialBuffsData = specialRaw;
@@ -155,6 +172,9 @@ async function init() {
             if (typeof window.BurstSimulator.refresh === 'function') {
                 window.BurstSimulator.refresh();
             }
+        }
+        if (window.ManualBurstSimulator && typeof window.ManualBurstSimulator.init === 'function') {
+            window.ManualBurstSimulator.init();
         }
 
         // 添加键盘快捷键

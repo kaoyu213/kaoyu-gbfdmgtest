@@ -209,7 +209,7 @@ if (typeof window !== 'undefined') {
 // ==========================================
 function calculateDamage(panelAtk, stats, hpPercent, options) {
     // options: { isAdvantage, defense, defenseDown, randomFactor, backups, strongCaps, adversityCharSkill, adversityWeapon, adversityStrongBonus, charIndex }
-    // defenseDown: 对boss的防御力down效果，0~80 表示 0%~80%
+    // defenseDown: 对boss的最终防御力down效果，0~99 表示 0%~99%
     const defaults = {
         isAdvantage: false,
         defense: 10,
@@ -567,7 +567,7 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
     addLog("随机补正", current, `x${zoneMult.toFixed(10)}`);
     
     // Step 12: 防御计算 (最终防御 = 防御值 × (1 - 防down) × (1 - weapon_def_ignore))
-    const defDownPct = Math.min(80, Math.max(0, Number(opts.defenseDown) || 0)) / 100;
+    const defDownPct = Math.min(99, Math.max(0, Number(opts.defenseDown) || 0)) / 100;
     const weaponDefIgnore = Math.min(0.9, Math.max(0, Number(stats['weapon_def_ignore']) || 0));
     const effectiveDefense = opts.defense * (1 - defDownPct) * (1 - weaponDefIgnore);
     // 不再使用 finalRound(ceil)，仅做精确除法，不取整
@@ -599,7 +599,7 @@ function calculateDamageFromUI(charIndex = 0) {
     const defInputId = charIndex === 0 ? 'def-input' : `def-input-${charIndex}`;
     const defDownInputId = charIndex === 0 ? 'def-down-input' : `def-down-input-${charIndex}`;
     const defense = parseInt(document.getElementById(defInputId)?.value) || 10;
-    const defenseDown = Math.min(80, Math.max(0, parseInt(document.getElementById(defDownInputId)?.value) || 0));
+    const defenseDown = Math.min(99, Math.max(0, parseInt(document.getElementById(defDownInputId)?.value) || 0));
     
     // 从全局拨片状态读取随机因子
     let randomFactor = 1;
@@ -1021,7 +1021,7 @@ function updateDamageDisplay(charIndex = 0) {
     const defInputId = charIndex === 0 ? 'def-input' : `def-input-${charIndex}`;
     const defDownInputId = charIndex === 0 ? 'def-down-input' : `def-down-input-${charIndex}`;
     const defense = parseInt(document.getElementById(defInputId)?.value) || 10;
-    const defenseDown = Math.min(80, Math.max(0, parseInt(document.getElementById(defDownInputId)?.value) || 0));
+    const defenseDown = Math.min(99, Math.max(0, parseInt(document.getElementById(defDownInputId)?.value) || 0));
     const weaponDefIgnore = Math.min(0.8, Math.max(0, Number(stats['weapon_def_ignore']) || 0));
     const effectiveDefense = defense * (1 - defenseDown / 100) * (1 - weaponDefIgnore);
     
@@ -1661,8 +1661,23 @@ function updateDamageDisplay(charIndex = 0) {
         }
     }
 
+    window.skillDamageInferenceContexts = window.skillDamageInferenceContexts || {};
+    window.skillDamageInferenceContexts[charIndex] = {
+        panelAtk: panelAtk,
+        stats: stats,
+        hpPercent: hpPercent,
+        defense: defense,
+        defenseDown: defenseDown,
+        isAdvantage: isAdv,
+        critMode: critMode,
+        randomFactor: randomFactor,
+        capOptions: Object.assign({}, capOptions || {}),
+        baseAdversityOptions: Object.assign({}, baseAdversityOptions || {})
+    };
+
     const skillDmgEl = document.getElementById('skill-dmg-display-' + charIndex);
     if (skillDmgEl && window.SkillDmgCalc && typeof window.SkillDmgCalc.calculateSkillDamage === 'function') {
+        window.skillDamageInferenceSnapshots = window.skillDamageInferenceSnapshots || {};
         const skillMultInput = document.getElementById('skill-mult-input-' + charIndex);
         const skillLabelWrap = skillMultInput ? skillMultInput.closest('.dmg-skill-label-input') : null;
         const skillLabel = skillLabelWrap ? skillLabelWrap.querySelector('.dmg-label') : null;
@@ -1681,6 +1696,7 @@ function updateDamageDisplay(charIndex = 0) {
             ...baseAdversityOptions
         });
         if (renderedCheckedSkills) {
+            delete window.skillDamageInferenceSnapshots[charIndex];
             if (skillMultInput) skillMultInput.style.display = 'none';
             if (skillLabel) skillLabel.textContent = '技能伤害';
             if (totalCritMult > 1.0000001) skillDmgEl.classList.add('is-crit');
@@ -1693,6 +1709,7 @@ function updateDamageDisplay(charIndex = 0) {
         setSkillDamageDecayModeButton(charIndex, false);
         const skillMult = window.SkillDmgCalc.readSkillMultFromUI(charIndex);
         if (!Number.isFinite(skillMult) || skillMult <= 0) {
+            delete window.skillDamageInferenceSnapshots[charIndex];
             skillDmgEl.textContent = '-';
             skillDmgEl.classList.remove('is-crit');
         } else {
@@ -1720,6 +1737,31 @@ function updateDamageDisplay(charIndex = 0) {
                 skillBaseMult: skillMult
             });
             const skillVal = skillResult && skillResult.value != null ? skillResult.value : null;
+            const capResult = skillResult && skillResult.capResult ? skillResult.capResult : null;
+            const skillSteps = skillResult && skillResult.steps ? skillResult.steps : null;
+            if (capResult && skillSteps && Number.isFinite(Number(skillSteps.afterMultCrit))) {
+                window.skillDamageInferenceSnapshots[charIndex] = {
+                    charIndex: charIndex,
+                    multiplier: skillMult,
+                    theory: Number(skillSteps.afterMultCrit),
+                    theoryAfterBonuses: Number(skillResult.undecayedValue),
+                    undecayedTheory: Number(skillResult.undecayedValue),
+                    settings: {
+                        capBonusPercent: (Number(capResult.capCoef) - 1) * 100,
+                        ampPercent: Number(capResult.ampCoef || 0) * 100,
+                        takenAmpPercent: Number(capResult.takenDmgAmpCoef || 0) * 100,
+                        skillSupp: Number(skillSteps.afterSupp) - Number(skillSteps.afterMultCrit),
+                        capRelaxationPercent: Number(capResult.capRelaxation || 0) * 100,
+                        hits: 1,
+                        finalMode: 'per_hit'
+                    }
+                };
+                window.dispatchEvent(new CustomEvent('skillDamageInferenceSnapshotUpdated', {
+                    detail: window.skillDamageInferenceSnapshots[charIndex]
+                }));
+            } else {
+                delete window.skillDamageInferenceSnapshots[charIndex];
+            }
             skillDmgEl.textContent = skillVal != null ? skillVal.toLocaleString() : '-';
             if (totalCritMult > 1.0000001) skillDmgEl.classList.add('is-crit');
             else skillDmgEl.classList.remove('is-crit');
@@ -1728,6 +1770,85 @@ function updateDamageDisplay(charIndex = 0) {
     
     return resultNormal;
 }
+
+/**
+ * 供衰减表推算器从当前盘面独立计算技伤快照。
+ * 不受角色技能勾选状态和已知衰减表选择影响。
+ */
+function getSkillDamageInferenceSnapshot(charIndex, skillMultiplier) {
+    const context = window.skillDamageInferenceContexts && window.skillDamageInferenceContexts[charIndex];
+    const multiplier = Number(skillMultiplier);
+    if (!context || !window.SkillDmgCalc || typeof window.SkillDmgCalc.calculateSkillDamage !== 'function') return null;
+    if (!Number.isFinite(multiplier) || multiplier <= 0) return null;
+
+    // 推算样本必须使用点击时的当前盘面。这里主动重建一次 All Effects，
+    // 避免沿用上一次重算留下的缓存，也确保技能倍率、予伤、增幅和被伤增幅口径一致。
+    const freshEffects = typeof buildAllEffectsForSlot === 'function'
+        ? buildAllEffectsForSlot(charIndex, {
+            isAdvantage: context.isAdvantage,
+            persist: false
+        })
+        : null;
+    const effectTotals = freshEffects && freshEffects.totals ? freshEffects.totals : null;
+
+    const calculateAtRandomFactor = (randomFactor, applyCap) => window.SkillDmgCalc.calculateSkillDamage(
+        context.panelAtk,
+        context.stats,
+        context.hpPercent,
+        {
+            defense: context.defense,
+            defenseDown: context.defenseDown,
+            charIndex: charIndex,
+            isAdvantage: context.isAdvantage,
+            critMode: context.critMode,
+            naOptions: { randomFactor: randomFactor },
+            ...context.baseAdversityOptions,
+            effectTotals: effectTotals,
+            applyCap: applyCap,
+            capOptions: Object.assign({}, context.capOptions || {}, { thresholdTableId: 'skill_test' }),
+            skillBaseMult: multiplier
+        }
+    );
+    const skillResult = calculateAtRandomFactor(1, true);
+    const minimumResult = calculateAtRandomFactor(0.95, false);
+    const maximumResult = calculateAtRandomFactor(1.05, false);
+    const capResult = skillResult && skillResult.capResult;
+    const steps = skillResult && skillResult.steps;
+    if (!capResult || !steps || !Number.isFinite(Number(steps.afterMultCrit))) return null;
+
+    return {
+        charIndex: charIndex,
+        multiplier: multiplier,
+        theory: Number(steps.afterMultCrit),
+        theoryMin: Number(minimumResult && minimumResult.steps && minimumResult.steps.afterMultCrit),
+        theoryMax: Number(maximumResult && maximumResult.steps && maximumResult.steps.afterMultCrit),
+        theoryAfterBonuses: Number(skillResult.undecayedValue),
+        undecayedTheory: Number(skillResult.undecayedValue),
+        undecayedTheoryMin: Number(minimumResult && minimumResult.undecayedValue),
+        undecayedTheoryMax: Number(maximumResult && maximumResult.undecayedValue),
+        breakdown: {
+            baseDamageAfterDefense: Number(steps.afterDef) || 0,
+            baseMultiplier: Number(skillResult.skillBaseMultUsed) || 0,
+            skillDamageBonus: Number(skillResult.skillDmgBonusUsed) || 0,
+            critMultiplier: Number(skillResult.critMultiplierUsed) || 1,
+            rawBeforeDecay: Number(steps.afterMultCrit) || 0,
+            skillSupp: Number(steps.afterSupp) - Number(steps.afterMultCrit),
+            ampPercent: Number(skillResult.skillAmpUsed || 0) * 100,
+            takenAmpPercent: Number(skillResult.takenDmgAmpUsed || 0) * 100
+        },
+        settings: {
+            capBonusPercent: (Number(capResult.capCoef) - 1) * 100,
+            ampPercent: Number(capResult.ampCoef || 0) * 100,
+            takenAmpPercent: Number(capResult.takenDmgAmpCoef || 0) * 100,
+            skillSupp: Number(steps.afterSupp) - Number(steps.afterMultCrit),
+            capRelaxationPercent: Number(capResult.capRelaxation || 0) * 100,
+            hits: 1,
+            finalMode: 'per_hit'
+        }
+    };
+}
+
+window.getSkillDamageInferenceSnapshot = getSkillDamageInferenceSnapshot;
 
 // 切换理论伤害显示 (暴击/非暴击)
 function toggleCritTheory(btn, charIndex) {

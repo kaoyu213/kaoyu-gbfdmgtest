@@ -179,12 +179,12 @@
     /**
      * 计算有效防御
      * @param {number} defense - 敌方防御
-     * @param {number} defenseDown - 防 down 百分比 0~80
+     * @param {number} defenseDown - 最终防 down 百分比 0~99
      * @param {number} weaponDefIgnore - 无视防御 0~0.3
      */
     function getEffectiveDefense(defense, defenseDown, weaponDefIgnore) {
         var def = Number(defense) || 10;
-        var down = Math.min(80, Math.max(0, Number(defenseDown) || 0)) / 100;
+        var down = Math.min(99, Math.max(0, Number(defenseDown) || 0)) / 100;
         var ignore = Math.min(0.3, Math.max(0, Number(weaponDefIgnore) || 0));
         return def * (1 - down) * (1 - ignore);
     }
@@ -281,7 +281,7 @@
      * @param {number} hpPercent - 当前 HP 百分比 0~100
      * @param {object} options
      * @param {number} options.defense - 敌方防御，默认 10
-     * @param {number} options.defenseDown - 防 down 0~80
+     * @param {number} options.defenseDown - 最终防 down 0~99
      * @param {number} options.caMultiplier - 奥义倍率；主角且持主手时若未传则从主手读取；非主角若未传则从 chara.json（currentParty 的 奥义倍率，缺省 4.5）
      * @param {number} options.caFixed - 奥义固定值；非主角若未传则从 chara.json（奥义固定值，缺省 2000）
      * @param {boolean} options.isAdvantage - 是否克属
@@ -526,7 +526,7 @@
         var defId = charIndex === 0 ? 'def-input' : 'def-input-' + charIndex;
         var defDownId = charIndex === 0 ? 'def-down-input' : 'def-down-input-' + charIndex;
         var defense = parseInt(document.getElementById(defId) && document.getElementById(defId).value, 10) || 10;
-        var defenseDown = Math.min(80, Math.max(0, parseInt(document.getElementById(defDownId) && document.getElementById(defDownId).value, 10) || 0));
+        var defenseDown = Math.min(99, Math.max(0, parseInt(document.getElementById(defDownId) && document.getElementById(defDownId).value, 10) || 0));
 
         var randomFactor = 1;
         if (typeof window !== 'undefined' && window.damageViewStates && window.damageViewStates[charIndex]) {

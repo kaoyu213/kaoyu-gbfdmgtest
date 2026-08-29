@@ -5,7 +5,7 @@
 // 全局变量：角色数据
 let party = [];
 
-const MC_LB_SLOT_COUNT = 20;
+const MC_LB_SLOT_COUNT = 30;
 let mcLbSlotsByJob = {};
 const MC_LB_OPTIONS = [
     { id: 'atk', label: '攻击力', values: [500, 1500, 3000], kind: 'fixed', apply: 'baseAtk' },
@@ -33,6 +33,7 @@ const MC_LB_OPTIONS = [
     { id: 'crit', label: '暴击率', values: [1, 3, 5], kind: 'percent', apply: 'crit' },
     { id: 'party_hp', label: '我方全体HP', values: [300, 600, 1000], kind: 'fixed', apply: 'partyHpFlat' },
     { id: 'dmg_cap', label: '伤害上限', values: [1, 3, 5], kind: 'percent', apply: 'allCap' },
+    { id: 'na_cap', label: '平A伤害上限', values: [1, 2, 3], kind: 'percent', apply: 'naCap' },
     { id: 'cb_dmg', label: 'CB伤害', values: [1, 3, 5], kind: 'percent', apply: 'cbDmg' },
     { id: 'dodge', label: '回避率', values: [1, 2, 3], kind: 'percent', apply: 'dodge' },
     { id: 'skill_cap', label: '技能伤害上限', values: [1, 3, 5], kind: 'percent', apply: 'skillCap' },
@@ -186,7 +187,7 @@ window.getMcLbTotals = function() {
     const totals = {
         baseAtk: 0, baseHp: 0, partyHpFlat: 0, prof1: 0, prof2: 0, mcDef: 0, healCap: 0,
         skillDmg: 0, debuffRes: 0, debuffSuccess: 0, elementAtk: 0, elementReduce: 0, caDmg: 0,
-        da: 0, ta: 0, crit: 0, allCap: 0, cbDmg: 0, dodge: 0, skillCap: 0, cbCap: 0,
+        da: 0, ta: 0, crit: 0, allCap: 0, naCap: 0, cbDmg: 0, dodge: 0, skillCap: 0, cbCap: 0,
         expRp: 0, odSuppression: 0, breakdown: {}
     };
     const selections = getMcLbSelections();
@@ -444,13 +445,123 @@ function calculateRankStats(rank) {
     return { hp: hp.toNumber(), atk: atk.toNumber() };
 }
 
+function getStaticSkillById(skillId) {
+    if (!skillId) return null;
+    if (window.SkillRegistry && typeof window.SkillRegistry.get === 'function') {
+        return window.SkillRegistry.get(skillId);
+    }
+    const charaMap = typeof globalCharaSkillMap !== 'undefined' ? globalCharaSkillMap : {};
+    return charaMap[skillId] || null;
+}
+
+function resolveStaticStatusTargetSlots(target, ownerSlot, targetSlots) {
+    if (target === 'ally_slots' && Array.isArray(targetSlots)) {
+        return Array.from(new Set(targetSlots.map(Number).filter((slot) => Number.isInteger(slot) && slot >= 0 && slot <= 5)));
+    }
+    if (!target || target === 'self') return ownerSlot == null ? [] : [ownerSlot];
+    if (target === 'ally_party' || target === 'party') return [0, 1, 2, 3];
+    if (target === 'ally_all') return [0, 1, 2, 3, 4, 5];
+    return [];
+}
+
 /**
- * 根据队伍 UI 中已勾选的角色技能，解析 charaskills.steps 里的 buff 步骤，
- * 展开为 prop + zone + value 条目后交给 BuffRegistry / buff_zones 统一结算。
+ * 将静态面板中选中的主动技能和自动生效的开局被动统一展开到实际目标槽位。
+ * 返回值不直接修改 party，供计算和 Buff 图标展示共同使用。
+ */
+function collectStaticSkillStatusApplications() {
+    if (typeof document === 'undefined' || !window.StatusResolver
+        || typeof window.StatusResolver.getStatusesFromSkillActions !== 'function') return [];
+
+    const sources = [];
+    const seen = new Set();
+    document.querySelectorAll('.char-skill-enabled-cb:checked').forEach((cb) => {
+        const ownerSlot = Number(cb.getAttribute('data-slot'));
+        if (!Number.isInteger(ownerSlot) || ownerSlot < 0 || ownerSlot > 5) return;
+        let skillId = cb.getAttribute('data-skill-id');
+        if (!skillId && ownerSlot > 0) {
+            const charData = typeof currentParty !== 'undefined' ? currentParty[ownerSlot] : null;
+            const pos = cb.getAttribute('data-pos');
+            if (charData && charData['ID'] != null && pos) skillId = `${charData['ID']}_${pos}`;
+        }
+        const skill = getStaticSkillById(skillId);
+        if (!skill || String(skill.kind || 'active').toLowerCase() === 'passive') return;
+        const key = `${ownerSlot}|${skill.id || skillId}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        sources.push({ ownerSlot, skillId: skill.id || skillId, skill });
+    });
+
+    const jobPassives = typeof currentMC !== 'undefined' && Array.isArray(currentMC.battleSkills)
+        ? currentMC.battleSkills
+        : [];
+    jobPassives.forEach((skill) => {
+        if (!skill || !skill.trigger || skill.trigger.event !== 'battle_start') return;
+        const skillId = skill.id || `job_passive_${sources.length}`;
+        const key = `0|${skillId}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        sources.push({ ownerSlot: 0, skillId, skill });
+    });
+
+    if (window.SummonRegistry && typeof window.SummonRegistry.collectPassiveSkills === 'function'
+        && window.SkillRegistry && typeof currentSummons !== 'undefined') {
+        window.SummonRegistry.collectPassiveSkills(currentSummons, window.SkillRegistry).forEach((entry) => {
+            const skill = entry && entry.skill;
+            if (!skill || !skill.trigger || skill.trigger.event !== 'battle_start') return;
+            const key = `summon:${entry.summonSlot}|${skill.id || entry.skillId}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            sources.push({
+                ownerSlot: entry.ownerSlot == null ? 0 : entry.ownerSlot,
+                skillId: skill.id || entry.skillId,
+                skill,
+                summonSlot: entry.summonSlot
+            });
+        });
+    }
+
+    const applications = [];
+    const staticHpInput = document.getElementById('current-hp-slider');
+    const staticHpPercent = staticHpInput && Number.isFinite(Number(staticHpInput.value))
+        ? Number(staticHpInput.value)
+        : 100;
+    sources.forEach((source) => {
+        const statuses = window.StatusResolver.getStatusesFromSkillActions(source.skill, {
+            skillId: source.skillId,
+            skillName: source.skill.name || source.skillId,
+            ownerSlot: source.ownerSlot
+        });
+        statuses.forEach((status) => {
+            resolveStaticStatusTargetSlots(status.target, source.ownerSlot, status.target_slots).forEach((targetSlot) => {
+                const conditionContext = {
+                    actor: { slot: targetSlot, hpPercent: staticHpPercent },
+                    owner: { slot: source.ownerSlot, hpPercent: staticHpPercent },
+                    hpPercent: staticHpPercent,
+                    static: true
+                };
+                if (window.StatusResolver.isStatusDisplayActive
+                    && !window.StatusResolver.isStatusDisplayActive(status, conditionContext)) return;
+                const appliedStatus = JSON.parse(JSON.stringify(status));
+                appliedStatus.owner_slot = source.ownerSlot;
+                appliedStatus.target_slot = targetSlot;
+                applications.push({
+                    ownerSlot: source.ownerSlot,
+                    targetSlot,
+                    skillId: source.skillId,
+                    skill: source.skill,
+                    status: appliedStatus
+                });
+            });
+        });
+    });
+    return applications;
+}
+
+/**
+ * 将 charaskills 解析出的状态按实际目标展开，再交给 BuffRegistry / buff_zones 统一结算。
  */
 function applyCharaSkillBuffStatsToParty() {
     if (typeof document === 'undefined' || typeof party === 'undefined' || !Array.isArray(party)) return;
-    const charaMap = typeof globalCharaSkillMap !== 'undefined' ? globalCharaSkillMap : {};
     const charaBuffKeys =
         typeof getCharabuffStatKeysList === 'function'
             ? getCharabuffStatKeysList()
@@ -468,37 +579,26 @@ function applyCharaSkillBuffStatsToParty() {
         party[i].dynamicBuffEntries = [];
         party[i].skillZoneEffectEntries = [];
     }
-    for (let slot = 1; slot <= 5; slot++) {
-        if (!party[slot] || !party[slot].stats) continue;
-        const charData = typeof currentParty !== 'undefined' && currentParty[slot] ? currentParty[slot] : null;
-        if (!charData || charData['ID'] == null) continue;
-        const cid = charData['ID'];
-        for (let pos = 1; pos <= 4; pos++) {
-            const cb = document.querySelector(`.char-skill-enabled-cb[data-slot="${slot}"][data-pos="${pos}"]`);
-            if (!cb || !cb.checked) continue;
-            const sid = `${cid}_${pos}`;
-            const skill = charaMap[sid];
-            if (!skill) continue;
-            if (Array.isArray(skill.steps) && window.StatusResolver && typeof window.StatusResolver.getStatusesFromSkillActions === 'function') {
-                const statuses = window.StatusResolver.getStatusesFromSkillActions(skill, {
-                    skillId: sid,
-                    skillName: skill.name || sid,
-                    ownerSlot: slot
-                });
-                if (window.StatusResolver.collectZoneEntriesFromStatuses) {
-                    const zoneEntries = window.StatusResolver.collectZoneEntriesFromStatuses(statuses);
-                    zoneEntries.forEach((entry) => {
-                        if (!entry || !entry.prop || !entry.zone) return;
-                        party[slot].skillZoneEffectEntries.push(entry);
-                        if (String(entry.prop || '').indexOf('bonus_na_') === 0) {
-                            party[slot].dynamicBuffEntries.push(entry);
-                        }
-                    });
-                }
-                continue;
+    collectStaticSkillStatusApplications().forEach((application) => {
+        const slot = application.targetSlot;
+        if (!party[slot] || !party[slot].stats || !window.StatusResolver.collectZoneEntriesFromStatuses) return;
+        const staticHpInput = document.getElementById('current-hp-slider');
+        const staticHpPercent = staticHpInput && Number.isFinite(Number(staticHpInput.value))
+            ? Number(staticHpInput.value)
+            : 100;
+        const zoneEntries = window.StatusResolver.collectZoneEntriesFromStatuses([application.status], {
+            actor: { slot, hpPercent: staticHpPercent },
+            hpPercent: staticHpPercent,
+            static: true
+        });
+        zoneEntries.forEach((entry) => {
+            if (!entry || !entry.prop || !entry.zone) return;
+            party[slot].skillZoneEffectEntries.push(entry);
+            if (String(entry.prop || '').indexOf('bonus_na_') === 0) {
+                party[slot].dynamicBuffEntries.push(entry);
             }
-        }
-    }
+        });
+    });
     if (typeof window.applyBuffCodexRowsToPartyStats === 'function') {
         window.applyBuffCodexRowsToPartyStats();
     }
@@ -509,6 +609,12 @@ function getCalcParty() {
 }
 
 window.applyCharaSkillBuffStatsToParty = applyCharaSkillBuffStatsToParty;
+window.collectStaticSkillStatusApplications = collectStaticSkillStatusApplications;
+window.collectCheckedStaticSkillStatusesForSlot = function (slotIndex) {
+    return collectStaticSkillStatusApplications()
+        .filter((application) => application.targetSlot === Number(slotIndex))
+        .map((application) => application.status);
+};
 window.getCalcParty = getCalcParty;
 
 /**
@@ -742,6 +848,15 @@ function recalculate() {
 
     // 解析当前召唤石的 effect 字符串，并写入 stats 统筹字典（主要写给主角，后续可以通过共享或者复制传给全队）
     if (typeof currentSummons !== 'undefined') {
+        if (window.SummonRegistry && typeof window.SummonRegistry.collectBuildEffects === 'function') {
+            window.SummonRegistry.collectBuildEffects(currentSummons).forEach((entry) => {
+                if (!entry || !entry.stat_key) return;
+                const value = Number(entry.value);
+                if (!Number.isFinite(value) || value === 0) return;
+                if (!STAT_CONFIG.some((cfg) => cfg.key === entry.stat_key)) return;
+                party[0].stats[entry.stat_key] = (party[0].stats[entry.stat_key] || 0) + value;
+            });
+        } else {
         const mainOnlySet = new Set();
         const friendOnlySet = new Set();
         const subOnlySet = new Set();
@@ -812,6 +927,7 @@ function recalculate() {
                     }
                 });
             }
+        }
         }
     }
 
@@ -888,7 +1004,7 @@ function recalculate() {
         party[0].stats[k] = (party[0].stats[k] || 0) + (defaultMastery[k] || 0);
     });
 
-    // 主角LB额外加成（新20槽位）
+    // 主角LB额外加成（30槽位）
     party[0].stats['mc_def_passive'] = (party[0].stats['mc_def_passive'] || 0) + (mcLbTotals.mcDef || 0);
     party[0].stats['mc_da_base'] = (party[0].stats['mc_da_base'] || 0) + (mcLbTotals.da || 0);
     party[0].stats['mc_ta_base'] = (party[0].stats['mc_ta_base'] || 0) + (mcLbTotals.ta || 0);
@@ -897,6 +1013,7 @@ function recalculate() {
     party[0].stats['mc_skill_dmg_cap_passive'] = (party[0].stats['mc_skill_dmg_cap_passive'] || 0) + (mcLbTotals.skillCap || 0);
     party[0].stats['mc_cb_cap_passive'] = (party[0].stats['mc_cb_cap_passive'] || 0) + (mcLbTotals.cbCap || 0);
     party[0].stats['mc_all_cap_passive'] = (party[0].stats['mc_all_cap_passive'] || 0) + (mcLbTotals.allCap || 0);
+    party[0].stats['mc_na_dmg_cap_passive'] = (party[0].stats['mc_na_dmg_cap_passive'] || 0) + (mcLbTotals.naCap || 0);
     party[0].stats['mc_debuff_resistance_passive'] = (party[0].stats['mc_debuff_resistance_passive'] || 0) + (mcLbTotals.debuffRes || 0);
     party[0].stats['mc_debuff_success_passive_non_c5'] = (party[0].stats['mc_debuff_success_passive_non_c5'] || 0) + (mcLbTotals.debuffSuccess || 0);
     party[0].stats['mc_heal_cap_passive_non_c5'] = (party[0].stats['mc_heal_cap_passive_non_c5'] || 0) + (mcLbTotals.healCap || 0);
@@ -1454,6 +1571,15 @@ function recalculate() {
 
     if (typeof renderPartyBuffPanel === 'function') {
         renderPartyBuffPanel(activeSlot);
+    }
+
+    // 通知依赖完整盘面结果的独立工具刷新。必须放在 All Effects、伤害显示和
+    // 常驻加成全部更新之后，避免读取到本次 recalculate 之前的旧快照。
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'
+        && typeof CustomEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('damageCalculationUpdated', {
+            detail: { activeSlot: activeSlot }
+        }));
     }
 }
 

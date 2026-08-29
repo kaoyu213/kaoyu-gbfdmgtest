@@ -679,6 +679,10 @@ function getSpecialBonuses() {
  */
 function buildAllEffectsForSlot(charIndex, options) {
     options = options || {};
+    var includeScenarioBuffs = options.includeScenarioBuffs !== false;
+    var additionalZoneEntries = Array.isArray(options.additionalZoneEntries)
+        ? options.additionalZoneEntries
+        : [];
     var totals = {};
     var sources = [];
 
@@ -1073,7 +1077,7 @@ function buildAllEffectsForSlot(charIndex, options) {
             source: sourceName || entry.source || '角色Buff'
         };
     }
-    if (typeof STAT_CONFIG !== 'undefined') {
+    if (includeScenarioBuffs && typeof STAT_CONFIG !== 'undefined') {
         STAT_CONFIG.forEach(function(cfg) {
             if (cfg && cfg.category === 'charabuff' && cfg.prop && cfg.zone) {
                 var v = stats[cfg.key];
@@ -1084,23 +1088,26 @@ function buildAllEffectsForSlot(charIndex, options) {
             }
         });
     }
-    if (party[charIndex] && Array.isArray(party[charIndex].skillZoneEffectEntries)) {
+    if (includeScenarioBuffs && party[charIndex] && Array.isArray(party[charIndex].skillZoneEffectEntries)) {
         party[charIndex].skillZoneEffectEntries.forEach(function(entry, idx) {
             addCharaSkillEntry(entry, entry.sourceId || ('skill_zone_effect_' + idx), '角色技能Buff');
         });
     }
-    if (party[charIndex] && Array.isArray(party[charIndex].dynamicBuffEntries)) {
+    if (includeScenarioBuffs && party[charIndex] && Array.isArray(party[charIndex].dynamicBuffEntries)) {
         party[charIndex].dynamicBuffEntries.forEach(function(entry, idx) {
             addCharaSkillEntry(entry, entry.sourceId || ('dynamic_buff_' + idx), '角色技能Buff');
         });
     }
-    if (party[charIndex] && Array.isArray(party[charIndex].zoneEffectEntries)) {
+    if (includeScenarioBuffs && party[charIndex] && Array.isArray(party[charIndex].zoneEffectEntries)) {
         party[charIndex].zoneEffectEntries.forEach(function(entry, idx) {
             if (!entry || !entry.prop || !entry.zone) return;
             if (String(entry.prop).indexOf('bonus_na_') === 0) return;
             addCharaSkillEntry(entry, entry.sourceId || ('zone_effect_' + idx), '角色Buff图鉴');
         });
     }
+    additionalZoneEntries.forEach(function(entry, idx) {
+        addCharaSkillEntry(entry, entry && entry.sourceId ? entry.sourceId : ('runtime_status_' + idx), '战斗状态');
+    });
     if (Object.keys(charaSkillEntries).length > 0) {
         sources.push({ zone: 'chara_skill', name: '角色Buff', color: '#ff7675', entries: charaSkillEntries });
     }

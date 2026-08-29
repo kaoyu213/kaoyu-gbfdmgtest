@@ -14,6 +14,139 @@ function renderMCSelector() {
     });
 }
 
+function escapeMcSkillHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;');
+}
+
+function buildMcSkillIconSrc(iconPath) {
+    if (!iconPath || typeof iconPath !== 'string') return '';
+    const normalized = iconPath.trim().replace(/\\/g, '/');
+    const encoded = normalized.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    return encoded ? `images/${encoded}` : '';
+}
+
+function resolveMcSkillRefs(refs) {
+    if (window.SkillRegistry && typeof window.SkillRegistry.resolveRefs === 'function') {
+        return window.SkillRegistry.resolveRefs(refs);
+    }
+    const map = typeof globalCharaSkillMap !== 'undefined' && globalCharaSkillMap ? globalCharaSkillMap : {};
+    return (Array.isArray(refs) ? refs : []).map((id) => map[id]).filter(Boolean);
+}
+
+function collectMcActiveSkills(jobData) {
+    const ids = [];
+    if (currentMC && Array.isArray(currentMC.skillIds)) ids.push(...currentMC.skillIds);
+    if (jobData && jobData.skill_refs && Array.isArray(jobData.skill_refs.active)) {
+        ids.push(...jobData.skill_refs.active);
+    }
+    const seen = new Set();
+    return resolveMcSkillRefs(ids).filter((skill) => {
+        if (!skill || String(skill.kind || 'active').toLowerCase() === 'passive') return false;
+        const id = String(skill.id || '');
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+    });
+}
+
+function renderMcActiveSkillSection(jobData) {
+    const activeSkills = collectMcActiveSkills(jobData);
+    const slotCount = Math.max(4, activeSkills.length);
+    const slotsHtml = Array.from({ length: slotCount }, (_, index) => {
+        const skill = activeSkills[index];
+        const iconSrc = buildMcSkillIconSrc(skill && (skill.icon || skill['图标']));
+        const title = skill ? [skill.name, skill.description || skill.desc].filter(Boolean).join('：') : '无主角技能数据';
+        const iconInner = skill && iconSrc
+            ? `<img class="char-skill-slot-icon" src="${iconSrc}" alt="" title="${escapeMcSkillHtml(title)}">`
+            : `<div class="char-skill-slot-empty" title="${escapeMcSkillHtml(title)}">—</div>`;
+        return `
+            <div class="char-skill-slot"${skill ? ` data-char-skill-id="${escapeMcSkillHtml(skill.id)}"` : ''}>
+                <div class="char-skill-slot-icon-wrap">${iconInner}</div>
+                <label class="char-skill-toggle-label">
+                    <input type="checkbox" class="char-skill-enabled-cb" data-slot="0"${skill ? ` data-skill-id="${escapeMcSkillHtml(skill.id)}"` : ''} ${skill ? '' : 'disabled'} onchange="onCharSkillBuffToggle()">
+                    <span class="char-skill-toggle-text">开启</span>
+                </label>
+            </div>`;
+    }).join('');
+
+    document.querySelectorAll('[id="char-slot-0-basic"]').forEach((panel) => {
+        let section = panel.querySelector('.mc-active-skill-row-wrap');
+        if (!section) {
+            section = document.createElement('div');
+            section.className = 'theme-custom mc-active-skill-row-wrap';
+            panel.appendChild(section);
+        }
+        section.innerHTML = `
+            <div class="section-title">主角技能</div>
+            <div class="char-skill-slots-grid">${slotsHtml}</div>`;
+    });
+}
+
+function collectMcPassiveSkills(jobData) {
+    if (!jobData) return [];
+    const result = [];
+    const seen = new Set();
+    const append = (skill, forcePassive) => {
+        if (!skill || typeof skill !== 'object') return;
+        const isPassive = String(skill.kind || '').toLowerCase() === 'passive'
+            || !!(skill.trigger && skill.trigger.event === 'battle_start');
+        if (!forcePassive && !isPassive) return;
+        const identity = skill.id != null ? String(skill.id) : `${skill.name || ''}|${result.length}`;
+        if (seen.has(identity)) return;
+        seen.add(identity);
+        result.push(skill);
+    };
+
+    const passiveRefs = jobData.skill_refs && Array.isArray(jobData.skill_refs.passive)
+        ? jobData.skill_refs.passive
+        : [];
+    resolveMcSkillRefs(passiveRefs).forEach((skill) => append(skill, true));
+    (Array.isArray(jobData.battle_skills) ? jobData.battle_skills : []).forEach((skill) => append(skill, false));
+    (Array.isArray(jobData.passive_skills) ? jobData.passive_skills : []).forEach((skill) => append(skill, true));
+    (Array.isArray(jobData['被动技能库']) ? jobData['被动技能库'] : []).forEach((skill) => append(skill, true));
+    return result;
+}
+
+function renderMcPassiveSkillSection(jobData) {
+    const passiveSkills = collectMcPassiveSkills(jobData);
+    const slotCount = Math.max(4, passiveSkills.length);
+    const slotsHtml = Array.from({ length: slotCount }, (_, index) => {
+        const skill = passiveSkills[index];
+        const iconPath = skill && (skill.icon || skill['图标']);
+        const iconSrc = buildMcSkillIconSrc(iconPath);
+        const title = skill
+            ? [skill.name, skill.description || skill.desc].filter(Boolean).join('：')
+            : '无职业被动技能数据';
+        const iconInner = skill && iconSrc
+            ? `<img class="char-skill-slot-icon" src="${iconSrc}" alt="" title="${escapeMcSkillHtml(title)}">`
+            : `<div class="char-skill-slot-empty" title="${escapeMcSkillHtml(title)}">—</div>`;
+        const triggerLabel = skill && skill.trigger && skill.trigger.event === 'battle_start' ? '开局' : '被动';
+        return `
+            <div class="char-skill-slot char-passive-skill-slot"${skill && skill.id ? ` data-mc-passive-skill-id="${escapeMcSkillHtml(skill.id)}"` : ''}>
+                <div class="char-skill-slot-icon-wrap char-passive-slot-icon-wrap">
+                    ${iconInner}
+                    ${skill ? '<span class="char-passive-slot-badge">P</span>' : ''}
+                </div>
+                <span class="char-passive-status-label">${skill ? triggerLabel : '—'}</span>
+            </div>`;
+    }).join('');
+
+    document.querySelectorAll('[id="char-slot-0-basic"]').forEach((panel) => {
+        let section = panel.querySelector('.mc-passive-skill-row-wrap');
+        if (!section) {
+            section = document.createElement('div');
+            section.className = 'theme-custom mc-passive-skill-row-wrap';
+            panel.appendChild(section);
+        }
+        section.innerHTML = `
+            <div class="section-title">职业被动技能</div>
+            <div class="char-skill-slots-grid char-passive-slots-grid">${slotsHtml}</div>`;
+    });
+}
+
 // 更新主角职业
 function updateMCJob(forceId) {
     const selector = document.getElementById('mc-job-select');
@@ -35,6 +168,7 @@ function updateMCJob(forceId) {
     currentMC.proficiency = jobData.proficiency || [];
     currentMC.bonuses = jobData.bonuses || {}; 
     currentMC.battleBonuses = jobData.battle_bonuses || "";
+    currentMC.battleSkills = collectMcPassiveSkills(jobData);
 
     if (typeof loadMcLbSelectionsForJob === 'function') {
         loadMcLbSelectionsForJob(currentMC.jobId);
@@ -73,6 +207,8 @@ function updateMCJob(forceId) {
             battleBox.innerHTML = '<div class="empty-data">暂无描述</div>';
         }
     }
+    renderMcActiveSkillSection(jobData);
+    renderMcPassiveSkillSection(jobData);
 
     // 检测主手武器
     const mainHand = currentGrid[0];

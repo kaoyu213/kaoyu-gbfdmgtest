@@ -1553,6 +1553,35 @@
     ]
   },
   {
+    "id": "Zosimos250",
+    "name": "暗书250",
+    "type": "staff",
+    "element": "暗",
+    "category": "辉耀",
+    "image": "weapons/M_1040420000.jpg",
+    "stats": {
+      "hp": 499,
+      "atk": 3790,
+      "max_level": 250,
+      "allow_extra": false,
+      "weapon_multiplier": 10.5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "anshu_test",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "",
+        "unlock_level": 0
+      }
+      
+    ]
+  },
+  {
     "id": "Aetherial Maverick test",
     "name": "大姐弓",
     "type": "bow",

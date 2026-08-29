@@ -4,6 +4,31 @@
 
 const CHARACTER_ELEMENT_FILTER_OPTIONS = ['全部', '火', '水', '土', '风', '光', '暗'];
 
+function getCharacterImagePath(charData, orientation) {
+    if (!charData || typeof charData !== 'object') return '';
+    const preferred = orientation === 'vertical'
+        ? [charData['竖状图片'], charData['图片'], charData['横向图片']]
+        : [charData['横向图片'], charData['图片'], charData['竖状图片']];
+    const path = preferred.find((value) => typeof value === 'string' && value.trim() !== '');
+    return path ? path.trim() : '';
+}
+
+function buildCharacterImageSrc(path) {
+    if (!path) return '';
+    const normalized = String(path).trim().replace(/\\/g, '/');
+    if (!normalized) return '';
+    if (/^(?:https?:|data:|blob:)/i.test(normalized)) return normalized;
+    const relative = normalized.replace(/^\/?images\//i, '').replace(/^\/+/, '');
+    return 'images/' + relative.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+}
+
+function renderCharacterImage(charData, orientation, className) {
+    const path = getCharacterImagePath(charData, orientation);
+    if (!path) return '';
+    const name = charData && charData['名称'] ? String(charData['名称']) : '角色';
+    return `<img class="${className}" src="${escapeHtmlCharaBrief(buildCharacterImageSrc(path))}" alt="${escapeHtmlCharaBrief(name)}">`;
+}
+
 function characterMatchesElementFilter(c) {
     const f = typeof characterElementFilter !== 'undefined' ? characterElementFilter : '全部';
     if (!f || f === '全部') return true;
@@ -45,20 +70,21 @@ function renderCharacters() {
     allCharacters.forEach((c, index) => {
         if (!characterMatchesElementFilter(c)) return;
         const color = getElementColor(c['属性']) || '#888';
+        const imageHtml = renderCharacterImage(c, 'horizontal', 'char-catalog-image');
         rows.push(`
-        <div class="char-item" onclick="addCharacterToParty(${index})" style="cursor: pointer;" title="点击加入队伍">
-            <div class="char-avatar-small" style="background:${color}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; font-size:0.8em;">
-                ${c['名称'][0]}
+        <div class="char-item" onclick="addCharacterToParty(${index})" title="点击加入队伍">
+            <div class="char-avatar-small" style="--character-accent:${color}">
+                ${imageHtml || `<span>${escapeHtmlCharaBrief(c['名称'][0])}</span>`}
             </div>
-            <div style="flex-grow:1">
-                <div style="font-weight:bold; font-size:0.9em; display:flex; justify-content:space-between;">
-                    <span>${c['名称']}</span>
-                    <span style="font-size:0.8em; color:${color}">${c['属性']}</span>
+            <div class="char-item-info">
+                <div class="char-item-heading">
+                    <span>${escapeHtmlCharaBrief(c['名称'])}</span>
+                    <span class="char-item-element" style="color:${color}">${escapeHtmlCharaBrief(c['属性'])}</span>
                 </div>
-                <div style="font-size:0.75em; color:#aaa; margin-top:2px;">
-                    ${c['种族']} | 得意: ${c['得意武器1']} / ${c['得意武器2']}
+                <div class="char-item-traits">
+                    ${escapeHtmlCharaBrief(c['种族'])} | 得意: ${escapeHtmlCharaBrief(c['得意武器1'])} / ${escapeHtmlCharaBrief(c['得意武器2'])}
                 </div>
-                <div style="font-size:0.7em; color:#666; margin-top:2px;">
+                <div class="char-item-stats">
                     HP: ${c['角色基础HP']} / ATK: ${c['角色基础atk']}
                 </div>
             </div>
@@ -281,6 +307,72 @@ function escapeHtmlCharaBrief(s) {
     return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+function isPassiveCharaSkill(skill) {
+    return !!(skill && typeof skill === 'object' && String(skill.kind || '').toLowerCase() === 'passive');
+}
+
+function resolveCharaSkillLibraryEntry(entry, map, characterId) {
+    if (entry && typeof entry === 'object') {
+        if (entry.id != null && map[String(entry.id)]) return map[String(entry.id)];
+        return entry;
+    }
+    if (entry == null || entry === '') return null;
+    const key = String(entry);
+    return map[key] || map[`skill_${characterId}_${key}`] || map[`${characterId}_${key}`] || null;
+}
+
+/** 汇总角色数据显式列出的被动，以及 charaskills.json 中归属于该角色的 passive 技能。 */
+function collectCharaPassiveSkills(charData) {
+    if (!charData || charData['ID'] == null) return [];
+    const characterId = String(charData['ID']);
+    const map = (typeof globalCharaSkillMap !== 'undefined' && globalCharaSkillMap) ? globalCharaSkillMap : {};
+    const result = [];
+    const seen = new Set();
+    const append = (skill, forcePassive) => {
+        if (!skill || typeof skill !== 'object' || (!forcePassive && !isPassiveCharaSkill(skill))) return;
+        const identity = skill.id != null
+            ? String(skill.id)
+            : `${skill.name || ''}|${getCharaSkillIconPath(skill)}|${result.length}`;
+        if (seen.has(identity)) return;
+        seen.add(identity);
+        result.push(skill);
+    };
+
+    const library = Array.isArray(charData['被动技能库']) ? charData['被动技能库'] : [];
+    library.forEach((entry) => append(resolveCharaSkillLibraryEntry(entry, map, characterId), true));
+    Object.values(map).forEach((skill) => {
+        if (!skill || String(skill.character_id) !== characterId) return;
+        append(skill, false);
+    });
+    return result;
+}
+
+function buildCharaPassiveSlotsHtml(charData) {
+    const passiveSkills = collectCharaPassiveSkills(charData);
+    const slotCount = Math.max(4, passiveSkills.length);
+    return Array.from({ length: slotCount }, (_, index) => {
+        const skill = passiveSkills[index];
+        const iconRel = getCharaSkillIconPath(skill);
+        const detail = skill ? getCharaSkillDisplayTitle(skill) : '';
+        const titleParts = skill ? [skill.name, detail].filter(Boolean) : [];
+        const title = skill
+            ? Array.from(new Set(titleParts.map(String))).join('：')
+            : '无被动技能数据';
+        const iconInner = skill && iconRel
+            ? `<img class="char-skill-slot-icon" src="${buildCharaSkillIconSrc(iconRel)}" alt="" title="${escapeHtmlCharaBrief(title)}">`
+            : `<div class="char-skill-slot-empty" title="${escapeHtmlCharaBrief(title)}">—</div>`;
+        const triggerLabel = skill && skill.trigger && skill.trigger.event === 'battle_start' ? '开局' : '被动';
+        return `
+            <div class="char-skill-slot char-passive-skill-slot"${skill && skill.id ? ` data-char-passive-skill-id="${escapeHtmlCharaBrief(skill.id)}"` : ''}>
+                <div class="char-skill-slot-icon-wrap char-passive-slot-icon-wrap">
+                    ${iconInner}
+                    ${skill ? '<span class="char-passive-slot-badge">P</span>' : ''}
+                </div>
+                <span class="char-passive-status-label">${skill ? triggerLabel : '—'}</span>
+            </div>`;
+    }).join('');
+}
+
 /** 非主角：奥义倍率 + 奥义效果（位于 4 个技能图标上方） */
 function buildCharaCaSummaryHtml(charData) {
     if (!charData) return '';
@@ -330,7 +422,8 @@ function buildCharaSkillSlotsHtml(slotIndex, charData) {
     const map = (typeof globalCharaSkillMap !== 'undefined' && globalCharaSkillMap) ? globalCharaSkillMap : {};
     const slotsHtml = [1, 2, 3, 4].map((pos) => {
         const sid = `${cid}_${pos}`;
-        const skill = map[sid];
+        const skillCandidate = map[sid];
+        const skill = isPassiveCharaSkill(skillCandidate) ? null : skillCandidate;
         let iconInner;
         const iconRel = getCharaSkillIconPath(skill);
         if (skill && iconRel) {
@@ -346,16 +439,19 @@ function buildCharaSkillSlotsHtml(slotIndex, charData) {
             <div class="char-skill-slot" data-char-skill-id="${sid}">
                 <div class="char-skill-slot-icon-wrap">${iconInner}</div>
                 <label class="char-skill-toggle-label">
-                    <input type="checkbox" class="char-skill-enabled-cb" data-slot="${slotIndex}" data-pos="${pos}" ${canToggle ? '' : 'disabled'} onchange="onCharSkillBuffToggle()">
+                    <input type="checkbox" class="char-skill-enabled-cb" data-slot="${slotIndex}" data-pos="${pos}"${skill && skill.id ? ` data-skill-id="${escapeHtmlCharaBrief(skill.id)}"` : ''} ${canToggle ? '' : 'disabled'} onchange="onCharSkillBuffToggle()">
                     <span class="char-skill-toggle-text">开启</span>
                 </label>
             </div>`;
     }).join('');
+    const passiveSlotsHtml = buildCharaPassiveSlotsHtml(charData);
     return (
         buildCharaCaSummaryHtml(charData) +
                 `<div class="theme-custom char-skill-row-wrap" style="margin-top: 12px;">
                     <div class="section-title">角色技能</div>
                     <div class="char-skill-slots-grid">${slotsHtml}</div>
+                    <div class="char-passive-subtitle">被动技能</div>
+                    <div class="char-skill-slots-grid char-passive-slots-grid">${passiveSlotsHtml}</div>
                 </div>
                 `
     );
@@ -808,6 +904,9 @@ function formatZoneEntryLabel(entry) {
 }
 
 function collectCheckedSkillStatuses(slotIndex) {
+    if (typeof window.collectCheckedStaticSkillStatusesForSlot === 'function') {
+        return window.collectCheckedStaticSkillStatusesForSlot(slotIndex);
+    }
     const statusesOut = [];
     if (slotIndex === 0 || !window.StatusResolver || typeof window.StatusResolver.getStatusesFromSkillActions !== 'function') {
         return statusesOut;
@@ -821,7 +920,8 @@ function collectCheckedSkillStatuses(slotIndex) {
         const cb = document.querySelector(`.char-skill-enabled-cb[data-slot="${slotIndex}"][data-pos="${pos}"]`);
         if (!cb || !cb.checked) continue;
         const sid = `${cid}_${pos}`;
-        const skill = map[sid];
+        const skillCandidate = map[sid];
+        const skill = isPassiveCharaSkill(skillCandidate) ? null : skillCandidate;
         if (!skill || !Array.isArray(skill.steps)) continue;
         window.StatusResolver.getStatusesFromSkillActions(skill, {
             skillId: sid,
@@ -1020,22 +1120,16 @@ function renderPartyBuffPanel(slotIndex) {
                     skillTarget.appendChild(wrap);
                 }
 
-                if (Array.isArray(skill.steps) && window.StatusResolver && typeof window.StatusResolver.getStatusesFromSkillActions === 'function') {
-                    const statuses = window.StatusResolver.getStatusesFromSkillActions(skill, {
-                        skillId: sid,
-                        skillName: skill.name || sid,
-                        ownerSlot: slotIndex
-                    });
-                    statuses.forEach((status) => {
-                        const disp = window.StatusResolver.statusToPartyBuffDisplay
-                            ? window.StatusResolver.statusToPartyBuffDisplay(status)
-                            : null;
-                        if (disp) appendPartyBuffIconSlot(skillTarget, disp);
-                    });
-                }
             }
         }
     }
+
+    collectCheckedSkillStatuses(slotIndex).forEach((status) => {
+        const disp = window.StatusResolver && window.StatusResolver.statusToPartyBuffDisplay
+            ? window.StatusResolver.statusToPartyBuffDisplay(status)
+            : null;
+        if (disp) appendPartyBuffIconSlot(skillTarget, disp);
+    });
 
     renderPartyBuffCharabuffStats(slotIndex);
 }
@@ -1060,20 +1154,29 @@ function updateCharSlotUI(slotIndex) {
         
         if (charData) {
             const color = getElementColor(charData['属性']) || '#888';
-            iconSpan.textContent = charData['名称'][0];
-            iconSpan.style.background = color;
-            iconSpan.style.color = '#fff';
-            iconSpan.style.border = 'none';
+            const portraitHtml = renderCharacterImage(charData, 'vertical', 'char-slot-portrait');
+            iconSpan.innerHTML = portraitHtml || escapeHtmlCharaBrief(charData['名称'][0]);
+            iconSpan.classList.toggle('has-character-image', !!portraitHtml);
+            iconSpan.style.background = portraitHtml ? '' : color;
+            iconSpan.style.color = portraitHtml ? '' : '#fff';
+            iconSpan.style.border = portraitHtml ? '' : 'none';
             
             labelSpan.textContent = charData['名称'];
+            labelSpan.title = charData['名称'];
         } else {
             iconSpan.textContent = '+';
+            iconSpan.classList.remove('has-character-image');
             iconSpan.style.background = 'transparent';
             iconSpan.style.color = '#888';
             iconSpan.style.border = '1px dashed #666';
             
             labelSpan.textContent = '角色' + (slotIndex + 1);
+            labelSpan.removeAttribute('title');
         }
+    }
+    if (window.DecayTableInferenceUI
+        && typeof window.DecayTableInferenceUI.refreshCharacterOptions === 'function') {
+        window.DecayTableInferenceUI.refreshCharacterOptions();
     }
     
     // 2. 更新基础设定的内容
@@ -1084,15 +1187,16 @@ function updateCharSlotUI(slotIndex) {
             const clearBtnHtml = slotIndex > 0
                 ? `<button type="button" class="btn-clear-char-slot" title="从该槽位移除角色" onclick="clearCharacterFromSlot(${slotIndex}); event.stopPropagation();">清除角色</button>`
                 : '';
+            const profileImageHtml = renderCharacterImage(charData, 'horizontal', 'char-profile-image');
             basicContentEl.innerHTML = `
-                <div style="border-bottom:1px solid #444; padding-bottom:10px; margin-bottom:10px; display:flex; align-items:flex-start; gap:12px;">
-                    <div style="width:60px; height:60px; border-radius:50%; background:${color}; display:flex; align-items:center; justify-content:center; font-size:1.5em; font-weight:bold; color:white; flex-shrink:0;">
-                        ${charData['名称'][0]}
+                <div class="char-profile-header">
+                    <div class="char-profile-media" style="--character-accent:${color}">
+                        ${profileImageHtml || `<span>${escapeHtmlCharaBrief(charData['名称'][0])}</span>`}
                     </div>
-                    <div style="flex:1; min-width:0;">
-                        <h3 style="margin:0 0 5px 0; color:#fff;">${charData['名称']} <span style="font-size:0.6em; color:${color}; border:1px solid ${color}; padding:1px 4px; border-radius:3px; vertical-align:middle;">${charData['属性']}</span></h3>
-                        <div style="font-size:0.85em; color:#aaa;">种族: ${charData['种族']}</div>
-                        <div style="font-size:0.85em; color:#aaa;">得意: ${charData['得意武器1']} / ${charData['得意武器2']}</div>
+                    <div class="char-profile-copy">
+                        <h3>${escapeHtmlCharaBrief(charData['名称'])} <span style="color:${color}; border-color:${color};">${escapeHtmlCharaBrief(charData['属性'])}</span></h3>
+                        <div>种族: ${escapeHtmlCharaBrief(charData['种族'])}</div>
+                        <div>得意: ${escapeHtmlCharaBrief(charData['得意武器1'])} / ${escapeHtmlCharaBrief(charData['得意武器2'])}</div>
                     </div>
                     ${clearBtnHtml}
                 </div>

@@ -114,6 +114,7 @@ const BUFF_TYPE_ZONE_RULES = {
       earring:      { rule: 'sum' },
       artifacts:    { rule: 'sum' },
       charabonus:   { rule: 'sum' },
+      cumulative:   { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   },
@@ -130,6 +131,7 @@ const BUFF_TYPE_ZONE_RULES = {
     label: '技伤伤害上升',
     zones: {
       weapon_grid:  { rule: 'sum' },
+      cumulative:   { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   },
@@ -138,6 +140,7 @@ const BUFF_TYPE_ZONE_RULES = {
     label: '奥义伤害上升',
     zones: {
       weapon_grid:  { rule: 'sum' },
+      cumulative:   { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   },
@@ -211,6 +214,7 @@ const BUFF_TYPE_ZONE_RULES = {
       summon:       { rule: 'sum' },
       charabonus:   { rule: 'sum' },
       chara_skill:  { rule: 'max' },
+      cumulative:   { rule: 'sum' },
       job_passive_extra: { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
@@ -250,6 +254,7 @@ const BUFF_TYPE_ZONE_RULES = {
       weapon_grid:  { rule: 'sum' },
       charabonus:   { rule: 'sum' },
       chara_skill:  { rule: 'max' },
+      cumulative:   { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   },
@@ -259,6 +264,7 @@ const BUFF_TYPE_ZONE_RULES = {
     label: '全伤害增幅',
     zones: {
       weapon_grid:  { rule: 'sum' },
+      summon:       { rule: 'sum' },
       charabonus:   { rule: 'sum' },
       chara_skill:  { rule: 'max' },
       independent:  { rule: 'sum' }
@@ -446,6 +452,7 @@ const BUFF_TYPE_ZONE_RULES = {
       weapon_grid:  { rule: 'sum' },
       charabonus:   { rule: 'sum' },
       chara_skill:  { rule: 'max' },
+      cumulative:   { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   },
@@ -616,8 +623,11 @@ const BUFF_TYPE_ZONE_RULES = {
 
   def_down: {
     label: '防御下降',
+    // 普通减防先结算至50%，独立减防随后加算；最终防御下降不超过99%。
+    cap: 0.99,
     zones: {
-      weapon_grid:  { rule: 'sum' },
+      normal:       { rule: 'sum', cap: 0.5 },
+      weapon_grid:  { rule: 'sum', cap: 0.5 },
       independent:  { rule: 'sum' }
     }
   },
@@ -704,6 +714,73 @@ const BUFF_TYPE_ZONE_RULES = {
     }
   },
 
+  // ==================== 角色个人加成 ====================
+  // 这些类型原本已在 Buff 目录中登记，但没有正式分区。
+  // charabonus 代表角色自身持有的个人加成，同区来源按现有规则相加。
+  indep_cumulative_atk: {
+    label: '独立攻刃【累积】',
+    zones: {
+      charabonus: { rule: 'sum' }
+    }
+  },
+
+  // 斩与其他攻刃完全独立；多个斩效果之间只采用最高值。
+  indep_zhan_atk: {
+    label: '独立攻刃【斩】',
+    zones: {
+      independent: { rule: 'max' }
+    }
+  },
+
+  indep_unjudged_atk: {
+    label: '独立攻刃【未判定】',
+    zones: {
+      charabonus: { rule: 'sum' }
+    }
+  },
+
+  indep_special_enmity_atk: {
+    label: '独立攻刃【特殊背水】',
+    zones: {
+      charabonus: { rule: 'sum' }
+    }
+  },
+
+  taken_dmg_amp: {
+    label: '承受伤害增幅',
+    zones: {
+      charabonus: { rule: 'sum' }
+    }
+  },
+
+  dmg_taken_lowered: {
+    label: '承受伤害减少固定值',
+    zones: {
+      charabonus: { rule: 'sum' }
+    }
+  },
+
+  lowering_dmg_taken: {
+    label: '格挡',
+    zones: {
+      charabonus: { rule: 'sum' }
+    }
+  },
+
+  element_dmg_cut: {
+    label: '属性伤害减免',
+    zones: {
+      charabonus: { rule: 'sum' }
+    }
+  },
+
+  element_dmg_lowered: {
+    label: '属性伤害减轻',
+    zones: {
+      charabonus: { rule: 'sum' }
+    }
+  },
+
   hp_mod: {
     label: 'HP加成',
     zones: {
@@ -720,10 +797,34 @@ const BUFF_TYPE_ZONE_RULES = {
       weapon_grid:  { rule: 'sum' },
       charabonus:   { rule: 'sum' },
       chara_skill:  { rule: 'max' },
+      cumulative:   { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   }
 };
+
+// Buff 分区的统一展示名。JSON 和计算层继续使用左侧的稳定内部值。
+const BUFF_ZONE_LABELS = Object.freeze({
+  weapon_grid: '武器盘',
+  chara_skill: '角色技能',
+  chara_skill_must: '角色技能【强制覆盖】',
+  summon: '召唤石',
+  charabonus: '角色个人加成',
+  independent: '独立区',
+  cumulative: '累积分区',
+  enemy_db: '敌方状态',
+  earring: '耳环',
+  artifacts: '神器/圣遗物',
+  job_passive_extra: '职业额外被动',
+  normal: '普通弱体',
+  A1: '追击 A1 区',
+  A2: '追击 A2 区',
+  Q: '追击 Q 区',
+  E: '追击 E 区',
+  P: '追击 P 区',
+  SP: '追击 SP 区',
+  testbuff: 'testbuff'
+});
 
 [
   'normal_atk',
@@ -732,6 +833,7 @@ const BUFF_TYPE_ZONE_RULES = {
   'element_atk',
   'perpetuity_atk',
   'indep_cumulative_atk',
+  'indep_zhan_atk',
   'indep_unjudged_atk',
   'indep_special_enmity_atk',
   'indep_special_atk',
@@ -786,13 +888,20 @@ function getZoneCap(buffType, zone) {
   return rules.zones[zone].cap != null ? rules.zones[zone].cap : null;
 }
 
+function getZoneLabel(zone) {
+  const key = zone == null ? '' : String(zone);
+  return BUFF_ZONE_LABELS[key] || key;
+}
+
 // 导出
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     BUFF_TYPE_ZONE_RULES,
+    BUFF_ZONE_LABELS,
     getZoneRules,
     getZoneNames,
     getZoneRule,
-    getZoneCap
+    getZoneCap,
+    getZoneLabel
   };
 }

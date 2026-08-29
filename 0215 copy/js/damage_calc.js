@@ -772,7 +772,7 @@ function getDamageParamsSummary(charIndex = 0) {
     const defInputId = charIndex === 0 ? 'def-input' : `def-input-${charIndex}`;
     const defDownInputId = charIndex === 0 ? 'def-down-input' : `def-down-input-${charIndex}`;
     const defense = parseInt(document.getElementById(defInputId)?.value) || 10;
-    const defenseDown = Math.min(80, Math.max(0, parseInt(document.getElementById(defDownInputId)?.value) || 0));
+    const defenseDown = Math.min(99, Math.max(0, parseInt(document.getElementById(defDownInputId)?.value) || 0));
     
     const randomBtnGroupId = charIndex === 0 ? 'random-btn-group' : `random-btn-group-${charIndex}`;
     const randomBtnGroup = document.getElementById(randomBtnGroupId);

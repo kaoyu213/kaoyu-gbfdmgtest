@@ -306,7 +306,7 @@
         zoneMult = zoneMult.times(randMult);
         const afterZones = new Decimal(baseAfterStep4).times(zoneMult).toNumber();
 
-        const defDownPct = Math.min(80, Math.max(0, Number(opts.defenseDown) || 0)) / 100;
+        const defDownPct = Math.min(99, Math.max(0, Number(opts.defenseDown) || 0)) / 100;
         const weaponDefIgnore = Math.min(0.3, Math.max(0, Number(stats['weapon_def_ignore']) || 0));
         const effectiveDefense = opts.defense * (1 - defDownPct) * (1 - weaponDefIgnore);
         return new Decimal(afterZones).div(effectiveDefense).toNumber();

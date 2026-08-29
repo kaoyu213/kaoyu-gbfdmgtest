@@ -11,6 +11,12 @@ function getSummonSlotLabel(index) {
     return labels[index] || `槽位${index}`;
 }
 
+function refreshSummonBattleDock() {
+    if (window.BurstSimulator && typeof window.BurstSimulator.refresh === 'function') {
+        window.BurstSimulator.refresh();
+    }
+}
+
 // 获取主手武器的属性
 function getMainHandElement() {
     const mainHand = currentGrid[0];
@@ -22,6 +28,16 @@ function parseSummonEffects(summon, slotIndex) {
     let optimusBonus = 0;
     let elementAtkBonus = 0;
     let damageCapBonus = 0;
+
+    if (window.SummonRegistry && typeof window.SummonRegistry.getBuildEffectEntries === 'function') {
+        window.SummonRegistry.getBuildEffectEntries(summon, slotIndex).forEach((entry) => {
+            const percentValue = (Number(entry.value) || 0) * 100;
+            if (entry.stat_key === 'summon_optimus') optimusBonus += percentValue;
+            if (entry.stat_key === 'summon_element_atk') elementAtkBonus += percentValue;
+            if (entry.stat_key === 'summon_dmg_cap') damageCapBonus += percentValue;
+        });
+        return { optimus: optimusBonus, elementAtk: elementAtkBonus, damageCap: damageCapBonus };
+    }
     
     if (!summon.effects) return { optimus: 0, elementAtk: 0, damageCap: 0 };
     
@@ -213,6 +229,7 @@ function addSummonToSlot(summonId) {
     
     // 更新神石/属攻输入框
     updateAuraFromSummons();
+    refreshSummonBattleDock();
 }
 
 // 更新召唤石加成到输入框
@@ -456,6 +473,7 @@ function changeSummonLevel(slotIndex, level) {
         renderSummonSlots();
         // 更新神石/属攻输入框
         updateAuraFromSummons();
+        refreshSummonBattleDock();
     }
 }
 
@@ -470,6 +488,7 @@ function removeSummonFromSlot(index) {
     
     // 更新神石/属攻输入框
     updateAuraFromSummons();
+    refreshSummonBattleDock();
 }
 
 // 同步召唤石ATK/HP数据（两侧输入框同步）

@@ -47,6 +47,10 @@ let allCharaBuffs = [];
 // 各角色槽位从 Buff 图鉴手动加入的条目（与 charaskills 勾选叠加写入 party.stats）
 window.buffCodexPanelRowsBySlot = [[], [], [], [], [], []];
 
+// 静态模拟中作用于敌方的 charabuff 不属于任何角色槽，单独存放。
+window.staticEnemyBuffRows = [];
+window.staticEnemyDefenseDownManual = 0;
+
 // 特殊加成数据
 let specialBuffsData = [];
 
@@ -66,7 +70,9 @@ let currentMC = {
     jobId: null,
     proficiency: [],
     bonuses: {},
-    battleBonuses: ""
+    battleBonuses: "",
+    battleSkills: [],
+    skillIds: ['mc_skill_rage_3']
 };
 
 // 导出状态管理对象

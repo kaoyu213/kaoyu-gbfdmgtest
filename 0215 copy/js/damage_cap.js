@@ -126,7 +126,8 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
     
     if (capType === 'na') {
         specificCap = new Decimal(stats['weapon_na_dmg_cap'] || 0)
-            .plus(stats['weapon_ax_na_dmg_cap'] || 0);
+            .plus(stats['weapon_ax_na_dmg_cap'] || 0)
+            .plus(stats['mc_na_dmg_cap_passive'] || 0);
         if (teshuStats && teshuStats['na_dmg_cap']) {
             specificCap = specificCap.plus(teshuStats['na_dmg_cap']);
         }
@@ -168,6 +169,7 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
         weapon_special_cap: stats['weapon_special_dmg_cap'],
         teshu_dmg_cap: teshuStats ? teshuStats['dmg_cap'] : 0,
         weapon_na_cap: capType === 'na' ? stats['weapon_na_dmg_cap'] : 'N/A',
+        mc_na_cap: capType === 'na' ? stats['mc_na_dmg_cap_passive'] : 'N/A',
         teshu_na_cap: (capType === 'na' && teshuStats) ? teshuStats['na_dmg_cap'] : 'N/A',
         teshu_ca_cap: (capType === 'ca' && teshuStats) ? teshuStats['ca_dmg_cap'] : 'N/A',
         final_total: totalCap.toNumber()
@@ -326,16 +328,7 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
     }
     
     if (!thresholdStages || thresholdStages.length === 0) {
-        // 终极兜底：使用内置的最基础 5 段表
-        console.warn('[DamageCap] No threshold table resolved for type=' + type + ', using hardcoded fallback');
-        thresholdStages = [
-            { limit: 300000, slope: 1.0 },
-            { limit: 400000, slope: 0.8 },
-            { limit: 500000, slope: 0.6 },
-            { limit: 600000, slope: 0.05 },
-            { limit: Infinity, slope: 0.01 }
-        ];
-        usedTableId = 'fallback';
+        throw new Error('[DamageCap] 未能从 js/threshold_tables.json 解析衰减表，type=' + type);
     }
     
     // 3. 执行衰减 (Func_Decay)

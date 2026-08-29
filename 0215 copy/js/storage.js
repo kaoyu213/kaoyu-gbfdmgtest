@@ -100,6 +100,36 @@ function restoreBuffCodexRowsFromStorage(savedRowsBySlot) {
     }
 }
 
+function serializeStaticEnemyBuffsForStorage() {
+    const rows = typeof window !== 'undefined' && Array.isArray(window.staticEnemyBuffRows)
+        ? window.staticEnemyBuffRows
+        : [];
+    return rows.map((row) => {
+        const template = row && row.template ? row.template : row;
+        return template && template.id != null ? String(template.id) : '';
+    }).filter(Boolean);
+}
+
+function restoreStaticEnemyBuffsFromStorage(savedIds, savedManualDefenseDown) {
+    if (typeof window === 'undefined') return;
+    const buffList = typeof allCharaBuffs !== 'undefined' && Array.isArray(allCharaBuffs) ? allCharaBuffs : [];
+    const ids = Array.isArray(savedIds) ? savedIds.map(String) : [];
+    window.staticEnemyBuffRows = ids.map((id, index) => {
+        const template = buffList.find((row) => row && String(row.id) === id);
+        if (!template) return null;
+        return {
+            uid: `enemy_bc_saved_${index}_${Date.now()}`,
+            template: clonePlainStorageData(template),
+            level: Math.max(1, parseInt(template.level, 10) || 1)
+        };
+    }).filter(Boolean);
+    window.staticEnemyDefenseDownManual = Math.min(50, Math.max(0, Number(savedManualDefenseDown) || 0));
+    if (typeof window.syncStaticEnemyDefenseDownInputs === 'function') {
+        window.syncStaticEnemyDefenseDownInputs();
+    }
+    if (typeof renderCharaBuffCatalog === 'function') renderCharaBuffCatalog();
+}
+
 function saveToLocal(silent) {
     try {
         const saveData = {
@@ -171,6 +201,8 @@ function saveToLocal(silent) {
         
         // 压缩数据（去除undefined和null值）
         saveData.buffCodexRowsBySlot = serializeBuffCodexRowsForStorage();
+        saveData.staticEnemyBuffIds = serializeStaticEnemyBuffsForStorage();
+        saveData.staticEnemyDefenseDownManual = Math.min(50, Math.max(0, Number(window.staticEnemyDefenseDownManual) || 0));
         saveData.damageViewStates = serializeDamageViewStatesForStorage();
         const compressedData = JSON.parse(JSON.stringify(saveData));
         
@@ -393,6 +425,7 @@ function loadFromLocal(silent) {
             try { if (typeof updateCharSlotUI === 'function') updateCharSlotUI(i); } catch(e) {}
         }
         restoreBuffCodexRowsFromStorage(data.buffCodexRowsBySlot);
+        restoreStaticEnemyBuffsFromStorage(data.staticEnemyBuffIds, data.staticEnemyDefenseDownManual);
         restoreDamageViewStatesFromStorage(data.damageViewStates);
         
         // 重新渲染并计算
@@ -536,7 +569,7 @@ function exportToClipboard() {
         // 获取防御值与防down
         const defense = parseInt(defInput?.value) || 10;
         const defDownInput = document.getElementById('def-down-input');
-        const defenseDown = Math.min(80, Math.max(0, parseInt(defDownInput?.value) || 0));
+        const defenseDown = Math.min(99, Math.max(0, parseInt(defDownInput?.value) || 0));
         
         // 获取角色stats
         const stats = {};
@@ -787,6 +820,11 @@ function resetConfig() {
         activeSpecialBuffs.clear();
         if (typeof window !== 'undefined') {
             window.buffCodexPanelRowsBySlot = [[], [], [], [], [], []];
+            window.staticEnemyBuffRows = [];
+            window.staticEnemyDefenseDownManual = 0;
+            if (typeof window.syncStaticEnemyDefenseDownInputs === 'function') {
+                window.syncStaticEnemyDefenseDownInputs();
+            }
             restoreDamageViewStatesFromStorage(null);
         }
         

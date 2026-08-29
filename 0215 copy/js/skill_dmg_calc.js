@@ -3,7 +3,8 @@
 // ==========================================
 //
 // 公式（与需求一致）：
-// 【 基础伤害/防御 × (技能基础倍率 + 技能伤害加成) × (1+暴击倍率) + 伤害上升效果 】× (1+伤害增幅)
+// 【 基础伤害/防御 × (技能基础倍率 + 技能伤害加成) × 暴击倍率 + 伤害上升效果 】
+//   × (1+伤害增幅) × (1+承受伤害增幅)
 //
 // - 基础伤害：与奥义相同，来自平 A 计算链路的「随机补正」值（防御前）
 // - 技能基础倍率：由 UI 输入（如 3 表示 300%）
@@ -19,12 +20,16 @@
     /**
      * 技能伤害加成（小数）：优先读取 All Effects 的 skill_dmg 汇总，与 UI 填写的技能基础倍率相加。
      */
-    function getSkillDmgBonusFromStats(stats, charIndex) {
+    function getSkillDmgBonusFromStats(stats, charIndex, effectTotals) {
         var s = stats || {};
         var mc = Number(s['mc_skill_dmg_passive']) || 0;
         var nonC5 = Number(s['mc_skill_dmg_passive_non_c5']) || 0;
         var chara = Number(s['chara_skill_dmg_passive']) || 0;
         var fallback = new Decimal(mc).plus(nonC5).plus(chara).toNumber();
+        if (effectTotals && typeof effectTotals === 'object'
+            && typeof effectTotals.skill_dmg === 'number') {
+            return effectTotals.skill_dmg;
+        }
         if (typeof getAllEffectsTotalForSlot === 'function') {
             var total = getAllEffectsTotalForSlot(charIndex != null ? charIndex : 0, 'skill_dmg', fallback);
             if (typeof total === 'number') return total;
@@ -57,6 +62,7 @@
      * @param {number} params.critMult
      * @param {number} params.skillSupp - 伤害上升（固定值）
      * @param {number} params.skillAmp - 伤害增幅（小数总和）
+     * @param {number} params.takenDmgAmp - 敌方承受伤害增幅（小数总和）
      */
     function calcSkillDamageRaw(params) {
         var base = Number(params.baseDamage) || 0;
@@ -67,6 +73,7 @@
         var critMult = Number(params.critMult) != null ? Number(params.critMult) : 1;
         var supp = Number(params.skillSupp) || 0;
         var amp = Number(params.skillAmp) || 0;
+        var takenAmp = Number(params.takenDmgAmp) || 0;
 
         if (def <= 0) def = 1;
 
@@ -75,7 +82,8 @@
             .times(new Decimal(mult).plus(bonus))
             .times(critMult);
         var afterSupp = inner.plus(supp).toNumber();
-        var finalVal = new Decimal(afterSupp).times(new Decimal(1).plus(amp)).toNumber();
+        var afterAmp = new Decimal(afterSupp).times(new Decimal(1).plus(amp));
+        var finalVal = afterAmp.times(new Decimal(1).plus(takenAmp)).toNumber();
 
         return {
             value: Math.floor(finalVal),
@@ -85,6 +93,8 @@
                 afterDef: afterDef,
                 afterMultCrit: inner.toNumber(),
                 afterSupp: afterSupp,
+                afterAmp: afterAmp.toNumber(),
+                takenDmgAmp: takenAmp,
                 final: finalVal
             }
         };
@@ -171,7 +181,15 @@
             : 0;
         skillAmp += (Number(stats['weapon_critical_hit_amp'] || 0) * critAmpRate);
 
-        var skillDmgBonus = getSkillDmgBonusFromStats(stats, charIndex);
+        var takenDmgAmp = typeof calculateTakenDamageAmp === 'function'
+            ? calculateTakenDamageAmp({
+                charIndex: charIndex,
+                ignoreTestBuffSettings: options.ignoreTestBuffSettings === true,
+                effectTotals: options.effectTotals
+            })
+            : 0;
+
+        var skillDmgBonus = getSkillDmgBonusFromStats(stats, charIndex, options.effectTotals);
 
         var raw = calcSkillDamageRaw({
             baseDamage: baseDamage,
@@ -180,15 +198,21 @@
             skillDmgBonus: skillDmgBonus,
             critMult: critMult,
             skillSupp: skillSupp,
-            skillAmp: skillAmp
+            skillAmp: skillAmp,
+            takenDmgAmp: takenDmgAmp
         });
 
+        var undecayedValue = Math.ceil(raw.steps.final);
         var out = {
             value: raw.value,
-            theoryValue: raw.value,
+            theoryValue: undecayedValue,
+            undecayedValue: undecayedValue,
             steps: raw.steps,
             skillBaseMultUsed: skillBaseMult,
             skillDmgBonusUsed: skillDmgBonus,
+            critMultiplierUsed: critMult,
+            skillAmpUsed: skillAmp,
+            takenDmgAmpUsed: takenDmgAmp,
             suppZones: {
                 weaponGrid: skillSuppWeapon,
                 earring: skillSuppEarring
@@ -198,7 +222,11 @@
         if (applyCap && typeof applyDamageCap === 'function') {
             var afterCrit = raw.steps.afterMultCrit;
             var critExtraAmp = (Number(stats['weapon_critical_hit_amp']) || 0) * critAmpRate;
-            var capOptions = Object.assign({}, options.capOptions || {}, { charIndex: charIndex });
+            var capOptions = Object.assign({}, options.capOptions || {}, {
+                charIndex: charIndex,
+                ignoreTestBuffSettings: options.ignoreTestBuffSettings === true,
+                effectTotals: options.effectTotals
+            });
             var capResult = applyDamageCap(afterCrit, stats, 'skill', teshuStats, critExtraAmp, capOptions);
 
             // 技伤公式：decayed → +Supp → ×(1+Amp) → ×(1+TakenAmp) → worldCap → ceil

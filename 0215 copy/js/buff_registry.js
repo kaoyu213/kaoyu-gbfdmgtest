@@ -155,6 +155,10 @@ class BuffRegistry {
       total += subtypeTotal;
     }
 
+    const typeCap = rules && rules.cap != null ? Number(rules.cap) : null;
+    if (typeCap !== null && Number.isFinite(typeCap) && total > typeCap) {
+      return typeCap;
+    }
     return total;
   }
 

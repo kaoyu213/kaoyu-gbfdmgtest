@@ -6,6 +6,7 @@
     <title>GBF 衰减伤害测试工具</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/decimal.js@10.4.3/decimal.min.js"></script>
+    <script src="js/threshold_registry.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -349,14 +350,7 @@
                     <div class="input-group">
                         <label>衰减表</label>
                         <select id="table-select" onchange="onTableSelect()">
-                            <option value="普攻基础表">普攻基础表 (0~30/40/50/60万)</option>
-                            <option value="主角奥义(倍率3)">主角奥义(倍率3) (0~30/40/50/60万)</option>
-                            <option value="奥义4.5倍率">奥义4.5倍率 (0~150/170/180/250万)</option>
-                            <option value="奥义5倍率" selected>奥义5倍率 (0~150/170/180/250万)</option>
-                            <option value="奥义测试表">奥义测试表 (0~180/200/220/300万)</option>
-                            <option value="奥义210万起">奥义210万起 (0~210/230/250/300万)</option>
-                            <option value="世界上限660万">世界上限660万 (0~600/700/800万)</option>
-                            <option value="世界上限1310万">世界上限1310万 (0~1200/1400/1500万)</option>
+                            <option value="">正在加载统一衰减表……</option>
                             <option value="自定义表">自定义表（见下方编辑区）</option>
                         </select>
                     </div>
@@ -374,18 +368,7 @@
                         slope=1.0 无衰减，slope=0.5 即50%衰减，以此类推。<br>
                         <b>修改后需在下拉框选择"自定义表"并点击"应用自定义表"。</b>
                     </p>
-                    <textarea id="custom-table-editor" class="code-editor" spellcheck="false">// ===== 自定义衰减表 =====
-// 在 customTables 对象中添加新表，格式如下：
-const customTables = {
-    "我的测试表": [
-        { limit: 1000000, slope: 1.0 },    // 0~100万: 0%衰减
-        { limit: 2000000, slope: 0.6 },    // 100万~200万: 40%衰减
-        { limit: 3000000, slope: 0.3 },    // 200万~300万: 70%衰减
-        { limit: 4000000, slope: 0.05 },   // 300万~400万: 95%衰减
-        { limit: 999999999, slope: 0.01 }  // 400万以上: 99%衰减
-    ],
-    // 在这里添加更多自定义表...
-};</textarea>
+                    <textarea id="custom-table-editor" class="code-editor" spellcheck="false">正在从统一配置加载示例……</textarea>
                     <div class="btn-group">
                         <button class="btn btn-primary" onclick="applyCustomTable()">🔄 应用自定义表</button>
                         <button class="btn btn-secondary" onclick="resetCustomEditor()">↩ 重置编辑器</button>
@@ -464,73 +447,81 @@ const customTables = {
     </div>
 
     <script>
-        // ==========================================
-        //  预置衰减表
-        // ==========================================
-        const THRESHOLD_TABLE = [
-            { limit: 300000, slope: 1.0 },
-            { limit: 400000, slope: 0.8 },
-            { limit: 500000, slope: 0.6 },
-            { limit: 600000, slope: 0.05 },
-            { limit: Infinity, slope: 0.01 }
-        ];
-        const THRESHOLD_TABLE_CA_OUGI_4_5 = [
-            { limit: 1500000, slope: 1.0 },
-            { limit: 1700000, slope: 0.6 },
-            { limit: 1800000, slope: 0.3 },
-            { limit: 2500000, slope: 0.05 },
-            { limit: Infinity, slope: 0.01 }
-        ];
-        const THRESHOLD_TABLE_CA_OUGI_5 = [
-            { limit: 1500000, slope: 1.0 },
-            { limit: 1700000, slope: 0.6 },
-            { limit: 1800000, slope: 0.3 },
-            { limit: 2500000, slope: 0.05 },
-            { limit: Infinity, slope: 0.01 }
-        ];
-        const THRESHOLD_TABLE_CA_OUGI_test = [
-            { limit: 1800000, slope: 1.0 },
-            { limit: 2000000, slope: 0.6 },
-            { limit: 2200000, slope: 0.3 },
-            { limit: 3000000, slope: 0.05 },
-            { limit: Infinity, slope: 0.01 }
-        ];
-        const THRESHOLD_TABLE_CA_OUGI_210 = [
-            { limit: 2100000, slope: 1.0 },
-            { limit: 2300000, slope: 0.6 },
-            { limit: 2500000, slope: 0.3 },
-            { limit: 3000000, slope: 0.05 },
-            { limit: Infinity, slope: 0.01 }
-        ];
-        const WORLD_CAP_THRESHOLD_TABLE = [
-            { limit: 6000000, slope: 1.0 },
-            { limit: 7000000, slope: 0.5 },
-            { limit: 8000000, slope: 0.1 },
-            { limit: Infinity, slope: 0.001 }
-        ];
-        const WORLD_CAP_THRESHOLD_TABLE_1310 = [
-            { limit: 12000000, slope: 1.0 },
-            { limit: 14000000, slope: 0.5 },
-            { limit: 15000000, slope: 0.1 },
-            { limit: Infinity, slope: 0.001 }
-        ];
-
-        const presetTables = {
-            "普攻基础表": THRESHOLD_TABLE,
-            "主角奥义(倍率3)": THRESHOLD_TABLE,
-            "奥义4.5倍率": THRESHOLD_TABLE_CA_OUGI_4_5,
-            "奥义5倍率": THRESHOLD_TABLE_CA_OUGI_5,
-            "奥义测试表": THRESHOLD_TABLE_CA_OUGI_test,
-            "奥义210万起": THRESHOLD_TABLE_CA_OUGI_210,
-            "世界上限660万": WORLD_CAP_THRESHOLD_TABLE,
-            "世界上限1310万": WORLD_CAP_THRESHOLD_TABLE_1310
-        };
+        // 所有预置表都由 js/threshold_tables.json 统一提供。
+        let presetTables = {};
+        let defaultPresetId = '';
 
         // 动态自定义表存储
         let dynamicCustomTables = {};
 
         // Chart 实例
         let decayChart = null;
+
+        const legacyPresetIds = {
+            "普攻基础表": "na_base",
+            "主角奥义(倍率3)": "mc_ca_3",
+            "奥义4.5倍率": "ca_4.5",
+            "奥义5倍率": "ca_5",
+            "奥义测试表": "ca_test",
+            "奥义210万起": "ca_210",
+            "世界上限660万": "world_660",
+            "世界上限1310万": "world_1310"
+        };
+
+        async function loadPresetTables() {
+            if (!window.ThresholdRegistry) {
+                throw new Error('未找到 ThresholdRegistry');
+            }
+            await window.ThresholdRegistry.loadThresholdData();
+            const presets = window.ThresholdRegistry.getTestPresets();
+            const select = document.getElementById('table-select');
+            select.innerHTML = '';
+            presetTables = {};
+
+            presets.forEach(preset => {
+                if (!preset.id || !preset.stages.length) return;
+                presetTables[preset.id] = preset.stages;
+                const option = document.createElement('option');
+                option.value = preset.id;
+                option.textContent = preset.label;
+                select.appendChild(option);
+                if (preset.isDefault) defaultPresetId = preset.id;
+            });
+
+            const customOption = document.createElement('option');
+            customOption.value = '自定义表';
+            customOption.textContent = '自定义表（见下方编辑区）';
+            select.appendChild(customOption);
+
+            if (!Object.keys(presetTables).length) {
+                throw new Error('js/threshold_tables.json 中没有可用的 testPresets');
+            }
+            if (!defaultPresetId || !presetTables[defaultPresetId]) {
+                defaultPresetId = Object.keys(presetTables)[0];
+            }
+            resetCustomEditor(false);
+        }
+
+        function buildCustomEditorTemplate() {
+            const example = window.ThresholdRegistry.getCustomEditorExample();
+            const lines = [
+                '// ===== 自定义衰减表 =====',
+                '// 在 customTables 对象中添加新表；末段 limit 使用 Infinity。',
+                'const customTables = {'
+            ];
+            const names = Object.keys(example);
+            names.forEach((name, nameIndex) => {
+                lines.push('    ' + JSON.stringify(name) + ': [');
+                example[name].forEach((stage, stageIndex) => {
+                    const limit = stage.limit === null ? 'Infinity' : String(stage.limit);
+                    const comma = stageIndex === example[name].length - 1 ? '' : ',';
+                    lines.push('        { limit: ' + limit + ', slope: ' + stage.slope + ' }' + comma);
+                });
+                lines.push('    ]' + (nameIndex === names.length - 1 ? '' : ','));
+            });
+            lines.push('};');
+            return lines.join('\n');
+        }
 
         // ==========================================
         //  core: funcDecay
@@ -1014,19 +1005,8 @@ const customTables = {
             }
         }
 
-        function resetCustomEditor() {
-            document.getElementById('custom-table-editor').value = `// ===== 自定义衰减表 =====
-// 在 customTables 对象中添加新表，格式如下：
-const customTables = {
-    "我的测试表": [
-        { limit: 1000000, slope: 1.0 },    // 0~100万: 0%衰减
-        { limit: 2000000, slope: 0.6 },    // 100万~200万: 40%衰减
-        { limit: 3000000, slope: 0.3 },    // 200万~300万: 70%衰减
-        { limit: 4000000, slope: 0.05 },   // 300万~400万: 95%衰减
-        { limit: 999999999, slope: 0.01 }  // 400万以上: 99%衰减
-    ],
-    // 在这里添加更多自定义表...
-};`;
+        function resetCustomEditor(shouldCalculate = true) {
+            document.getElementById('custom-table-editor').value = buildCustomEditorTemplate();
             document.getElementById('custom-parse-msg').innerHTML = '';
             dynamicCustomTables = {};
             // 清除自定义选项
@@ -1036,8 +1016,8 @@ const customTables = {
                     select.remove(i);
                 }
             }
-            select.value = '世界上限660万';
-            calculate();
+            select.value = presetTables.world_660 ? 'world_660' : defaultPresetId;
+            if (shouldCalculate) calculate();
         }
 
         // ==========================================
@@ -1109,7 +1089,13 @@ const customTables = {
                 if (data.caTakenAmp !== undefined) document.getElementById('ca-taken-amp').value = data.caTakenAmp;
                 if (data.caDmgSupp !== undefined) document.getElementById('ca-dmg-supp').value = data.caDmgSupp;
                 if (data.capBonus !== undefined) document.getElementById('cap-bonus').value = data.capBonus;
-                if (data.tableSelect !== undefined) document.getElementById('table-select').value = data.tableSelect;
+                if (data.tableSelect !== undefined) {
+                    const savedPreset = legacyPresetIds[data.tableSelect] || data.tableSelect;
+                    const select = document.getElementById('table-select');
+                    if (Array.from(select.options).some(option => option.value === savedPreset)) {
+                        select.value = savedPreset;
+                    }
+                }
                 return true;
             } catch (e) {
                 return false;
@@ -1119,13 +1105,20 @@ const customTables = {
         // ==========================================
         //  初始化
         // ==========================================
-        document.addEventListener('DOMContentLoaded', function () {
-            const loaded = loadInputs();
-            if (!loaded) {
-                // 首次使用：预设选中奥义5倍率，上限加成6%
-                document.getElementById('table-select').value = '奥义5倍率';
+        document.addEventListener('DOMContentLoaded', async function () {
+            try {
+                await loadPresetTables();
+                const loaded = loadInputs();
+                if (!loaded || !getCurrentTable()) {
+                    // 首次使用：预设选中奥义5倍率，上限加成6%
+                    document.getElementById('table-select').value = defaultPresetId;
+                }
+                calculate();
+            } catch (error) {
+                console.error('[DecayTest] 衰减表加载失败:', error);
+                document.getElementById('result-decayed').textContent = '衰减表加载失败';
+                document.getElementById('custom-parse-msg').textContent = error.message;
             }
-            calculate();
         });
 
         // ==========================================

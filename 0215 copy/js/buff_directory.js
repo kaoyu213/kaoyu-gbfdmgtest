@@ -7,31 +7,44 @@
 
 const BUFF_DIRECTORY = {
   // ========== 攻刃类 ==========
-  normal_atk:      { label: '普刃',               icon: '', hasSubtype: false },
+  normal_atk:      { label: '普刃',               icon: 'buff icon/normal_atk.png', hasSubtype: false },
   omega_atk:       { label: 'M攻刃',              icon: '', hasSubtype: false },
   ex_atk:          { label: 'EX攻刃',             icon: '', hasSubtype: false },
   odious_atk:      { label: 'OD攻刃',             icon: '', hasSubtype: false },
-  stamina:         { label: '浑身',               icon: '', hasSubtype: false },
+  stamina:         { label: '浑身',               icon: 'buff icon/stamina.png', hasSubtype: false },
   stamina_omega:   { label: 'M浑身',              icon: '', hasSubtype: false },
-  enmity:          { label: '背水',               icon: '', hasSubtype: false },
+  enmity:          { label: '背水',               icon: 'buff icon/stamina.png', hasSubtype: false },
   enmity_omega:    { label: 'M背水',              icon: '', hasSubtype: false },
-  element_atk:     { label: '属性攻击',           icon: '', hasSubtype: false },
+  element_atk:     { label: '属性攻击',           icon: 'buff icon/element_atk.png', hasSubtype: false },
   perpetuity_atk:  { label: '独立攻刃【久远乘区】', icon: '', hasSubtype: false },
-  indep_cumulative_atk: { label: '独立攻刃【累积】', icon: '', hasSubtype: false },
+  indep_cumulative_atk: { label: '独立攻刃【累积】', icon: 'buff icon/indep_cumulative_atk.png', hasSubtype: false },
+  indep_zhan_atk: { label: '独立攻刃【斩】', icon: 'buff icon/zhan.png', hasSubtype: false },
   indep_unjudged_atk: { label: '独立攻刃【未判定】', icon: '', hasSubtype: false },
   indep_special_enmity_atk: { label: '独立攻刃【特殊背水】', icon: '', hasSubtype: false },
 
   // ========== 予伤 ==========
-  dmg_supp:        { label: '全伤害上升',         icon: 'buff icon/dmg_supp.png', hasSubtype: false },
-  na_dmg_supp:     { label: '平A伤害上升',        icon: '', hasSubtype: false },
-  skill_dmg_supp:  { label: '技伤伤害上升',       icon: '', hasSubtype: false },
-  ca_dmg_supp:     { label: '奥义伤害上升',       icon: '', hasSubtype: false },
+  dmg_supp:        {
+    label: '全伤害上升', icon: 'buff icon/dmg_supp.png', hasSubtype: false,
+    zoneIcons: { cumulative: 'buff icon/dmg_supp_cumulative.png' },
+    zoneLabels: { cumulative: '全伤害上升【累积】' }
+  },
+  na_dmg_supp:     { label: '平A伤害上升',        icon: 'buff icon/na_dmg_supp.png', hasSubtype: false },
+  skill_dmg_supp:  {
+    label: '技伤伤害上升', icon: 'buff icon/skill_dmg_supp.png', hasSubtype: false,
+    zoneIcons: { cumulative: 'buff icon/skill_dmg_supp_cumulative.png' },
+    zoneLabels: { cumulative: '技伤伤害上升【累积】' }
+  },
+  ca_dmg_supp:     {
+    label: '奥义伤害上升', icon: 'buff icon/ca_dmg_supp.png', hasSubtype: false,
+    zoneIcons: { cumulative: 'buff icon/ca_dmg_supp_cumulative.png' },
+    zoneLabels: { cumulative: '奥义伤害上升【累积】' }
+  },
   dmg_to_elemental_amp: { label: '对克制伤害增幅', icon: '', hasSubtype: false },
   anti_element_reduce: { label: '受克制伤害减轻', icon: '', hasSubtype: false },
 
   // ========== DA/TA ==========
-  da_rate:         { label: 'DA率',               icon: '', hasSubtype: false },
-  ta_rate:         { label: 'ta',                 icon: 'buff icon/ta.png', hasSubtype: false },
+  da_rate:         { label: 'DA率',               icon: 'buff icon/da_rate.png', hasSubtype: false },
+  ta_rate:         { label: 'ta',                 icon: 'buff icon/ta_rate.png', hasSubtype: false },
 
   // ========== 追伤（有 subtype） ==========
   bonus_na: {
@@ -41,34 +54,42 @@ const BUFF_DIRECTORY = {
   },
   bonus_ca: {
     label: '奥义追伤',
-    icon: '', hasSubtype: true,
+    icon: 'buff icon/bonus_ca.png', hasSubtype: true,
     subtypes: ['fire', 'water', 'earth', 'wind', 'light', 'dark', 'destruction', 'own_element', 'advantage']
   },
   bonus_skill: {
     label: '技能追伤',
-    icon: '', hasSubtype: true,
+    icon: 'buff icon/bonus_skill.png', hasSubtype: true,
     subtypes: ['fire', 'water', 'earth', 'wind', 'light', 'dark', 'destruction', 'own_element', 'advantage']
   },
 
   // ========== 伤害上限 ==========
-  dmg_cap:         { label: '全上限',             icon: '', hasSubtype: false },
+  dmg_cap:         {
+    label: '全上限', icon: 'buff icon/dmg_cap.png', hasSubtype: false,
+    zoneIcons: { cumulative: 'buff icon/dmg_cap_cumulative.png' },
+    zoneLabels: { cumulative: '全上限【累积】' }
+  },
   dmg_cap_relaxation: { label: 'D上限缓和',       icon: '', hasSubtype: false },
   na_dmg_cap:      { label: '平A上限',            icon: '', hasSubtype: false },
-  skill_dmg_cap:   { label: '技伤上限',           icon: '', hasSubtype: false },
-  ca_dmg_cap:      { label: '奥义上限',           icon: '', hasSubtype: false },
+  skill_dmg_cap:   { label: '技伤上限',           icon: 'buff icon/skill_dmg_cap.png', hasSubtype: false },
+  ca_dmg_cap:      {
+    label: '奥义上限', icon: 'buff icon/ca_dmg_cap.png', hasSubtype: false,
+    zoneIcons: { cumulative: 'buff icon/ca_dmg_cap_cumulative.png' },
+    zoneLabels: { cumulative: '奥义上限上升【累积】' }
+  },
 
   // ========== 伤害增幅 ==========
-  dmg_amp:         { label: '全伤害增幅',         icon: '', hasSubtype: false },
-  na_dmg_amp:      { label: '平A伤害增幅',        icon: '', hasSubtype: false },
-  skill_dmg_amp:   { label: '技伤伤害增幅',       icon: '', hasSubtype: false },
+  dmg_amp:         { label: '全伤害增幅',         icon: 'buff icon/na_dmg_amp.png', hasSubtype: false },
+  na_dmg_amp:      { label: '平A伤害增幅',        icon: 'buff icon/na_dmg_amp.png', hasSubtype: false },
+  skill_dmg_amp:   { label: '技伤伤害增幅',       icon: 'buff icon/skill_dmg_cap.png', hasSubtype: false },
   ca_dmg_amp:      { label: '奥义伤害增幅',       icon: '', hasSubtype: false },
 
   // ========== 其他 ==========
-  double_strike:   { label: '再攻击',             icon: 'buff icon/double_strike.png', hasSubtype: false },
-  triple_strike:   { label: '三回攻击',           icon: '', hasSubtype: false },
-  critical_hit:    { label: '暴击率',             icon: '', hasSubtype: false },
+  double_strike:   { label: '再攻击',             icon: 'buff icon/extra_attack.png', hasSubtype: false },
+  triple_strike:   { label: '三回攻击',           icon: 'buff icon/extra_attack.png', hasSubtype: false },
+  critical_hit:    { label: '暴击率',             icon: 'buff icon/critical_hit.png', hasSubtype: false },
   def_ignore:      { label: '无视防御',           icon: '', hasSubtype: false },
-  dmg_reduce:      { label: '伤害减轻',           icon: '', hasSubtype: false },
+  dmg_reduce:      { label: '伤害减轻',           icon: 'buff icon/lowering_dmg_taken.png', hasSubtype: false },
   heal_cap:        { label: '回复上限',           icon: '', hasSubtype: false },
   charge_gain:     { label: '奥义值上升量',       icon: '', hasSubtype: false },
   debuff_success:  { label: '弱体成功率',         icon: '', hasSubtype: false },
@@ -78,28 +99,32 @@ const BUFF_DIRECTORY = {
   counter_rate:    { label: '反击发生率',         icon: '', hasSubtype: false },
   counter_dmg:     { label: '反击伤害',           icon: '', hasSubtype: false },
   counter_dmg_supp:{ label: '反击伤害上升',       icon: '', hasSubtype: false },
-  skill_dmg:       { label: '技能伤害',           icon: '', hasSubtype: false },
-  ca_dmg:          { label: '奥义伤害',           icon: '', hasSubtype: false },
+  skill_dmg:       { label: '技能伤害',           icon: 'buff icon/normal_atk.png', hasSubtype: false },
+  ca_dmg:          {
+    label: '奥义伤害', icon: 'buff icon/ca_dmg.png', hasSubtype: false,
+    zoneIcons: { cumulative: 'buff icon/ca_dmg_cumulative.png' },
+    zoneLabels: { cumulative: '奥义伤害【累积】' }
+  },
   cb_dmg:          { label: '奥义连锁伤害',       icon: '', hasSubtype: false },
   cb_dmg_cap:      { label: '奥义连锁上限',       icon: '', hasSubtype: false },
   cb_dmg_amp:      { label: '奥义连锁增幅',       icon: '', hasSubtype: false },
   cb_dmg_supp:     { label: '奥义连锁伤害上升',   icon: '', hasSubtype: false },
   fc_dmg_cap:      { label: '致命连锁上限',       icon: '', hasSubtype: false },
   fc_dmg_amp:      { label: '致命连锁增幅',       icon: '', hasSubtype: false },
-  ca_special_dmg_cap: { label: '奥义特殊上限',    icon: '', hasSubtype: false },
+  ca_special_dmg_cap: { label: '奥义特殊上限',    icon: 'buff icon/ca_dmg_cap.png', hasSubtype: false },
   critical_dmg_amp:{ label: '暴击时伤害增幅',     icon: '', hasSubtype: false },
   critical_dmg_cap:{ label: '暴击时上限',         icon: '', hasSubtype: false },
   normal_dmg_amp:  { label: '通常伤害增幅',       icon: '', hasSubtype: false },
   taken_dmg_amp:   { label: '承受伤害增幅',       icon: '', hasSubtype: false },
-  na_ranshu:       { label: '平A乱击段数',        icon: '', hasSubtype: false },
+  na_ranshu:       { label: '平A乱击段数',        icon: 'buff icon/luanji.png', hasSubtype: false },
   dmg_to_non_elemental_amp: { label: '对无属性伤害增幅', icon: '', hasSubtype: false },
   skill_hit_rate:  { label: '技能命中率',         icon: '', hasSubtype: false },
   hp_cut:          { label: 'HP减少',             icon: '', hasSubtype: false },
   hp_dmg:          { label: '开局HP减少',         icon: '', hasSubtype: false },
   turn_dmg:        { label: '每回合HP减少',       icon: '', hasSubtype: false },
   heal_mod:        { label: '回复力',             icon: '', hasSubtype: false },
-  def_down:        { label: '防御下降',           icon: '', hasSubtype: false },
-  element_reduce:  { label: '属性伤害减轻',       icon: '', hasSubtype: false },
+  def_down:        { label: '防御下降',           icon: 'constants icon/04_icon_penetrate_def.png', hasSubtype: false },
+  element_reduce:  { label: '属性伤害减轻',       icon: 'buff icon/element_reduce.png', hasSubtype: false },
   dodge_all:       { label: '全回避发生率',       icon: '', hasSubtype: false },
   turn_dmg_reduce: { label: '回合类伤害减轻',     icon: '', hasSubtype: false },
   optimus_boost:   { label: '神石加护',           icon: '', hasSubtype: false },
@@ -115,11 +140,21 @@ const BUFF_DIRECTORY = {
   
   
    // ========== 防御 ==========
-  def_mod:         { label: '防御力',                 icon: '', hasSubtype: false },
-  dmg_taken_lowered:         { label: '承受伤害减少固定值',  icon: 'status_7343.png', hasSubtype: false },
-  lowering_dmg_taken:         { label: '格挡',                 icon: 'status_6083.png', hasSubtype: false },
-  element_dmg_cut:         { label: '属性伤害减免',       icon: '', hasSubtype: ['fire', 'water', 'earth', 'wind', 'light', 'dark'] },
-  element_dmg_lowered:         { label: '属性伤害减轻',                 icon: 'status_1420.png', hasSubtype: ['fire', 'water', 'earth', 'wind', 'light', 'dark']}
+  def_mod:         {
+    label: '防御力', icon: 'buff icon/def_mod.png', hasSubtype: false,
+    zoneIcons: { cumulative: 'buff icon/indep_cumulative_def.png' },
+    zoneLabels: { cumulative: '防御【累积】' }
+  },
+  dmg_taken_lowered:         { label: '承受伤害减少固定值',  icon: 'buff icon/dmg_taken_lowered.png', hasSubtype: false },
+  lowering_dmg_taken:         { label: '格挡',                 icon: 'buff icon/lowering_dmg_taken.png', hasSubtype: false },
+  element_dmg_cut: {
+    label: '属性伤害减免', icon: 'buff icon/element_dmg_cut.png', hasSubtype: true,
+    subtypes: ['fire', 'water', 'earth', 'wind', 'light', 'dark']
+  },
+  element_dmg_lowered: {
+    label: '属性伤害减轻', icon: 'buff icon/element_reduce.png', hasSubtype: true,
+    subtypes: ['fire', 'water', 'earth', 'wind', 'light', 'dark']
+  }
 };
 
 /**
@@ -201,9 +236,17 @@ function getBuffDisplayMeta(prop, zone, entry) {
   const zoneCfg = (typeof BUFF_TYPE_ZONE_RULES !== 'undefined' && BUFF_TYPE_ZONE_RULES[buffType])
     ? BUFF_TYPE_ZONE_RULES[buffType]
     : null;
+  const zoneIcon = dirCfg && dirCfg.zoneIcons && dirCfg.zoneIcons[z]
+    ? String(dirCfg.zoneIcons[z])
+    : '';
+  const zoneLabel = dirCfg && dirCfg.zoneLabels && dirCfg.zoneLabels[z]
+    ? String(dirCfg.zoneLabels[z])
+    : '';
 
   let label = '';
-  if (buffType === 'bonus_na') {
+  if (zoneLabel) {
+    label = zoneLabel;
+  } else if (buffType === 'bonus_na') {
     label = `${getBuffElementLabel(subtype)}属性追击`;
   } else if (buffType === 'bonus_ca') {
     label = `${getBuffElementLabel(subtype)}奥义追击`;
@@ -217,7 +260,8 @@ function getBuffDisplayMeta(prop, zone, entry) {
 
   return {
     label,
-    icon: (entry && entry.icon) || (dirCfg && dirCfg.icon) || '',
+    icon: (entry && entry.icon) || zoneIcon || (dirCfg && dirCfg.icon) || '',
+    zoneIcon,
     format: (entry && entry.format) || (dirCfg && dirCfg.format) || (statCfg && statCfg.format) || 'percent',
     buffType,
     subtype,
@@ -240,7 +284,7 @@ function getBuffIconMeta(prop, zone) {
   const display = getBuffDisplayMeta(p, zone, null);
   const label = (legacy && legacy.title) || display.label || p;
   return {
-    icon: (legacy && legacy.icon) || display.icon || '',
+    icon: display.zoneIcon || (legacy && legacy.icon) || display.icon || '',
     title: label,
     abbrev: (legacy && legacy.abbrev) || label.slice(0, 3)
   };

@@ -63,19 +63,29 @@ function renderCharaBuffCatalog() {
         const imgHtml = imgPath
             ? `<img class="charabuff-catalog-img" src="images/${escapeHtmlCharaBuff(imgPath)}" alt="">`
             : '<div class="charabuff-catalog-img charabuff-catalog-img--placeholder">无图</div>';
+        const target = getCharaBuffTarget(row);
+        const contexts = getCharaBuffContexts(row);
+        const isEnemyTarget = target === 'enemy_single' || target === 'enemy_all';
+        const isActive = isEnemyTarget && getStaticEnemyBuffRows().some((entry) => (
+            entry && entry.template && String(entry.template.id) === id
+        ));
 
         let effectsBlock = '';
         if (row.effects && Array.isArray(row.effects) && row.effects.length > 0) {
             const rows = row.effects.map((e) => {
                 const prop = e && e.prop != null ? String(e.prop) : '';
                 const typ = e && e.type != null ? String(e.type) : '';
+                const zone = e && e.zone != null ? String(e.zone) : '';
                 const val = e && e.value != null ? String(e.value) : '';
                 const title = buffPropTitle(prop);
                 const idIcon = buffPropIconHtml(prop);
                 const propLine = title
                     ? `<span class="charabuff-effect-prop" title="${escapeHtmlCharaBuff(prop)}">${escapeHtmlCharaBuff(title)}</span> <span class="charabuff-effect-id-wrap">${idIcon}<span class="charabuff-effect-id">(${escapeHtmlCharaBuff(prop)})</span></span>`
                     : `<span class="charabuff-effect-id-wrap">${idIcon}<span class="charabuff-effect-prop">${escapeHtmlCharaBuff(prop || '—')}</span></span>`;
-                const typePart = typ ? ` · ${escapeHtmlCharaBuff(typ)}` : '';
+                const qualifiers = [];
+                if (typ) qualifiers.push(typ);
+                if (zone) qualifiers.push(`分区 ${zone}`);
+                const typePart = qualifiers.length ? ` · ${escapeHtmlCharaBuff(qualifiers.join(' · '))}` : '';
                 const valPart = val ? `：${escapeHtmlCharaBuff(val)}` : '';
                 return `<div class="charabuff-effect-line">${propLine}${typePart}${valPart}</div>`;
             }).join('');
@@ -89,6 +99,12 @@ function renderCharaBuffCatalog() {
         const maxlev =
             row && row.maxlevel != null ? String(row.maxlevel) : lev;
         metaParts.push(`层数 ${escapeHtmlCharaBuff(lev)} / ${escapeHtmlCharaBuff(maxlev)}`);
+        const targetLabels = {
+            self: '自身', ally_party: '己方前排', ally_all: '己方全体',
+            enemy_single: '敌方', enemy_all: '敌方全体', field: '场地'
+        };
+        metaParts.push(`对象：${escapeHtmlCharaBuff(targetLabels[target] || target)}`);
+        metaParts.push(`场景：${escapeHtmlCharaBuff(contexts.map((context) => context === 'battle' ? '回合' : '静态').join('/'))}`);
         if (source) metaParts.push(`来源：${escapeHtmlCharaBuff(source)}`);
         if (cd) metaParts.push(`冷却/持续：${escapeHtmlCharaBuff(cd)}`);
         const metaHtml = metaParts.length
@@ -96,7 +112,7 @@ function renderCharaBuffCatalog() {
             : '';
 
         return `
-        <div class="charabuff-catalog-item" role="button" tabindex="0" data-buff-id="${escapeHtmlCharaBuff(id)}" data-row-index="${idx}">
+        <div class="charabuff-catalog-item${isActive ? ' is-active' : ''}" role="button" tabindex="0" aria-pressed="${isActive}" data-buff-id="${escapeHtmlCharaBuff(id)}" data-row-index="${idx}">
             ${imgHtml}
             <div class="charabuff-catalog-body">
                 <div class="charabuff-catalog-title">
@@ -130,23 +146,63 @@ function onBuffCodexRowClick(index) {
         typeof allCharaBuffs !== 'undefined' && Array.isArray(allCharaBuffs) ? allCharaBuffs : [];
     if (index < 0 || index >= buffList.length) return;
 
+    const raw = buffList[index];
+    const target = getCharaBuffTarget(raw);
+    const contexts = getCharaBuffContexts(raw);
+    if (!contexts.includes('static')) {
+        if (typeof showNotification === 'function') {
+            showNotification('该条目仅用于回合模拟，请在回合模拟器的 Buff 图鉴中装入。', 'info');
+        }
+        return;
+    }
+
+    if (target === 'enemy_single' || target === 'enemy_all') {
+        const enemyRows = getStaticEnemyBuffRows();
+        const existingIndex = enemyRows.findIndex((entry) => (
+            entry && entry.template && String(entry.template.id) === String(raw.id)
+        ));
+        if (existingIndex >= 0) {
+            enemyRows.splice(existingIndex, 1);
+        } else {
+            enemyRows.push({
+                uid: 'enemy_bc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9),
+                template: JSON.parse(JSON.stringify(raw)),
+                level: Math.max(1, parseInt(raw.level, 10) || 1)
+            });
+        }
+        syncStaticEnemyDefenseDownInputs();
+        renderCharaBuffCatalog();
+        if (typeof recalculate === 'function') recalculate();
+        if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') {
+            setTimeout(() => saveToLocal(true), 100);
+        }
+        return;
+    }
+
     const slot =
         typeof getActiveCharSlotIndex === 'function' ? getActiveCharSlotIndex() : 0;
     const bySlot = window.buffCodexPanelRowsBySlot;
     if (!bySlot || !bySlot[slot]) return;
 
-    const raw = buffList[index];
     const template = JSON.parse(JSON.stringify(raw));
     const refLevel = Math.max(1, parseInt(template.level, 10) || 1);
     const maxFromTpl = parseInt(template.maxlevel, 10);
     const maxLv = Math.max(refLevel, !isNaN(maxFromTpl) && maxFromTpl > 0 ? maxFromTpl : refLevel);
     const initialLv = Math.min(refLevel, maxLv);
 
-    bySlot[slot].push({
-        uid: 'bc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9),
-        template,
-        level: initialLv,
-        maxlevel: maxLv
+    const targetSlots = target === 'ally_party'
+        ? [0, 1, 2, 3]
+        : target === 'ally_all'
+            ? [0, 1, 2, 3, 4, 5]
+            : [slot];
+    targetSlots.forEach((targetSlot) => {
+        if (!Array.isArray(bySlot[targetSlot])) return;
+        bySlot[targetSlot].push({
+            uid: 'bc_' + Date.now() + '_' + targetSlot + '_' + Math.random().toString(36).slice(2, 9),
+            template: JSON.parse(JSON.stringify(template)),
+            level: initialLv,
+            maxlevel: maxLv
+        });
     });
 
     if (typeof recalculate === 'function') recalculate();
@@ -155,3 +211,53 @@ function onBuffCodexRowClick(index) {
         setTimeout(() => saveToLocal(true), 100);
     }
 }
+
+function getCharaBuffTarget(row) {
+    if (window.CharabuffRegistry && typeof window.CharabuffRegistry.normalizeTarget === 'function') {
+        return window.CharabuffRegistry.normalizeTarget(row && row.target);
+    }
+    return row && row.target ? String(row.target) : 'self';
+}
+
+function getCharaBuffContexts(row) {
+    if (window.CharabuffRegistry && typeof window.CharabuffRegistry.normalizeContexts === 'function') {
+        return window.CharabuffRegistry.normalizeContexts(row || {});
+    }
+    return ['static'];
+}
+
+function getStaticEnemyBuffRows() {
+    if (!Array.isArray(window.staticEnemyBuffRows)) window.staticEnemyBuffRows = [];
+    return window.staticEnemyBuffRows;
+}
+
+function getStaticEnemyDefenseDownBonus() {
+    const rows = getStaticEnemyBuffRows();
+    if (!window.CharabuffRegistry || typeof window.CharabuffRegistry.getStaticEnemyDefenseDown !== 'function') return 0;
+    return Math.min(99, Math.max(0, window.CharabuffRegistry.getStaticEnemyDefenseDown(rows) * 100));
+}
+
+function syncStaticEnemyDefenseDownInputs() {
+    const manual = Math.min(50, Math.max(0, Number(window.staticEnemyDefenseDownManual) || 0));
+    const rows = getStaticEnemyBuffRows();
+    const buffBonus = getStaticEnemyDefenseDownBonus();
+    const breakdown = window.CharabuffRegistry
+        && typeof window.CharabuffRegistry.getStaticEnemyDefenseDownBreakdown === 'function'
+        ? window.CharabuffRegistry.getStaticEnemyDefenseDownBreakdown(rows, manual / 100)
+        : { normal: Math.min(0.5, manual / 100), independent: 0, total: Math.min(0.5, manual / 100) };
+    const total = Math.min(99, Math.max(0, breakdown.total * 100));
+    const normal = Math.min(50, Math.max(0, breakdown.normal * 100));
+    const independent = Math.max(0, breakdown.independent * 100);
+    document.querySelectorAll('[id^="def-down-input"]').forEach((el) => {
+        el.value = String(Number(total.toFixed(4)));
+        el.dataset.manualDefenseDown = String(manual);
+        el.dataset.charabuffDefenseDown = String(buffBonus);
+        el.title = buffBonus > 0
+            ? `普通减防 ${normal}%（上限50%）+ 独立减防 ${independent}% = ${total}%（最终上限99%）`
+            : `普通减防 ${normal}%（上限50%）`;
+    });
+    return total;
+}
+
+window.getStaticEnemyDefenseDownBonus = getStaticEnemyDefenseDownBonus;
+window.syncStaticEnemyDefenseDownInputs = syncStaticEnemyDefenseDownInputs;
