@@ -8,21 +8,34 @@
     const STORAGE_KEY = 'gbf_manual_custom_skills_v1';
     const TARGETS = Object.freeze(['self', 'ally_party', 'ally_all', 'ally_slots', 'enemy']);
     const DURATION_TYPES = Object.freeze(['turns', 'action', 'hit', 'permanent']);
+    const BUFF_DISPLAY_MODES = Object.freeze(['small', 'large']);
+    const DAMAGE_ELEMENTS = Object.freeze([
+        'own_element',
+        'fire',
+        'water',
+        'earth',
+        'wind',
+        'light',
+        'dark',
+        'non_elemental'
+    ]);
     const FIXED_BUFF_TYPES = new Set([
         'dmg_supp',
         'na_dmg_supp',
         'skill_dmg_supp',
         'ca_dmg_supp',
+        'taken_dmg_supp',
         'counter_dmg_supp',
         'cb_dmg_supp',
         'double_strike',
         'triple_strike',
         'na_ranshu',
+        'na_ranshu_bonus',
         'base_atk',
         'base_hp',
         'dmg_taken_lowered'
     ]);
-    const COUNT_BUFF_TYPES = new Set(['double_strike', 'triple_strike', 'na_ranshu']);
+    const COUNT_BUFF_TYPES = new Set(['double_strike', 'triple_strike', 'na_ranshu', 'na_ranshu_bonus']);
 
     let nodeDirectoryApi = null;
     let nodeZoneApi = null;
@@ -124,30 +137,47 @@
         return `manual_custom_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     }
 
-    function getBuffCatalog() {
+    function normalizeCatalogTarget(target) {
+        const value = String(target || '').trim().toLowerCase();
+        if (!value) return '';
+        return value === 'enemy' || value === 'enemy_single' || value === 'enemy_all' ? 'enemy' : 'ally';
+    }
+
+    function getBuffCatalog(target) {
         const directory = getDirectory();
+        const requestedTarget = normalizeCatalogTarget(target);
         return Object.keys(directory).map((buffType) => {
             const entry = directory[buffType] || {};
+            const targets = Array.isArray(entry.targets) && entry.targets.length
+                ? entry.targets.map(normalizeCatalogTarget).filter(Boolean)
+                : ['ally'];
+            if (requestedTarget && !targets.includes(requestedTarget)) return null;
             const zones = (callZone('getZoneNames', [buffType], []) || [])
                 .filter((zone) => zone !== 'testbuff')
                 .map((zone) => ({
                     id: zone,
-                    label: callZone('getZoneLabel', [zone], zone),
+                    label: buffType === 'bonus_skill' && zone === 'chara_skill'
+                        ? '角色buff区' : callZone('getZoneLabel', [zone], zone),
                     rule: callZone('getZoneRule', [buffType, zone], 'sum'),
                     cap: callZone('getZoneCap', [buffType, zone], null)
                 }));
             return {
                 buffType,
                 label: entry.label || buffType,
+                optionLabel: entry.optionLabel || entry.label || buffType,
                 icon: entry.icon || '',
-                subtypes: Array.isArray(entry.subtypes) ? entry.subtypes.slice() : [],
+                defaultValue: Number.isFinite(Number(entry.defaultValue)) ? Number(entry.defaultValue) : null,
+                fixedValue: Number.isFinite(Number(entry.fixedValue)) ? Number(entry.fixedValue) : null,
+                targets: targets.slice(),
+                subtypes: Array.isArray(entry.definitionSubtypes) ? entry.definitionSubtypes.slice()
+                    : Array.isArray(entry.subtypes) ? entry.subtypes.slice() : [],
                 zones
             };
-        }).filter((entry) => entry.zones.length > 0);
+        }).filter((entry) => entry && entry.zones.length > 0);
     }
 
-    function getBuffType(buffType) {
-        return getBuffCatalog().find((entry) => entry.buffType === String(buffType || '')) || null;
+    function getBuffType(buffType, target) {
+        return getBuffCatalog(target).find((entry) => entry.buffType === String(buffType || '')) || null;
     }
 
     function resolveBuffFormat(buffType, prop, zone) {
@@ -157,6 +187,7 @@
     }
 
     function getValueUnit(buffType, format) {
+        if (buffType === 'na_ranshu' || buffType === 'na_ranshu_bonus') return '段';
         if (COUNT_BUFF_TYPES.has(buffType)) return '次';
         return format === 'fixed' ? '点' : '%';
     }
@@ -165,6 +196,28 @@
         const number = Number(value);
         if (!Number.isFinite(number)) throw new Error('加成数值必须是有效数字。');
         return format === 'percent' || format === 'ta_rate_bonus' ? number / 100 : number;
+    }
+
+    function normalizeBuffDisplayMode(value) {
+        const mode = String(value || '').toLowerCase();
+        return BUFF_DISPLAY_MODES.includes(mode) ? mode : 'small';
+    }
+
+    function getNameInitial(value) {
+        return Array.from(String(value || '').trim())[0] || '强';
+    }
+
+    function applyDefaultBuffZone(effect, displayMode) {
+        const source = Object.assign({}, effect || {});
+        if (source.zone) return source;
+        const catalogEntry = getBuffType(source.buffType || source.buff_type, source.target);
+        const zones = catalogEntry && Array.isArray(catalogEntry.zones) ? catalogEntry.zones : [];
+        const preferred = displayMode === 'large' ? 'independent' : 'chara_skill';
+        const fallback = zones.find((entry) => entry.id === preferred)
+            || zones.find((entry) => entry.id === 'charabonus')
+            || zones[0];
+        if (fallback) source.zone = fallback.id;
+        return source;
     }
 
     function normalizeDuration(effect) {
@@ -198,15 +251,22 @@
         const subtypeLabel = subtype
             ? callDirectory('getBuffElementLabel', [subtype], subtype)
             : '';
+        if (catalogEntry.buffType === 'na_ranshu') {
+            return `${catalogEntry.label}${Math.max(1, Math.floor(Number(rawValue) || 1))}段`;
+        }
         return `${subtypeLabel || ''}${catalogEntry.label}${Number(rawValue) >= 0 ? '+' : ''}${rawValue}${unit}`;
     }
 
     function normalizeBuffEffect(effect, skillId, index) {
+        const targetInfo = normalizeTarget(effect);
         const buffType = String(effect.buffType || effect.buff_type || '');
-        const catalogEntry = getBuffType(buffType);
-        if (!catalogEntry) throw new Error(`未找到可用的 Buff 类别：${buffType || '(空)'}`);
+        const catalogEntry = getBuffType(buffType, targetInfo.target);
+        if (!catalogEntry) {
+            const targetLabel = targetInfo.target === 'enemy' ? '敌方' : '己方';
+            throw new Error(`${targetLabel}没有可用的加成类别：${buffType || '(空)'}`);
+        }
 
-        const subtype = String(effect.subtype || '');
+        const subtype = String(effect.subtype || (buffType === 'element_atk' ? 'own_element' : ''));
         if (catalogEntry.subtypes.length > 0 && !catalogEntry.subtypes.includes(subtype)) {
             throw new Error(`${catalogEntry.label}需要选择有效的子类型。`);
         }
@@ -218,16 +278,18 @@
         const prop = callDirectory('buildBuffProp', [buffType, subtype], subtype ? `${buffType}_${subtype}` : buffType);
         const displayMeta = callDirectory('getBuffDisplayMeta', [prop, zone, null], null);
         const format = resolveBuffFormat(buffType, prop, zone);
-        const rawValue = Number(effect.value);
+        const rawValue = catalogEntry.fixedValue != null
+            ? catalogEntry.fixedValue
+            : Number(effect.value);
         const value = normalizeInputValue(rawValue, format);
         const duration = normalizeDuration(effect);
-        const targetInfo = normalizeTarget(effect);
         const unit = getValueUnit(buffType, format);
         const step = {
             do: 'buff',
             id: `${skillId}_effect_${index + 1}`,
             target: targetInfo.target,
             name: String(effect.name || formatEffectName({
+                buffType,
                 label: displayMeta && displayMeta.label ? displayMeta.label : catalogEntry.label
             }, subtype, rawValue, unit)),
             icon: String(effect.icon || displayMeta && displayMeta.icon || catalogEntry.icon || ''),
@@ -237,6 +299,9 @@
             format,
             duration
         };
+        if (targetInfo.target === 'enemy' && buffType === 'def_down') {
+            step.effect_type = 'enemy_defense_down';
+        }
         if (targetInfo.targetSlots.length) step.target_slots = targetInfo.targetSlots;
         return {
             step,
@@ -262,10 +327,31 @@
     function buildBuffSkill(definition, existing) {
         const source = definition || {};
         const name = requireName(source);
+        const damageSources = Array.isArray(source.damages) ? source.damages : [];
         const effects = Array.isArray(source.effects) ? source.effects : [];
         if (effects.length === 0) throw new Error('强化技能至少需要一个效果。');
         const id = String(source.id || existing && existing.id || createId());
-        const normalized = effects.map((effect, index) => normalizeBuffEffect(effect, id, index));
+        const displayMode = normalizeBuffDisplayMode(source.displayMode || source.display_mode);
+        const normalizedDamages = damageSources.map(normalizeDamagePart);
+        const normalizedEffects = effects.map((effect, index) => normalizeBuffEffect(
+            applyDefaultBuffZone(effect, displayMode),
+            id,
+            index
+        ));
+        if (displayMode === 'large') {
+            const statusDisplay = {
+                mode: 'large',
+                group_id: id,
+                label: name,
+                initial: getNameInitial(name)
+            };
+            normalizedEffects.forEach((item) => {
+                item.step.unique = true;
+                item.step.status_display = cloneJson(statusDisplay);
+                item.step.display_detail = item.step.name;
+            });
+        }
+        const skillIcon = displayMode === 'large' ? '' : String(source.icon || '').trim();
         const now = new Date().toISOString();
         return {
             id,
@@ -273,42 +359,48 @@
             owner_id: 'local',
             kind: 'active',
             custom_type: 'buff',
+            buff_display_mode: displayMode,
             typeLabel: '自定义强化技能',
             name,
             desc: String(source.desc || source.description || '').trim(),
-            icon: String(source.icon || '').trim(),
+            icon: skillIcon,
             show_icon: false,
-            steps: normalized.map((item) => item.step),
+            // 强化技能的附加伤害始终先结算，随后才施加本技能的Buff。
+            steps: normalizedDamages.map((item) => item.step)
+                .concat(normalizedEffects.map((item) => item.step)),
             manual_definition: {
                 type: 'buff',
                 name,
                 desc: String(source.desc || source.description || '').trim(),
-                icon: String(source.icon || '').trim(),
-                effects: normalized.map((item) => item.definition)
+                displayMode,
+                icon: skillIcon,
+                damages: normalizedDamages.map((item) => item.definition),
+                effects: normalizedEffects.map((item) => item.definition)
             },
             created_at: existing && existing.created_at ? existing.created_at : now,
             updated_at: now
         };
     }
 
-    function buildDamageSkill(definition, existing) {
-        const source = definition || {};
-        const name = requireName(source);
-        const multiplier = Number(source.multiplier != null ? source.multiplier : source.mult);
-        const hits = Math.floor(Number(source.hits));
-        if (!Number.isFinite(multiplier) || multiplier <= 0) throw new Error('单hit倍率必须大于0。');
-        if (!Number.isFinite(hits) || hits < 1 || hits > 999) throw new Error('hit数必须是1至999之间的整数。');
+    function normalizeDamagePart(source, index) {
+        const part = source || {};
+        const partLabel = `第${index + 1}段伤害`;
+        const element = String(part.element || part.damageElement || part.damage_element || 'own_element');
+        if (!DAMAGE_ELEMENTS.includes(element)) throw new Error(`${partLabel}的伤害属性无效：${element}`);
+        const multiplier = Number(part.multiplier != null ? part.multiplier : part.mult);
+        const hits = Math.floor(Number(part.hits));
+        if (!Number.isFinite(multiplier) || multiplier <= 0) throw new Error(`${partLabel}的单hit倍率必须大于0。`);
+        if (!Number.isFinite(hits) || hits < 1 || hits > 999) throw new Error(`${partLabel}的hit数必须是1至999之间的整数。`);
 
-        const decayMode = String(source.decayMode || source.decay_mode || 'fuzzy');
-        if (decayMode !== 'exact' && decayMode !== 'fuzzy') throw new Error('衰减方式必须是精确表或模糊上限。');
-        const thresholdTable = String(source.thresholdTable || source.threshold_table || '').trim();
-        const cap = Number(source.cap);
-        if (decayMode === 'exact' && !thresholdTable) throw new Error('请选择精确衰减表。');
+        const decayMode = String(part.decayMode || part.decay_mode || 'fuzzy');
+        if (decayMode !== 'exact' && decayMode !== 'fuzzy') throw new Error(`${partLabel}的衰减方式必须是精确表或模糊上限。`);
+        const thresholdTable = String(part.thresholdTable || part.threshold_table || '').trim();
+        const cap = Number(part.cap);
+        if (decayMode === 'exact' && !thresholdTable) throw new Error(`${partLabel}需要选择精确衰减表。`);
         if (decayMode === 'fuzzy' && (!Number.isFinite(cap) || cap <= 0)) {
-            throw new Error('单hit模糊衰减上限必须大于0。');
+            throw new Error(`${partLabel}的单hit模糊衰减上限必须大于0。`);
         }
 
-        const id = String(source.id || existing && existing.id || createId());
         const step = {
             do: 'damage',
             target: 'enemy',
@@ -316,8 +408,33 @@
             mult: multiplier,
             hits
         };
+        // 自属性不写死在步骤中，结算时使用实际释放者的属性。
+        if (element !== 'own_element') step.element = element;
         if (decayMode === 'exact') step.threshold_table = thresholdTable;
         else step.cap = cap;
+
+        return {
+            step,
+            definition: {
+                element,
+                multiplier,
+                hits,
+                decayMode,
+                thresholdTable: decayMode === 'exact' ? thresholdTable : '',
+                cap: decayMode === 'fuzzy' ? cap : null
+            }
+        };
+    }
+
+    function buildDamageSkill(definition, existing) {
+        const source = definition || {};
+        const name = requireName(source);
+        const damageSources = Array.isArray(source.damages) && source.damages.length
+            ? source.damages
+            : [source];
+        const normalized = damageSources.map(normalizeDamagePart);
+        const firstDamage = normalized[0].definition;
+        const id = String(source.id || existing && existing.id || createId());
 
         const now = new Date().toISOString();
         return {
@@ -331,17 +448,20 @@
             desc: String(source.desc || source.description || '').trim(),
             icon: String(source.icon || '').trim(),
             show_icon: true,
-            steps: [step],
+            steps: normalized.map((item) => item.step),
             manual_definition: {
                 type: 'damage',
                 name,
                 desc: String(source.desc || source.description || '').trim(),
                 icon: String(source.icon || '').trim(),
-                multiplier,
-                hits,
-                decayMode,
-                thresholdTable: decayMode === 'exact' ? thresholdTable : '',
-                cap: decayMode === 'fuzzy' ? cap : null
+                damages: normalized.map((item) => item.definition),
+                // 保留首段镜像字段，使旧版读取器仍能把多段技能当作单段技能读取。
+                element: firstDamage.element,
+                multiplier: firstDamage.multiplier,
+                hits: firstDamage.hits,
+                decayMode: firstDamage.decayMode,
+                thresholdTable: firstDamage.thresholdTable,
+                cap: firstDamage.cap
             },
             created_at: existing && existing.created_at ? existing.created_at : now,
             updated_at: now
@@ -398,7 +518,9 @@
         getBuffCatalog,
         getBuffType,
         resolveBuffFormat,
-        getValueUnit
+        getValueUnit,
+        normalizeBuffDisplayMode,
+        DAMAGE_ELEMENTS
     };
 
     global.ManualCustomSkills = api;

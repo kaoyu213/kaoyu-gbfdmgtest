@@ -89,7 +89,8 @@ class BuffRegistry {
   }
 
   /**
-   * 对某个 buff_type，按 zone 规则聚合所有 subtype，zone 间加算，返回最终值
+   * 对某个 buff_type，先按 zone 规则聚合，再按类型的 combineRule 合并各分区。
+   * combineRule 默认为 sum；乱击等“所有来源取高”的类型使用 max。
    * @param {string} buffType
    * @returns {number} 最终统合值
    */
@@ -110,13 +111,12 @@ class BuffRegistry {
       Object.keys(subStore).forEach(z => allZones.add(z));
     });
 
-    let total = 0;
+    const combineRule = rules && rules.combineRule === 'max' ? 'max' : 'sum';
+    const resolvedZoneValues = [];
 
     // 对每个 subtype 独立聚合
     for (const [stKey, subStore] of Object.entries(typeStore)) {
       const subtype = stKey === '__null__' ? null : stKey;
-      let subtypeTotal = 0;
-
       for (const zone of allZones) {
         const entries = subStore[zone] || [];
         if (entries.length === 0) continue;
@@ -149,16 +149,73 @@ class BuffRegistry {
           zoneValue = cap;
         }
 
-        subtypeTotal += zoneValue;
+        resolvedZoneValues.push(zoneValue);
       }
-
-      total += subtypeTotal;
     }
+
+    let total = combineRule === 'max'
+      ? (resolvedZoneValues.length ? Math.max(...resolvedZoneValues) : 0)
+      : resolvedZoneValues.reduce((sum, value) => sum + value, 0);
 
     const typeCap = rules && rules.cap != null ? Number(rules.cap) : null;
     if (typeCap !== null && Number.isFinite(typeCap) && total > typeCap) {
       return typeCap;
     }
+    return total;
+  }
+
+  /**
+   * 聚合指定 subtype 集合。与 getTotal 的区别是：先把所有适用 subtype
+   * 的条目按 zone 合并，再执行该 zone 的取高/相加/覆盖规则。
+   * 这用于属性攻击等“全属性 + 自属性 + 指定属性”可能同时适用的 Buff，
+   * 避免同一 chara_skill 分区分别取高后又错误相加。
+   * @param {string} buffType
+   * @param {Array<string|null>} subtypes
+   * @returns {number}
+   */
+  getTotalForSubtypes(buffType, subtypes) {
+    const typeStore = this.store[buffType];
+    if (!typeStore) return 0;
+
+    const rules = (typeof BUFF_TYPE_ZONE_RULES !== 'undefined')
+      ? BUFF_TYPE_ZONE_RULES[buffType]
+      : null;
+    const selectedKeys = new Set((Array.isArray(subtypes) ? subtypes : [])
+      .map((subtype) => subtype == null ? '__null__' : String(subtype)));
+    if (selectedKeys.size === 0) return 0;
+
+    const allZones = new Set(rules ? Object.keys(rules.zones || {}) : []);
+    selectedKeys.forEach((stKey) => {
+      const subStore = typeStore[stKey];
+      if (subStore) Object.keys(subStore).forEach((zone) => allZones.add(zone));
+    });
+
+    const resolvedZoneValues = [];
+    allZones.forEach((zone) => {
+      const entries = [];
+      selectedKeys.forEach((stKey) => {
+        const subStore = typeStore[stKey];
+        if (subStore && Array.isArray(subStore[zone])) entries.push(...subStore[zone]);
+      });
+      if (entries.length === 0) return;
+
+      const rule = (typeof getZoneRule === 'function') ? getZoneRule(buffType, zone) : 'sum';
+      let zoneValue = 0;
+      if (rule === 'max') zoneValue = Math.max(...entries.map((entry) => entry.value));
+      else if (rule === 'override') zoneValue = entries[entries.length - 1].value;
+      else zoneValue = entries.reduce((sum, entry) => sum + entry.value, 0);
+
+      const cap = (typeof getZoneCap === 'function') ? getZoneCap(buffType, zone) : null;
+      if (cap !== null && zoneValue > cap) zoneValue = cap;
+      resolvedZoneValues.push(zoneValue);
+    });
+
+    const combineRule = rules && rules.combineRule === 'max' ? 'max' : 'sum';
+    let total = combineRule === 'max'
+      ? (resolvedZoneValues.length ? Math.max(...resolvedZoneValues) : 0)
+      : resolvedZoneValues.reduce((sum, value) => sum + value, 0);
+    const typeCap = rules && rules.cap != null ? Number(rules.cap) : null;
+    if (typeCap !== null && Number.isFinite(typeCap) && total > typeCap) total = typeCap;
     return total;
   }
 

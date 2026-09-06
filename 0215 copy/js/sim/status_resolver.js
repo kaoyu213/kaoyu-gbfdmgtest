@@ -15,6 +15,15 @@
         return target;
     }
 
+    function copyStatusDisplay(source, target) {
+        if (!source || !target) return target;
+        if (source.status_display && typeof source.status_display === 'object') {
+            target.status_display = cloneJson(source.status_display);
+        }
+        if (source.display_detail) target.display_detail = String(source.display_detail);
+        return target;
+    }
+
     function normalizeStepTarget(target) {
         const t = target == null ? '' : String(target).trim();
         if (t === 'enemy') return 'enemy_single';
@@ -155,7 +164,7 @@
                 target_slots: Array.isArray(step.target_slots) ? step.target_slots.map(Number) : undefined,
                 status: {
                     status_id: statusId,
-                    kind: 'generic',
+                    kind: step.unique ? 'unique' : 'generic',
                     name: step.name || (displayMeta && displayMeta.title) || statusId,
                     icon: step.icon || (displayMeta && displayMeta.icon) || '',
                     source_display: step.source_display || (context && context.skillName) || '',
@@ -178,6 +187,7 @@
                     ]
                 }
             };
+            copyStatusDisplay(step, normalized.status);
             return normalized;
         }
 
@@ -201,6 +211,7 @@
                 .map((effect) => normalizeSimpleEffect(effect))
                 .filter(Boolean)
         };
+        copyStatusDisplay(step, status);
         if (Array.isArray(step.omitted)) {
             status.omitted_effects = step.omitted.map((description) => ({
                 description: String(description)

@@ -45,12 +45,11 @@ function readJson(relativePath) {
     return JSON.parse(fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8'));
 }
 
-run('新增的8类 Buff 都拥有 charabonus 相加分区', () => {
+run('角色个人加成类型保留 charabonus 相加分区', () => {
     [
         'indep_cumulative_atk',
         'indep_unjudged_atk',
         'indep_special_enmity_atk',
-        'taken_dmg_amp',
         'dmg_taken_lowered',
         'lowering_dmg_taken',
         'element_dmg_cut',
@@ -59,6 +58,31 @@ run('新增的8类 Buff 都拥有 charabonus 相加分区', () => {
         assert.ok(buffZones.getZoneNames(buffType).includes('charabonus'), buffType);
         assert.strictEqual(buffZones.getZoneRule(buffType, 'charabonus'), 'sum', buffType);
     });
+});
+
+run('敌方承受伤害效果使用专用分区规则', () => {
+    assert.deepStrictEqual(
+        buffZones.getZoneNames('taken_dmg_amp').filter((zone) => zone !== 'testbuff'),
+        ['enemy_db', 'independent']
+    );
+    assert.deepStrictEqual(buffZones.getZoneNames('taken_dmg_supp'), [
+        'enemy_db', 'enemy_sp', 'cumulative', 'independent'
+    ]);
+    ['enemy_db', 'enemy_sp', 'cumulative', 'independent'].forEach((zone) => {
+        assert.strictEqual(buffZones.getZoneRule('taken_dmg_supp', zone), 'sum', zone);
+    });
+    assert.strictEqual(
+        buffDirectory.getBuffDisplayMeta('taken_dmg_supp', 'cumulative').icon,
+        'buff icon/status_7839.png'
+    );
+    const { BuffRegistry } = require('../js/buff_registry.js');
+    const registry = new BuffRegistry();
+    registry.addByProp('taken_dmg_supp', 'enemy_db', 'DB_A', 10000);
+    registry.addByProp('taken_dmg_supp', 'enemy_db', 'DB_B', 20000);
+    registry.addByProp('taken_dmg_supp', 'enemy_sp', 'SP_A', 30000);
+    registry.addByProp('taken_dmg_supp', 'cumulative', '累积_A', 40000);
+    registry.addByProp('taken_dmg_supp', 'independent', '独立_A', 50000);
+    assert.strictEqual(registry.getTotal('taken_dmg_supp'), 150000);
 });
 
 run('属性减免和属性减轻可正确解析属性子类型', () => {
@@ -285,22 +309,28 @@ run('敌方减防 charabuff 同时适配静态值与敌方状态', () => {
     assert.strictEqual(action.target, 'enemy_single');
     assert.strictEqual(action.status.duration.type, 'permanent');
     assert.strictEqual(action.status.effects[0].effect_type, 'enemy_defense_down');
-    assert.strictEqual(action.status.effects[0].zone, 'normal');
+    assert.strictEqual(action.status.effects[0].zone, 'one_sided');
     assert.strictEqual(action.status.effects[0].value, 0.5);
 });
 
-run('普通减防上限50%，独立减防可突破且最终上限99%', () => {
+run('片面/双面/累积减防合计上限50%，独立减防随后加算', () => {
     const breakdown = charabuffRegistry.resolveEnemyDefenseDownEffects([
-        { definition: { prop: 'def_down', zone: 'normal', value: '40%' }, sourceId: 'normal_40' },
-        { definition: { prop: 'def_down', zone: 'normal', value: '30%' }, sourceId: 'normal_30' },
+        { definition: { prop: 'def_down', zone: 'one_sided', value: '40%' }, sourceId: 'one_sided_40' },
+        { definition: { prop: 'def_down', zone: 'one_sided', value: '30%' }, sourceId: 'one_sided_30' },
+        { definition: { prop: 'def_down', zone: 'both_sided', value: '15%' }, sourceId: 'both_sided_15' },
+        { definition: { prop: 'def_down', zone: 'cumulative', value: '10%' }, sourceId: 'cumulative_10' },
         { definition: { prop: 'def_down', zone: 'independent', value: '10%' }, sourceId: 'independent_10' }
     ]);
+    assert.strictEqual(breakdown.oneSided, 0.4);
+    assert.strictEqual(breakdown.bothSided, 0.15);
+    assert.strictEqual(breakdown.cumulative, 0.1);
+    assert.strictEqual(breakdown.ordinaryRaw, 0.65);
     assert.strictEqual(breakdown.normal, 0.5);
     assert.strictEqual(breakdown.independent, 0.1);
     assert.strictEqual(breakdown.total, 0.6);
 
     const capped = charabuffRegistry.resolveEnemyDefenseDownEffects([
-        { prop: 'def_down', zone: 'normal', value: '80%' },
+        { prop: 'def_down', zone: 'one_sided', value: '80%' },
         { prop: 'def_down', zone: 'independent', value: '80%' }
     ]);
     assert.strictEqual(capped.total, 0.99);

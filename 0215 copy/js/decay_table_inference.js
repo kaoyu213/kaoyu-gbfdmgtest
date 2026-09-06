@@ -66,6 +66,76 @@
         return Object.keys(bySignature).map(function (signature) { return bySignature[signature]; });
     }
 
+    function normalizeThresholdRanges(rawRanges) {
+        var source = Array.isArray(rawRanges) ? rawRanges : [];
+        return [0, 1, 2, 3].map(function (index) {
+            var raw = source[index];
+            if (raw == null || raw === '') return null;
+            if (Number.isFinite(Number(raw))) {
+                var exact = Math.round(Number(raw));
+                if (exact <= 0) throw new Error('第' + (index + 1) + '个阈值约束必须大于0。');
+                return { min: exact, max: exact };
+            }
+            var minimum = raw && raw.min != null && raw.min !== '' ? Math.round(Number(raw.min)) : NaN;
+            var maximum = raw && raw.max != null && raw.max !== '' ? Math.round(Number(raw.max)) : NaN;
+            if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum <= 0 || maximum <= 0) {
+                throw new Error('第' + (index + 1) + '个阈值约束必须是正整数或完整的最小值/最大值区间。');
+            }
+            if (minimum > maximum) {
+                throw new Error('第' + (index + 1) + '个阈值约束的最小值不能大于最大值。');
+            }
+            return { min: minimum, max: maximum };
+        });
+    }
+
+    function normalizeSlopeConstraints(rawConstraints) {
+        var source = Array.isArray(rawConstraints) ? rawConstraints : [];
+        return [0, 1, 2, 3, 4].map(function (index) {
+            var raw = source[index];
+            if (raw == null || raw === '') return null;
+            var slope = Number(raw);
+            if (!Number.isFinite(slope) || slope <= 0 || slope > 1) {
+                throw new Error('第' + (index + 1) + '段斜率必须大于0且不超过100%。');
+            }
+            slope = Math.round(slope * 10000) / 10000;
+            if (index === 0 && Math.abs(slope - 1) > 1e-9) {
+                throw new Error('第1段斜率必须为100%。');
+            }
+            return slope;
+        });
+    }
+
+    function constrainSlopeTemplates(templates, constraints) {
+        var hasConstraint = constraints.some(function (value) { return value != null; });
+        if (!hasConstraint) return templates;
+        var matches = templates.filter(function (template) {
+            return constraints.every(function (slope, index) {
+                return slope == null || Math.abs(template.slopes[index] - slope) < 1e-9;
+            });
+        });
+        if (matches.length) return matches;
+
+        var complete = constraints.every(function (value) { return value != null; });
+        if (!complete) {
+            throw new Error('当前锁定的部分斜率与现有技伤斜率模板不一致；若要使用新斜率，请填写完整5段斜率。');
+        }
+        for (var index = 1; index < constraints.length; index++) {
+            if (constraints[index] >= constraints[index - 1]) {
+                throw new Error('自定义斜率必须从第1段到第5段严格递减。');
+            }
+        }
+        return [{
+            id: 'custom_locked',
+            label: '用户锁定的自定义斜率',
+            slopes: constraints.slice(),
+            sources: ['custom_locked']
+        }];
+    }
+
+    function thresholdAllowed(value, range) {
+        return !range || (value >= range.min && value <= range.max);
+    }
+
     function thresholdChoices(value, step) {
         return uniqueNumbers([
             roundTo(value, step, 'floor'),
@@ -145,6 +215,11 @@
                 finalPerHit: finalPerHit,
                 x: theory / capCoef,
                 y: observedDecayed / capCoef,
+                capCoef: capCoef,
+                taxMultiplier: taxMultiplier,
+                supp: supp,
+                hits: hits,
+                totalMode: totalMode,
                 settings: settings,
                 relaxation: Math.max(0, asNumber(settings.capRelaxationPercent, 0) / 100)
             };
@@ -306,6 +381,92 @@
         };
     }
 
+    function predictFinalForPoint(theory, point, thresholds, slopes) {
+        var perHit = Math.ceil((
+            decayDamage(theory, point.capCoef, thresholds, slopes, point.relaxation) + point.supp
+        ) * point.taxMultiplier);
+        return point.totalMode ? perHit * point.hits : perHit;
+    }
+
+    /**
+     * 穷举阶段只计算排名需要的端点误差，避免为每张合法表创建完整预测对象、
+     * 中心值和无衰减对照。最终入选的少量候选再走 evaluateCandidate 补全详情。
+     */
+    function evaluateCandidateFast(points, thresholds, slopes, options, typicalFinal, displayCapDamage) {
+        var squared = 0;
+        var maxError = 0;
+        for (var pointIndex = 0; pointIndex < points.length; pointIndex++) {
+            var point = points[pointIndex];
+            var predictedMinimum = predictFinalForPoint(point.theoryMin, point, thresholds, slopes);
+            var predictedMaximum = predictFinalForPoint(point.theoryMax, point, thresholds, slopes);
+            if (predictedMinimum > predictedMaximum) {
+                var swap = predictedMinimum;
+                predictedMinimum = predictedMaximum;
+                predictedMaximum = swap;
+            }
+            var minimumError = predictedMinimum - point.actualMin;
+            var maximumError = predictedMaximum - point.actualMax;
+            squared += (minimumError * minimumError + maximumError * maximumError) / 2;
+            maxError = Math.max(maxError, Math.abs(minimumError), Math.abs(maximumError));
+        }
+        var rmse = Math.sqrt(squared / points.length);
+        var typical = Math.max(1, asNumber(typicalFinal, 1));
+        var penalty = thresholdComplexity(thresholds) * Math.max(1, typical * 0.00001);
+        var capDamage = Number.isFinite(displayCapDamage)
+            ? displayCapDamage
+            : decayDamage(thresholds[3], 1, thresholds, slopes, 0);
+        var displayCap = capDamage / 10000;
+        var fuzzyDisplayCap = Math.max(0, asNumber(options.fuzzyDisplayCap, 0));
+        var fuzzyTolerance = Math.max(1, asNumber(options.fuzzyCapTolerance, 10000));
+        var fuzzyDifference = fuzzyDisplayCap > 0
+            ? Math.abs(displayCap * 10000 - fuzzyDisplayCap)
+            : 0;
+        var fuzzyPenalty = fuzzyDisplayCap > 0
+            ? Math.max(0, fuzzyDifference - fuzzyTolerance) * 1000
+            : 0;
+        return {
+            thresholds: thresholds.slice(),
+            slopes: slopes.slice(),
+            displayCap: Math.round(displayCap * 100) / 100,
+            rmse: rmse,
+            relativeRmse: rmse / Math.max(1, typical),
+            maxError: maxError,
+            score: rmse + penalty + fuzzyPenalty,
+            fuzzyDifference: fuzzyDifference,
+            splitCounts: []
+        };
+    }
+
+    function distanceFromInterval(value, minimum, maximum) {
+        var low = Math.min(minimum, maximum);
+        var high = Math.max(minimum, maximum);
+        if (value < low) return low - value;
+        if (value > high) return value - high;
+        return 0;
+    }
+
+    /**
+     * 固定前三个阈值后，预测伤害随第四阈值单调不减。
+     * 用第四阈值合法区间两端形成每组样本的“最佳可能预测区间”；实际值到该区间
+     * 的距离就是这一整条分支不可能突破的误差下界，可安全跳过劣于当前候选的分支。
+     */
+    function fourthThresholdErrorLowerBound(points, firstThresholds, minimumT4, maximumT4, slopes) {
+        var minimumThresholds = firstThresholds.concat(minimumT4);
+        var maximumThresholds = firstThresholds.concat(maximumT4);
+        var squared = 0;
+        for (var pointIndex = 0; pointIndex < points.length; pointIndex++) {
+            var point = points[pointIndex];
+            var lowMinimum = predictFinalForPoint(point.theoryMin, point, minimumThresholds, slopes);
+            var highMinimum = predictFinalForPoint(point.theoryMin, point, maximumThresholds, slopes);
+            var lowMaximum = predictFinalForPoint(point.theoryMax, point, minimumThresholds, slopes);
+            var highMaximum = predictFinalForPoint(point.theoryMax, point, maximumThresholds, slopes);
+            var minimumDistance = distanceFromInterval(point.actualMin, lowMinimum, highMinimum);
+            var maximumDistance = distanceFromInterval(point.actualMax, lowMaximum, highMaximum);
+            squared += (minimumDistance * minimumDistance + maximumDistance * maximumDistance) / 2;
+        }
+        return Math.sqrt(squared / points.length);
+    }
+
     function buildThresholdCombinations(choiceSets, index, current, output) {
         if (index === choiceSets.length) {
             output.push(current.slice());
@@ -319,10 +480,12 @@
         });
     }
 
-    function buildNextTargets(candidates, points, step) {
+    function buildNextTargets(candidates, points, step, thresholdRanges) {
         var selected = candidates.slice(0, Math.min(8, candidates.length));
         var targets = [];
         for (var stage = 0; stage < 4; stage++) {
+            var lockedRange = thresholdRanges && thresholdRanges[stage];
+            if (lockedRange && lockedRange.min === lockedRange.max) continue;
             var values = selected.map(function (candidate) { return candidate.thresholds[stage]; })
                 .sort(function (left, right) { return left - right; });
             if (!values.length) continue;
@@ -359,6 +522,7 @@
      * 因此枚举前三个阈值后可直接解出 t4 的合法整数区间，避免四重暴力循环。
      */
     function buildExhaustiveCandidates(points, options, step, slopeTemplates) {
+        var thresholdRanges = options.thresholdRanges || [null, null, null, null];
         var fuzzy = Math.max(0, asNumber(options.fuzzyDisplayCap, 0));
         var tolerance = Math.max(1, asNumber(options.fuzzyCapTolerance, 10000));
         var observedCap = points.reduce(function (maximum, point) { return Math.max(maximum, point.y); }, 0);
@@ -366,15 +530,23 @@
         var capMaximum = fuzzy > 0 ? fuzzy + tolerance : Math.max(capMinimum + step, observedCap * 1.5);
         var maximumObservedTheory = points[points.length - 1].x;
         // 已有正式技伤表的第四阈值/基础上限最大约4.65倍，取5倍覆盖同类结构。
+        var maximumLockedThreshold = thresholdRanges.reduce(function (maximum, range, index) {
+            // 较早阈值锁在默认搜索上界之外时，仍需为后续严格递增的阈值预留网格空间。
+            return range ? Math.max(maximum, range.max + (3 - index) * step) : maximum;
+        }, 0);
         var maximumThreshold = roundTo(Math.max(
             maximumObservedTheory * 1.25,
             capMaximum * 5,
-            step * 8
+            step * 8,
+            maximumLockedThreshold
         ), step, 'ceil');
         var maximumIndex = Math.max(4, Math.floor(maximumThreshold / step));
         var keepPerTemplate = Math.max(3, Math.round(asNumber(options.keepCandidatesPerTemplate, 12)));
+        var typicalFinal = points.reduce(function (sum, point) { return sum + point.actualFinal; }, 0) / points.length;
         var allBest = [];
         var evaluatedCount = 0;
+        var prunedCandidateCount = 0;
+        var prunedBranchCount = 0;
 
         slopeTemplates.forEach(function (template) {
             var slopes = template.slopes;
@@ -389,6 +561,7 @@
 
             for (var i1 = 1; i1 <= maximumIndex - 3; i1++) {
                 var t1 = i1 * step;
+                if (!thresholdAllowed(t1, thresholdRanges[0])) continue;
                 var minimumAtT1 = coefficients[0] * t1
                     + coefficients[1] * ((i1 + 1) * step)
                     + coefficients[2] * ((i1 + 2) * step)
@@ -397,6 +570,7 @@
 
                 for (var i2 = i1 + 1; i2 <= maximumIndex - 2; i2++) {
                     var t2 = i2 * step;
+                    if (!thresholdAllowed(t2, thresholdRanges[1])) continue;
                     var minimumAtT2 = coefficients[0] * t1
                         + coefficients[1] * t2
                         + coefficients[2] * ((i2 + 1) * step)
@@ -405,15 +579,44 @@
 
                     for (var i3 = i2 + 1; i3 <= maximumIndex - 1; i3++) {
                         var t3 = i3 * step;
+                        if (!thresholdAllowed(t3, thresholdRanges[2])) continue;
                         var partial = coefficients[0] * t1 + coefficients[1] * t2 + coefficients[2] * t3;
                         var minimumWithNextT4 = partial + coefficients[3] * ((i3 + 1) * step);
                         if (minimumWithNextT4 > capMaximum + 1e-6) break;
 
                         var minimumI4 = Math.max(i3 + 1, Math.ceil((capMinimum - partial) / (coefficients[3] * step) - 1e-9));
                         var maximumI4 = Math.min(maximumIndex, Math.floor((capMaximum - partial) / (coefficients[3] * step) + 1e-9));
+                        if (thresholdRanges[3]) {
+                            minimumI4 = Math.max(minimumI4, Math.ceil(thresholdRanges[3].min / step));
+                            maximumI4 = Math.min(maximumI4, Math.floor(thresholdRanges[3].max / step));
+                        }
+                        if (minimumI4 > maximumI4) continue;
+                        if (!options.disableDataPruning && templateBest.length >= keepPerTemplate) {
+                            var worstKeptScore = templateBest[templateBest.length - 1].score;
+                            var branchLowerBound = fourthThresholdErrorLowerBound(
+                                points,
+                                [t1, t2, t3],
+                                minimumI4 * step,
+                                maximumI4 * step,
+                                slopes
+                            );
+                            if (branchLowerBound > worstKeptScore + 1e-9) {
+                                prunedBranchCount++;
+                                prunedCandidateCount += maximumI4 - minimumI4 + 1;
+                                continue;
+                            }
+                        }
                         for (var i4 = minimumI4; i4 <= maximumI4; i4++) {
                             var thresholds = [t1, t2, t3, i4 * step];
-                            var candidate = evaluateCandidate(points, thresholds, slopes, options, []);
+                            if (!thresholdAllowed(thresholds[3], thresholdRanges[3])) continue;
+                            var candidate = evaluateCandidateFast(
+                                points,
+                                thresholds,
+                                slopes,
+                                options,
+                                typicalFinal,
+                                partial + coefficients[3] * thresholds[3]
+                            );
                             if (fuzzy > 0 && candidate.fuzzyDifference > tolerance + 1e-6) continue;
                             candidate.slopeTemplateId = template.id;
                             candidate.slopeTemplateLabel = template.label;
@@ -424,6 +627,13 @@
                     }
                 }
             }
+            templateBest = templateBest.map(function (candidate) {
+                var detailed = evaluateCandidate(points, candidate.thresholds, slopes, options, []);
+                detailed.slopeTemplateId = template.id;
+                detailed.slopeTemplateLabel = template.label;
+                detailed.searchMethod = 'exhaustive_branch_and_bound';
+                return detailed;
+            });
             allBest = allBest.concat(templateBest);
         });
 
@@ -434,6 +644,8 @@
         return {
             candidates: allBest,
             evaluatedCount: evaluatedCount,
+            prunedCandidateCount: prunedCandidateCount,
+            prunedBranchCount: prunedBranchCount,
             capMinimum: capMinimum,
             capMaximum: capMaximum,
             maximumThreshold: maximumThreshold
@@ -453,6 +665,9 @@
             fuzzyDisplayCap: 0,
             fuzzyCapTolerance: 10000,
             slopeTemplates: null,
+            thresholdRanges: null,
+            slopeConstraints: null,
+            disableDataPruning: false,
             keepCandidatesPerTemplate: 12,
             maxCandidates: 3
         }, rawOptions || {});
@@ -464,8 +679,19 @@
             throw new Error('各样本的D上限缓和必须保持一致。');
         }
         var step = Math.max(1, Math.round(asNumber(options.thresholdStep, 50000)));
-        var slopeTemplates = normalizeSlopeTemplates(options.slopeTemplates);
+        var thresholdRanges = normalizeThresholdRanges(options.thresholdRanges);
+        thresholdRanges.forEach(function (range, index) {
+            if (!range) return;
+            var firstGridValue = Math.ceil(range.min / step) * step;
+            if (firstGridValue > range.max) {
+                throw new Error('第' + (index + 1) + '个阈值锁定范围内没有符合当前取整单位的整数；请扩大范围或减小阈值取整单位。');
+            }
+        });
+        var slopeConstraints = normalizeSlopeConstraints(options.slopeConstraints);
+        var slopeTemplates = constrainSlopeTemplates(normalizeSlopeTemplates(options.slopeTemplates), slopeConstraints);
         if (!slopeTemplates.length) throw new Error('没有可用于推算的已知技伤斜率模板。');
+        options.thresholdRanges = thresholdRanges;
+        options.slopeConstraints = slopeConstraints;
         var candidates = [];
         var signatures = {};
         var n = points.length;
@@ -521,7 +747,8 @@
                             return thresholdChoices(value, step).filter(function (candidate) {
                                 var leftEnd = boundaries[index];
                                 var rightStart = boundaries[index];
-                                return thresholdIsInGap(candidate, points, leftEnd, rightStart, step);
+                                return thresholdIsInGap(candidate, points, leftEnd, rightStart, step)
+                                    && thresholdAllowed(candidate, thresholdRanges[index]);
                             });
                         });
                         if (choices.some(function (set) { return set.length === 0; })) continue;
@@ -554,7 +781,14 @@
         var exhaustiveSearch = buildExhaustiveCandidates(points, options, step, slopeTemplates);
         // 最终排名只使用完整穷举结果；前面的分段回归仅用于判断样本是否直接覆盖了转折点。
         candidates = exhaustiveSearch.candidates;
-        if (!candidates.length) throw new Error('当前样本无法生成近似表，请检查是否存在重复理论伤害或无效伤害范围。');
+        if (!candidates.length) {
+            var hasLockedConstraint = thresholdRanges.some(function (range) { return !!range; })
+                || slopeConstraints.some(function (slope) { return slope != null; });
+            if (hasLockedConstraint) {
+                throw new Error('已锁定的阈值或斜率与当前样本、Wiki基础上限或阈值取整单位冲突；锁定内容未被修改，请检查新样本或放宽对应约束。');
+            }
+            throw new Error('当前样本无法生成近似表，请检查是否存在重复理论伤害或无效伤害范围。');
+        }
         candidates.sort(function (left, right) {
             if (left.score !== right.score) return left.score - right.score;
             return left.rmse - right.rmse;
@@ -603,7 +837,9 @@
         if (approximateResult) warnings.push('当前数据尚不能唯一锁定五段表，以下为允许较大偏差的探索性近似；继续按推荐区间补点会自动收敛。');
         if (!strictCandidateFound) warnings.push('当前结果来自已知斜率模板下的阈值优化，尚未观察到足以直接识别全部转折点的数据。');
         warnings.push('斜率仅从现有技伤衰减表的' + slopeTemplates.length + '种已知模板中选择，本次采用：' + (best.slopeTemplateLabel || best.slopeTemplateId) + '。');
-        warnings.push('已按' + step.toLocaleString() + '的阈值网格穷举' + exhaustiveSearch.evaluatedCount.toLocaleString() + '张合法候选表，结果不是局部搜索。');
+        warnings.push('已按' + step.toLocaleString() + '的阈值网格执行完整分支限界穷举：实际评分'
+            + exhaustiveSearch.evaluatedCount.toLocaleString() + '张，并利用全部样本的误差下界安全剪枝'
+            + exhaustiveSearch.prunedCandidateCount.toLocaleString() + '张；结果不是局部搜索。');
         var aboveRawCount = points.filter(function (point) { return point.y > point.x * 1.03; }).length;
         if (aboveRawCount >= 2) {
             warnings.push('有' + aboveRawCount + '组样本在扣除已记录的伤害上升与增幅后仍高于理论伤害，可能还存在未记录乘区；这些样本会保留并参与近似，但无法形成零误差表。');
@@ -615,6 +851,11 @@
         }
         if (points.length < 12) warnings.push('样本少于12组，建议在各疑似转折点前后继续补点。');
         if (fuzzyDisplayCap > 0) warnings.push('基础上限已硬性限制在Wiki值±' + Math.round(fuzzyCapTolerance / 10000 * 100) / 100 + '万内。');
+        var lockedThresholdCount = thresholdRanges.filter(function (range) { return !!range; }).length;
+        var lockedSlopeCount = slopeConstraints.filter(function (slope) { return slope != null; }).length;
+        if (lockedThresholdCount || lockedSlopeCount) {
+            warnings.push('本次穷举已将' + lockedThresholdCount + '个阈值约束和' + lockedSlopeCount + '段斜率作为硬条件；后续新增样本不会改写它们。');
+        }
 
         return {
             best: best,
@@ -630,14 +871,21 @@
             },
             slopeTemplateCount: slopeTemplates.length,
             evaluatedCount: exhaustiveSearch.evaluatedCount,
+            prunedCandidateCount: exhaustiveSearch.prunedCandidateCount,
+            prunedBranchCount: exhaustiveSearch.prunedBranchCount,
             searchMethod: 'exhaustive',
             searchBounds: {
                 capMinimum: exhaustiveSearch.capMinimum,
                 capMaximum: exhaustiveSearch.capMaximum,
                 maximumThreshold: exhaustiveSearch.maximumThreshold,
-                thresholdStep: step
+                thresholdStep: step,
+                thresholdRanges: thresholdRanges
             },
-            nextTargets: buildNextTargets(candidates, points, step),
+            constraints: {
+                thresholdRanges: thresholdRanges,
+                slopeConstraints: slopeConstraints
+            },
+            nextTargets: buildNextTargets(candidates, points, step, thresholdRanges),
             warning: warnings.join(' ')
         };
     }
@@ -687,6 +935,8 @@
         predictUndecayedFinalRange: predictUndecayedFinalRange,
         buildStages: buildStages,
         buildConfig: buildConfig,
-        normalizeSlopeTemplates: normalizeSlopeTemplates
+        normalizeSlopeTemplates: normalizeSlopeTemplates,
+        normalizeThresholdRanges: normalizeThresholdRanges,
+        normalizeSlopeConstraints: normalizeSlopeConstraints
     };
 });

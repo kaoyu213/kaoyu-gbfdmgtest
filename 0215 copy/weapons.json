@@ -1,5 +1,28 @@
 [
   {
+    "id": "test_dark_skill_chase_weapon",
+    "name": "暗冴手测试武器（10%）",
+    "type": "spear",
+    "element": "暗",
+    "category": "test",
+    "image": "weapons/M_1040216900.webp",
+    "stats": {
+      "hp": 200,
+      "atk": 3000,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 1.0,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "test_dark_skill_chase_10",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
     "id": "Skeletal Eclipse",
     "name": "暗龙枪",
     "type": "spear",
@@ -152,8 +175,52 @@
         "unlock_level": 0
       },
       {
+        "is_slot": true,
+        "options": [
+          "all_athos",
+          "all_honing"
+        ],
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
+    "id": "Spear of Repudiation",
+    "name": "风老王法武",
+    "type": "spear",
+    "element": "风",
+    "category": "fawu",
+    "image": "weapons/1040212500_03.jpg",
+    "stats": {
+      "hp": 433,
+      "atk": 3855,
+      "max_level": 250,
+      "allow_extra": false,
+      "weapon_multiplier": 1.0,
+      "ca_fixed": 0
+    },
+    "skill_slots": [
+      {
         "is_slot": false,
-        "skill_id": "all_honing",
+        "skill_id": "optimus_apotheosis_big",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+          "na_albus2",
+          "skill_albus2",
+          "ca_albus2",
+          "cb_albus2"
+        ],
+        "unlock_level": 0
+      },
+      {
+        "is_slot": true,
+        "options": [
+          "all_athos",
+          "all_honing"
+        ],
         "unlock_level": 0
       }
     ]
@@ -1091,6 +1158,39 @@
     ]
   },
   {
+    "id": "Orderbringer",
+    "name": "碧骑剑",
+    "type": "sabre",
+    "element": "风",
+    "category": "lm",
+    "image": "weapons/M_1040029400.jpg",
+    "stats": {
+      "hp": 290,
+      "atk": 3321,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "element_maneuver",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_celere_small",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_deathstrike_big",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
     "id": "Rubea Stiria",
     "name": "yqm弓",
     "type": "bow",
@@ -1789,6 +1889,39 @@
     ]
   },
   {
+    "id": "Kaguya's Folding Fan",
+    "name": "辉夜短",
+    "type": "dagger",
+    "element": "风",
+    "category": "lm",
+    "image": "weapons/M_1040117200.jpg",
+    "stats": {
+      "hp": 333,
+      "atk": 3105,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_exalto",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_fandango_small",
+        "unlock_level": 0
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_demolishment_big",
+        "unlock_level": 0
+      }
+    ]
+  },
+  {
     "id": "Bab-Bell Rendezvous",
     "name": "土奶嘴琴",
     "type": "harp",
@@ -1841,6 +1974,39 @@
       {
         "is_slot": false,
         "skill_id": "optimus_stamina_medium",
+        "unlock_level": 150
+      }
+    ]
+  },
+  {
+    "id": "Vortex of the Void",
+    "name": "军神枪",
+    "type": "spear",
+    "element": "风",
+    "category": "lm",
+    "image": "weapons/M_1040212700.jpg",
+    "stats": {
+      "hp": 333,
+      "atk": 3107,
+      "max_level": 150,
+      "allow_extra": false,
+      "weapon_multiplier": 5.0,
+      "ca_fixed": 4000
+    },
+    "skill_slots": [
+      {
+        "is_slot": false,
+        "skill_id": "optimus_stamina_big2",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "optimus_trium_small",
+        "unlock_level": 150
+      },
+      {
+        "is_slot": false,
+        "skill_id": "lmgongjijuexing",
         "unlock_level": 150
       }
     ]

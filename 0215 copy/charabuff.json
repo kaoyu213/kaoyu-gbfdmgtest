@@ -100,14 +100,14 @@
     "name": "测试水属性平A追击E区20%",
     "source": "test",
     "image": "buff icon/bonus_na_dmg.png",
-    "element": "water",
+    "element": "wind",
     "level": 1,
     "maxlevel": 1,
     "cd": "1",
-    "description": "自身获得水属性平A追击 E区（20%），用于追击分区测试。",
+    "description": "自身获得风属性平A追击 E区（20%），用于追击分区测试。",
     "effects": [
       {
-        "prop": "bonus_na_water",
+        "prop": "bonus_na_wind",
         "zone": "E",
         "value": "20%"
       }
@@ -115,19 +115,55 @@
   },
   {
     "id": "test_charabuff_bonus_na_water_a1_20",
-    "name": "测试水属性平A追击A1区20%",
+    "name": "测试风属性平A追击A1区20%",
     "source": "test",
     "image": "buff icon/bonus_na_dmg.png",
-    "element": "water",
+    "element": "wind",
     "level": 1,
     "maxlevel": 1,
     "cd": "1",
-    "description": "自身获得水属性平A追击 A1区（20%），用于追击分区测试。",
+    "description": "自身获得风属性平A追击 A1区（20%），用于追击分区测试。",
     "effects": [
       {
-        "prop": "bonus_na_water",
+        "prop": "bonus_na_wind",
         "zone": "A1",
-        "value": "20%"
+        "value": "10%"
+      }
+    ]
+  },
+  {
+    "id": "test_charabuff_bonus_na_water_a1_20",
+    "name": "测试土属性平A追击A1区30%",
+    "source": "test",
+    "image": "buff icon/bonus_na_dmg.png",
+    "element": "earth",
+    "level": 1,
+    "maxlevel": 1,
+    "cd": "1",
+    "description": "自身获得土属性平A追击 A1区（30%），用于追击分区测试。",
+    "effects": [
+      {
+        "prop": "bonus_na_earth",
+        "zone": "A1",
+        "value": "30%"
+      }
+    ]
+  },
+  {
+    "id": "test_charabuff_bonus_na_water_a1_20",
+    "name": "测试风属性平A追击A1区30%",
+    "source": "test",
+    "image": "buff icon/bonus_na_dmg.png",
+    "element": "wind",
+    "level": 1,
+    "maxlevel": 1,
+    "cd": "1",
+    "description": "自身获得风属性平A追击 A1区（30%），用于追击分区测试。",
+    "effects": [
+      {
+        "prop": "bonus_na_wind",
+        "zone": "A1",
+        "value": "30%"
       }
     ]
   },

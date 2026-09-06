@@ -114,6 +114,34 @@
         { "limit": null,   "slope": 0.01 }
       ]
     },
+    "skill_11.125": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "",
+      "displayCap": 11.125,
+      "label": "技伤上限11.125万",
+      "stages": [
+        { "limit": 75000,  "slope": 1.0 },
+        { "limit": 100000, "slope": 0.7 },
+        { "limit": 125000, "slope": 0.5 },
+        { "limit": 250000, "slope": 0.05 },
+        { "limit": null,   "slope": 0.01 }
+      ]
+    },
+    "skill_13.5": {
+      "type": "skill",
+      "multiplier": null,
+      "damage_limit_type": "1000003",
+      "displayCap": 13.5,
+      "label": "技伤上限13.5万",
+      "stages": [
+        { "limit": 100000, "slope": 1.0 },
+        { "limit": 133333, "slope": 0.5 },
+        { "limit": 166666, "slope": 0.3 },
+        { "limit": 333333, "slope": 0.05 },
+        { "limit": null,   "slope": 0.01 }
+      ]
+    },
     "skill_18.5": {
       "type": "skill",
       "multiplier": null,
@@ -212,6 +240,120 @@
         { "limit": null,   "slope": 0.01 }
       ]
     },
+    "skill_inferred_111": {
+  "type": "skill",
+  "multiplier": 1.5,
+  "damage_limit_type": "",
+  "displayCap": 10.75,
+  "label": "起源枪兵自动炮，技伤推算衰减表 上限10.75万",
+  "stages": [
+    {
+      "limit": 50000,
+      "slope": 1
+    },
+    {
+      "limit": 100000,
+      "slope": 0.5
+    },
+    {
+      "limit": 150000,
+      "slope": 0.3
+    },
+    {
+      "limit": 500000,
+      "slope": 0.05
+    },
+    {
+      "limit": null,
+      "slope": 0.01
+    }
+  ]
+},"skill_inferred_40.5": 
+  {
+  "type": "skill",
+  "multiplier": 2,
+  "damage_limit_type": "",
+  "displayCap": 40.5,
+  "label": "主角技伤：双重打击",
+  "stages": [
+    {
+      "limit": 300000,
+      "slope": 1
+    },
+    {
+      "limit": 400000,
+      "slope": 0.5
+    },
+    {
+      "limit": 500000,
+      "slope": 0.3
+    },
+    {
+      "limit": 1000000,
+      "slope": 0.05
+    },
+    {
+      "limit": null,
+      "slope": 0.01
+    }
+  ]
+},"skill_inferred_35": {
+  "type": "skill",
+  "multiplier": 2,
+  "damage_limit_type": "",
+  "displayCap": 35,
+  "label": "天元小精灵",
+  "stages": [
+    {
+      "limit": 200000,
+      "slope": 1
+    },
+    {
+      "limit": 300000,
+      "slope": 0.7
+    },
+    {
+      "limit": 400000,
+      "slope": 0.5
+    },
+    {
+      "limit": 1000000,
+      "slope": 0.05
+    },
+    {
+      "limit": null,
+      "slope": 0.01
+    }
+  ]
+},"skill_inferred_13.5": {
+  "type": "skill",
+  "multiplier": 1.5,
+  "damage_limit_type": "",
+  "displayCap": 13.5,
+  "label": "炼金龙小精灵 上限13.5万",
+  "stages": [
+    {
+      "limit": 100000,
+      "slope": 1
+    },
+    {
+      "limit": 133333,
+      "slope": 0.5
+    },
+    {
+      "limit": 166666,
+      "slope": 0.3
+    },
+    {
+      "limit": 333333,
+      "slope": 0.05
+    },
+    {
+      "limit": null,
+      "slope": 0.01
+    }
+  ]
+},
     "skill_test": {
       "type": "skill",
       "multiplier": null,

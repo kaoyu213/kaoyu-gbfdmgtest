@@ -4,11 +4,11 @@
     "name": "玲珑佩/龙心",
     "image": "wonders/icon_item_1001_03.png",
     "description": [
-      {"desc": "属性攻击力", "effect": {"element_atk": 0.1}},
+      {"desc": "属性角色的对应属性攻击力", "effect": {"element_atk": 0.1}, "scope": "own_element"},
       {"desc": "防御力", "effect": {"def_linglongpei": 0.1}},
       {"desc": "技能伤害", "effect": {"skill_dmg": 0.05}},
       {"desc": "奥义伤害", "effect": {"ca_dmg": 0.05}},
-      {"desc": "对克制属性伤害增幅", "effect": {"dmg_to_elemental_amp": 0.05}},
+      {"desc": "属性角色对其克制敌人的伤害增幅", "effect": {"element_pair_dmg_amp": 0.05}},
       {"desc": "普通攻击上限", "effect": {"na_dmg_cap": 0.05}},
       {"desc": "技能伤害上限", "effect": {"skill_dmg_cap": 0.05}},
       {"desc": "奥义伤害上限", "effect": {"ca_dmg_cap": 0.05}}
@@ -33,7 +33,7 @@
     "name": "戴冠者",
     "image": "wonders/9013.jpg",
     "description": [
-      {"desc": "全属性攻击力", "effect": {"element_atk": 0.03}}
+      {"desc": "全属性攻击力", "effect": {"element_atk": 0.03}, "scope": "all"}
     ]
   },
   {
@@ -81,7 +81,7 @@
     "name": "命运之环-克属增幅",
     "image": "wonders/2001.jpg",
     "description": [
-      {"desc": "属性角色对克制属性的伤害增幅", "effect": {"dmg_to_elemental_amp": 0.1}}
+      {"desc": "属性角色的六属性克属伤害增幅", "effect": {"element_pair_dmg_amp": 0.1}}
     ]
   }
 ]

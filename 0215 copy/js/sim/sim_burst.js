@@ -23,7 +23,8 @@
         actorSettingsByTurn: { 1: {} },
         lastResult: null,
         resultsByTurn: {},
-        simulationBaseSnapshot: null
+        simulationBaseSnapshot: null,
+        manualSimulationBaseSnapshot: null
     };
 
     const FRONTLINE_SLOTS = [0, 1, 2, 3];
@@ -40,7 +41,8 @@
     });
     const ELEMENT_ALIASES = {
         fire: '火', water: '水', earth: '土', wind: '风', light: '光', dark: '暗',
-        '火': '火', '水': '水', '土': '土', '风': '风', '光': '光', '暗': '暗'
+        non_elemental: '无属性', none: '无属性',
+        '火': '火', '水': '水', '土': '土', '风': '风', '光': '光', '暗': '暗', '无属性': '无属性'
     };
     const ADVANTAGE_TARGET = { '火': '风', '风': '土', '土': '水', '水': '火', '光': '暗', '暗': '光' };
 
@@ -299,11 +301,39 @@
         return ELEMENT_ALIASES[String(value || '').trim().toLowerCase()] || '';
     }
 
-    function isActorAdvantaged(slot, advantageMode) {
+    function normalizeCalculationSettings(settings, fallback) {
+        const base = fallback && typeof fallback === 'object' ? fallback : state.calculation;
+        const source = settings && typeof settings === 'object' ? settings : {};
+        const defense = Number(source.defense == null ? base.defense : source.defense);
+        const critMode = String(source.critMode || base.critMode || 'non_crit');
+        const worldCapMode = String(source.worldCapMode || base.worldCapMode || '660');
+        return {
+            enemyElement: normalizeElement(source.enemyElement == null ? base.enemyElement : source.enemyElement),
+            defense: Number.isFinite(defense) ? Math.max(0.1, defense) : 10,
+            randomMode: (source.randomMode == null ? base.randomMode : source.randomMode) === 'min' ? 'min' : 'theory',
+            critMode: ['non_crit', 'expected', 'lower_bound', 'upper_bound'].includes(critMode) ? critMode : 'non_crit',
+            worldCapMode: ['660', '1310', 'none'].includes(worldCapMode) ? worldCapMode : '660'
+        };
+    }
+
+    function getBattleCalculationSettings(battleState) {
+        return normalizeCalculationSettings(
+            battleState && battleState.calculationSettings,
+            state.calculation
+        );
+    }
+
+    function getSimulationSnapshot(battleState) {
+        return battleState && battleState.simulationBaseSnapshot
+            ? battleState.simulationBaseSnapshot
+            : state.simulationBaseSnapshot;
+    }
+
+    function isActorAdvantaged(slot, advantageMode, calculationSettings) {
         if (advantageMode === 'advantage') return true;
         if (advantageMode === 'neutral') return false;
         const actorElement = normalizeElement(getPartyElement(slot));
-        const enemyElement = normalizeElement(state.calculation.enemyElement);
+        const enemyElement = normalizeElement((calculationSettings || state.calculation).enemyElement);
         return !!actorElement && !!enemyElement && ADVANTAGE_TARGET[actorElement] === enemyElement;
     }
 
@@ -685,29 +715,39 @@
     }
 
     function getActorCalculationContext(slot, battleState) {
+        const calculation = getBattleCalculationSettings(battleState);
         const settings = ensureActorSettings(slot, battleState && battleState.turn);
-        const useOverride = state.settingsMode === 'advanced' && settings.calcOverride;
-        const randomMode = useOverride ? settings.randomMode : state.calculation.randomMode;
-        const critMode = useOverride ? settings.critMode : state.calculation.critMode;
+        const useOverride = !(battleState && battleState.manualTimeline)
+            && state.settingsMode === 'advanced'
+            && settings.calcOverride;
+        const randomMode = useOverride ? settings.randomMode : calculation.randomMode;
+        const critMode = useOverride ? settings.critMode : calculation.critMode;
         const advantageMode = useOverride ? settings.advantageMode : 'auto';
-        const worldCapMode = useOverride ? settings.worldCapMode : state.calculation.worldCapMode;
-        const isAdvantage = isActorAdvantaged(slot, advantageMode);
-        const snapshotActor = state.simulationBaseSnapshot
-            && state.simulationBaseSnapshot.actors
-            ? state.simulationBaseSnapshot.actors[slot]
+        const worldCapMode = useOverride ? settings.worldCapMode : calculation.worldCapMode;
+        const isAdvantage = isActorAdvantaged(slot, advantageMode, calculation);
+        const snapshot = getSimulationSnapshot(battleState);
+        const snapshotActor = snapshot && snapshot.actors
+            ? snapshot.actors[slot]
             : null;
         const runtimeEntries = getBattleStatusZoneEntries(slot, battleState);
-        const effectTotals = runtimeEntries.length === 0 && snapshotActor && snapshotActor.isAdvantage === isAdvantage
+        const actorEffectTotals = runtimeEntries.length === 0 && snapshotActor && snapshotActor.isAdvantage === isAdvantage
             ? snapshotActor.effectTotals
             : buildSimulationEffectTotals(slot, isAdvantage, runtimeEntries);
+        const effectTotals = mergeEnemyDamageEffectTotals(actorEffectTotals, battleState);
 
         return {
-            defense: state.calculation.defense,
+            defense: calculation.defense,
             defenseDown: getEnemyDefenseDownPercent(battleState),
             randomMode,
             randomFactor: getSimulationRandomFactor(randomMode),
             critMode,
             isAdvantage,
+            forceAdvantage: advantageMode === 'advantage',
+            forceNeutral: advantageMode === 'neutral',
+            actorElement: getPartyElement(slot),
+            damageElement: getPartyElement(slot),
+            enemyElement: calculation.enemyElement,
+            mainElement: getPartyElement(0),
             worldCapMode,
             effectTotals
         };
@@ -752,6 +792,7 @@
                             <option value="风">风</option>
                             <option value="光">光</option>
                             <option value="暗">暗</option>
+                            <option value="无属性">无属性</option>
                         </select>
                     </label>
                     <label class="burst-top-field">防御值
@@ -1371,6 +1412,18 @@
             });
         }
         out._charabuffZoneEffectTotals = {};
+        const partyStats = typeof party !== 'undefined' && party[slot] && party[slot].stats
+            ? party[slot].stats
+            : null;
+        out._elementAtkEntries = partyStats && Array.isArray(partyStats._elementAtkEntries)
+            ? partyStats._elementAtkEntries
+                .filter((entry) => {
+                    if (!entry) return false;
+                    const sourceId = String(entry.sourceId || '');
+                    return entry.zone !== 'chara_skill' && sourceId.indexOf('status:') !== 0;
+                })
+                .map((entry) => Object.assign({}, entry))
+            : [];
         if (typeof overlayCharaEarringElementAtkFromParty === 'function') overlayCharaEarringElementAtkFromParty(out, slot);
         if (typeof overlayCharaLbElementAtkFromParty === 'function') overlayCharaLbElementAtkFromParty(out, slot);
         if (typeof overlayCharaCapsFromParty === 'function') overlayCharaCapsFromParty(out, slot);
@@ -1389,13 +1442,15 @@
             : null;
     }
 
-    function createSimulationBaseSnapshot() {
+    function createSimulationBaseSnapshot(calculationSettings, options) {
+        const calculation = normalizeCalculationSettings(calculationSettings, state.calculation);
+        const allowActorOverrides = !(options && options.manualTimeline);
         const actors = {};
         FRONTLINE_SLOTS.concat(SUB_SLOTS).forEach((slot) => {
             const settings = ensureActorSettings(slot, 1);
-            const useOverride = state.settingsMode === 'advanced' && settings.calcOverride;
+            const useOverride = allowActorOverrides && state.settingsMode === 'advanced' && settings.calcOverride;
             const advantageMode = useOverride ? settings.advantageMode : 'auto';
-            const isAdvantage = isActorAdvantaged(slot, advantageMode);
+            const isAdvantage = isActorAdvantaged(slot, advantageMode, calculation);
             actors[slot] = {
                 slot,
                 panelAttack: parseDisplayNumber(`char-panel-atk-${slot}`),
@@ -1465,9 +1520,18 @@
         const effects = [];
         getEnemyStatuses(battleState).forEach((status) => {
             (Array.isArray(status && status.effects) ? status.effects : []).forEach((effect, index) => {
-                if (!effect || effect.effect_type !== 'enemy_defense_down') return;
+                if (!effect) return;
+                const formula = effect.formula && typeof effect.formula === 'object'
+                    ? effect.formula
+                    : effect.prop && effect.zone ? effect : null;
+                if (effect.effect_type !== 'enemy_defense_down' && (!formula || formula.prop !== 'def_down')) return;
                 effects.push({
-                    definition: effect,
+                    definition: {
+                        effect_type: 'enemy_defense_down',
+                        prop: 'def_down',
+                        zone: formula && formula.zone || effect.zone,
+                        value: formula && formula.value != null ? formula.value : effect.value
+                    },
                     sourceId: `${status.status_id || 'enemy_status'}:${index}`
                 });
             });
@@ -1494,6 +1558,32 @@
             state: battleState,
             hpPercent: actor ? actor.hpPercent : null
         });
+    }
+
+    function getEnemyStatusZoneEntries(battleState) {
+        if (!window.StatusResolver || typeof window.StatusResolver.collectZoneEntriesFromStatuses !== 'function') return [];
+        const enemy = battleState && battleState.enemy ? battleState.enemy : null;
+        return window.StatusResolver.collectZoneEntriesFromStatuses(getEnemyStatuses(battleState), {
+            actor: enemy,
+            owner: enemy,
+            state: battleState,
+            hpPercent: enemy && enemy.hpPercent != null ? enemy.hpPercent : null
+        });
+    }
+
+    function mergeEnemyDamageEffectTotals(actorTotals, battleState) {
+        const totals = Object.assign({}, actorTotals || {});
+        const enemyTotals = calculateRuntimeZoneTotals(getEnemyStatusZoneEntries(battleState));
+        const takenAmp = Number(enemyTotals.taken_dmg_amp) || 0;
+        const takenSupp = Number(enemyTotals.taken_dmg_supp) || 0;
+        if (takenAmp !== 0) totals.taken_dmg_amp = (Number(totals.taken_dmg_amp) || 0) + takenAmp;
+        if (takenSupp !== 0) {
+            totals.taken_dmg_supp = takenSupp;
+            ['na_dmg_supp', 'skill_dmg_supp', 'ca_dmg_supp', 'counter_dmg_supp', 'cb_dmg_supp'].forEach((key) => {
+                totals[key] = (Number(totals[key]) || 0) + takenSupp;
+            });
+        }
+        return totals;
     }
 
     function syncResultBuffsFromBattleState(result, battleState) {
@@ -1552,16 +1642,31 @@
     }
 
     function getActorStats(slot, battleState) {
-        const snapshotActor = state.simulationBaseSnapshot
-            && state.simulationBaseSnapshot.actors
-            ? state.simulationBaseSnapshot.actors[slot]
+        const snapshot = getSimulationSnapshot(battleState);
+        const snapshotActor = snapshot && snapshot.actors
+            ? snapshot.actors[slot]
             : null;
         const stats = snapshotActor
             ? Object.assign({}, snapshotActor.stats, {
-                _charabuffZoneEffectTotals: Object.assign({}, snapshotActor.stats._charabuffZoneEffectTotals || {})
+                _charabuffZoneEffectTotals: Object.assign({}, snapshotActor.stats._charabuffZoneEffectTotals || {}),
+                _elementAtkEntries: Array.isArray(snapshotActor.stats._elementAtkEntries)
+                    ? snapshotActor.stats._elementAtkEntries.map((entry) => Object.assign({}, entry))
+                    : []
             })
             : buildSimulationBaseStats(slot);
-        stats._charabuffZoneEffectTotals = calculateRuntimeZoneTotals(getBattleStatusZoneEntries(slot, battleState));
+        const runtimeEntries = getBattleStatusZoneEntries(slot, battleState);
+        stats._charabuffZoneEffectTotals = calculateRuntimeZoneTotals(runtimeEntries);
+        runtimeEntries.forEach((entry, index) => {
+            if (!entry || !entry.prop || typeof parseBuffProp !== 'function' || typeof addElementAtkEntry !== 'function') return;
+            const parsed = parseBuffProp(entry.prop);
+            if (!parsed || parsed.buffType !== 'element_atk') return;
+            addElementAtkEntry(stats, {
+                sourceId: `status:runtime:${entry.sourceId || index}`,
+                scope: parsed.subtype || 'own_element',
+                zone: entry.zone || 'chara_skill',
+                value: Number(entry.value) || 0
+            });
+        });
         return stats;
     }
 
@@ -1619,10 +1724,10 @@
         return totals && typeof totals[key] === 'number' ? totals[key] : fallback;
     }
 
-    function getActorPanelAttack(slot) {
-        const snapshotActor = state.simulationBaseSnapshot
-            && state.simulationBaseSnapshot.actors
-            ? state.simulationBaseSnapshot.actors[slot]
+    function getActorPanelAttack(slot, battleState) {
+        const snapshot = getSimulationSnapshot(battleState);
+        const snapshotActor = snapshot && snapshot.actors
+            ? snapshot.actors[slot]
             : null;
         return snapshotActor ? snapshotActor.panelAttack : parseDisplayNumber(`char-panel-atk-${slot}`);
     }
@@ -1633,9 +1738,10 @@
         return !!(job && job.type === 'class_5');
     }
 
-    function calculateNormalAttackDamage(slot, battleState) {
+    function calculateNormalAttackDamage(slot, battleState, options) {
+        const calculationOptions = options || {};
         if (typeof calculateDamage !== 'function' || typeof sumNaFinalWithRanshu !== 'function') return 0;
-        const panelAtk = getActorPanelAttack(slot);
+        const panelAtk = getActorPanelAttack(slot, battleState);
         if (panelAtk <= 0) return 0;
 
         const stats = getActorStats(slot, battleState);
@@ -1645,6 +1751,12 @@
         const bonuses = getActorFormulaBonuses(slot, hpPercent);
         const raw = calculateDamage(panelAtk, stats, hpPercent, Object.assign({
             isAdvantage: context.isAdvantage,
+            forceAdvantage: context.forceAdvantage,
+            forceNeutral: context.forceNeutral,
+            actorElement: context.actorElement,
+            damageElement: context.damageElement,
+            enemyElement: context.enemyElement,
+            mainElement: context.mainElement,
             defense: context.defense,
             defenseDown: context.defenseDown,
             randomFactor: context.randomFactor,
@@ -1654,14 +1766,29 @@
         }, bonuses));
 
         const critSources = typeof window.getIndependentCritSources === 'function'
-            ? window.getIndependentCritSources(slot, stats)
+            ? window.getIndependentCritSources(slot, stats, { ignoreTestBuffSettings: true })
             : [];
-        const critMultiplier = typeof window.getCritMultiplierByMode === 'function'
+        const potentialCritMultiplier = typeof window.getCritMultiplierByMode === 'function'
             ? window.getCritMultiplierByMode(context.critMode, critSources)
             : 1;
-        const critAmpRate = typeof window.getCritAmpRateByMode === 'function'
+        const potentialCritAmpRate = typeof window.getCritAmpRateByMode === 'function'
             ? window.getCritAmpRateByMode(context.critMode, critSources)
             : 0;
+        const damageElementContext = typeof resolveDamageElementContext === 'function'
+            ? resolveDamageElementContext({
+                actorElement: context.actorElement,
+                damageElement: context.damageElement,
+                enemyElement: context.enemyElement,
+                mainElement: context.mainElement,
+                forceAdvantage: context.forceAdvantage,
+                forceNeutral: context.forceNeutral
+            })
+            : { critEligible: context.isAdvantage };
+        const bodyCritEligible = typeof isCritEligibleForDamage === 'function'
+            ? isCritEligibleForDamage(damageElementContext)
+            : true;
+        const critMultiplier = bodyCritEligible ? potentialCritMultiplier : 1;
+        const critAmpRate = bodyCritEligible ? potentialCritAmpRate : 0;
         const rawCritPostDef = new Decimal(raw.damage || 0).times(critMultiplier).toNumber();
         const teshuStats = typeof getTeshuStats === 'function' ? getTeshuStats() : {};
         const suppZones = typeof getDmgSuppZonesForNa === 'function'
@@ -1678,10 +1805,14 @@
             ignoreTestBuffSettings: true,
             effectTotals: context.effectTotals
         };
-        const ranshuHits = Math.max(1, Math.floor(Number(stats.weapon_na_ranshu) || 1));
+        const ranshuHits = typeof resolveNaRanshuHits === 'function'
+            ? resolveNaRanshuHits(stats, context.effectTotals)
+            : Math.max(1, Math.floor(Number(stats.weapon_na_ranshu) || 1));
         const body = sumNaFinalWithRanshu(rawCritPostDef, stats, teshuStats, critOnlyAmp, capOptions, totalSupp, ranshuHits);
 
         let chasePerSegment = 0;
+        let chaseEffects = [];
+        let destructionChase = null;
         if (window.BonusDmgCalc && typeof window.BonusDmgCalc.calcNaBonusDamage === 'function') {
             const bonus = window.BonusDmgCalc.calcNaBonusDamage({
                 panelAtk,
@@ -1690,7 +1821,13 @@
                 charIndex: slot,
                 teshuStats,
                 isAdv: context.isAdvantage,
-                rawCritPostDefUsed: rawCritPostDef,
+                forceAdvantage: context.forceAdvantage,
+                forceNeutral: context.forceNeutral,
+                actorElement: context.actorElement,
+                damageElement: context.damageElement,
+                enemyElement: context.enemyElement,
+                mainElement: context.mainElement,
+                rawPostDefUsed: Number(raw.damage) || 0,
                 extraAmpUsed: critOnlyAmp,
                 defense: context.defense,
                 defenseDown: context.defenseDown,
@@ -1698,21 +1835,60 @@
                 fallbackElement: getPartyElement(slot),
                 ranshuForUi: ranshuHits,
                 totalSupp,
+                ignoreBaseValueAdjustment: true,
                 calcOptions: bonuses,
-                totalCritMult: critMultiplier,
+                totalCritMult: potentialCritMultiplier,
+                critOnlyAmpPotential: (Number(stats.weapon_critical_hit_amp) || 0) * potentialCritAmpRate,
+                extraAmpNormalBase: 0,
+                extraAmpAdvantageBase: 0,
                 extraAmpAdvantage: critOnlyAmp,
                 extraAmpNormal: critOnlyAmp,
-                capOptions
+                capOptions,
+                dynamicBuffEntries: getBattleStatusZoneEntries(slot, battleState)
             });
             chasePerSegment = (Number(bonus.chasePerHit) || 0) + (Number(bonus.chaseDesPerHit) || 0);
+            chaseEffects = (Array.isArray(bonus.chaseEffects) ? bonus.chaseEffects : []).map((effect) => ({
+                id: effect.key || `${effect.zone || 'bonus'}_${effect.prop || effect.element || 'na'}`,
+                key: effect.key || '',
+                prop: effect.prop || '',
+                zone: effect.zone || '',
+                element: effect.element || null,
+                value: Number(effect.pct) || 0,
+                multiplier: Number(effect.pct) || 0,
+                hitCount: ranshuHits,
+                damage: (Number(effect.perHit) || 0) * ranshuHits
+            }));
+            if ((Number(bonus.chaseDesPerHit) || 0) > 0) {
+                destructionChase = {
+                    id: 'bonus_na_destruction',
+                    key: 'bonus_na_destruction',
+                    prop: 'bonus_na_destruction',
+                    zone: 'destruction',
+                    element: 'destruction',
+                    value: Number(bonus.chaseDesPct) || 0,
+                    multiplier: Number(bonus.chaseDesPct) || 0,
+                    hitCount: ranshuHits,
+                    damage: (Number(bonus.chaseDesPerHit) || 0) * ranshuHits
+                };
+            }
         }
 
-        return (Number(body.sum) || 0) + chasePerSegment * ranshuHits;
+        const baseDamage = Number(body.sum) || 0;
+        const bonusHits = destructionChase ? chaseEffects.concat([destructionChase]) : chaseEffects;
+        if (calculationOptions.returnBreakdown) {
+            return {
+                baseDamage,
+                bonusHits,
+                ranshuHits,
+                totalDamage: baseDamage + chasePerSegment * ranshuHits
+            };
+        }
+        return baseDamage + chasePerSegment * ranshuHits;
     }
 
     function calculateCaAttackDamage(slot, overrides, battleState) {
         if (!window.CaDmgCalc || typeof window.CaDmgCalc.calculateCaDamage !== 'function') return 0;
-        const panelAtk = getActorPanelAttack(slot);
+        const panelAtk = getActorPanelAttack(slot, battleState);
         if (panelAtk <= 0) return 0;
         overrides = overrides || {};
         const stats = getActorStats(slot, battleState);
@@ -1724,6 +1900,12 @@
             defenseDown: context.defenseDown,
             charIndex: slot,
             isAdvantage: context.isAdvantage,
+            forceAdvantage: context.forceAdvantage,
+            forceNeutral: context.forceNeutral,
+            actorElement: context.actorElement,
+            damageElement: overrides.damageElement || context.damageElement,
+            enemyElement: context.enemyElement,
+            mainElement: context.mainElement,
             applyCap: true,
             critMode: context.critMode,
             ignoreTestBuffSettings: true,
@@ -1772,10 +1954,65 @@
     function getResolvedSkillActions(skill, action) {
         if (!skill || !Array.isArray(skill.steps)) return [];
         if (!window.StatusResolver || typeof window.StatusResolver.getSkillActions !== 'function') return [];
-        return window.StatusResolver.getSkillActions(skill, {
+        return appendSkillChaseCommand(window.StatusResolver.getSkillActions(skill, {
             skillId: action && action.skillId ? action.skillId : skill.id,
             skillName: skill.name || skill.id,
             ownerSlot: action ? action.ownerSlot : null
+        }));
+    }
+
+    function appendSkillChaseCommand(commands) {
+        const bonus = window.BonusDmgCalc;
+        if (!bonus || !commands.some((command) => command.type === 'damage'
+            && bonus.isElementalSkillDamage(command.damage))) return commands;
+        return commands.concat({ type: 'skill_chase' });
+    }
+
+    function getBattleSkillChaseEffects(slot, battleState) {
+        return window.BonusDmgCalc ? window.BonusDmgCalc.resolveSkillChaseEffects({
+            stats: getActorStats(slot, battleState),
+            actorElement: getPartyElement(slot),
+            dynamicBuffEntries: getBattleStatusZoneEntries(slot, battleState)
+        }) : [];
+    }
+
+    function accumulateSkillChase(command, slot, battleState, accumulator) {
+        if (!window.BonusDmgCalc || !window.BonusDmgCalc.isElementalSkillDamage(command.damage)) return false;
+        if (!accumulator.effects) accumulator.effects = getBattleSkillChaseEffects(slot, battleState);
+        return true;
+    }
+
+    function recordSkillChase(accumulator, action, result, event) {
+        const hits = window.BonusDmgCalc
+            ? window.BonusDmgCalc.calcSkillChaseDamage(accumulator.baseDamage, accumulator.effects) : [];
+        const damage = hits.reduce((sum, hit) => sum + hit.damage, 0);
+        if (damage > 0) {
+            addDamage(result, action.ownerSlot, 'skillDamage', damage);
+            event.damage += damage;
+            event.skillChaseHits = (event.skillChaseHits || []).concat(hits);
+            event.skillChaseDamage = (event.skillChaseDamage || 0) + damage;
+            event.hitCount = (event.hitCount || 0) + hits.length;
+            if (result && Array.isArray(result.logs)) {
+                hits.forEach((hit) => result.logs.push(`冴手：${getPartyName(action.ownerSlot)} 追加${ELEMENT_ALIASES[hit.element] || hit.element}属性技能伤害 ${formatNumber(hit.damage)}（${hit.pct * 100}%）。`));
+            }
+        }
+        return hits;
+    }
+
+    // 自动模拟也逐 hit 推进次数状态；冴手在整个技能结束时另行追加。
+    function calculateRuntimeDamageAction(command, slot, battleState, skipHitDurations) {
+        const params = command.damage || {};
+        if (slot == null || skipHitDurations || !window.ManualBattleResolution || !window.BonusDmgCalc
+            || !window.BonusDmgCalc.isElementalSkillDamage(params)) {
+            return { totalDamage: calculateResolvedDamageAction(command, slot, battleState), hitCount: Math.max(1, Number(params.hits) || 1) };
+        }
+        battleState.hitSequence = Number(battleState.hitSequence) || 0;
+        return window.ManualBattleResolution.resolveSkillDamage(battleState, { actorSlot: slot, damage: params }, {
+            deferSkillChase: true,
+            getSkillChaseEffects: () => [],
+            calculateHit: () => calculateResolvedDamageAction({
+                damage: Object.assign({}, params, { hits: 1 })
+            }, slot, battleState)
         });
     }
 
@@ -1784,7 +2021,8 @@
         if (params.damage_type === 'ca') {
             return calculateCaAttackDamage(slot, {
                 caMultiplier: params.multiplier == null ? null : Number(params.multiplier),
-                caFixed: params.fixed == null ? null : Number(params.fixed)
+                caFixed: params.fixed == null ? null : Number(params.fixed),
+                damageElement: params.element || null
             }, battleState);
         }
         if (params.damage_type === 'normal_attack') {
@@ -1805,12 +2043,18 @@
             ? window.ThresholdRegistry.getById(thresholdTableId)
             : null;
         const useExactCap = !!exactTable;
-        const oneHit = window.SkillDmgCalc.calculateSkillDamage(getActorPanelAttack(slot), stats, settings.hpPercent, Object.assign({
+        const oneHit = window.SkillDmgCalc.calculateSkillDamage(getActorPanelAttack(slot, battleState), stats, settings.hpPercent, Object.assign({
             skillBaseMult: multiplier,
             defense: context.defense,
             defenseDown: context.defenseDown,
             charIndex: slot,
             isAdvantage: context.isAdvantage,
+            forceAdvantage: context.forceAdvantage,
+            forceNeutral: context.forceNeutral,
+            actorElement: context.actorElement,
+            damageElement: params.element || context.damageElement,
+            enemyElement: context.enemyElement,
+            mainElement: context.mainElement,
             applyCap: useExactCap,
             capOptions: {
                 thresholdTableId: useExactCap ? thresholdTableId : null,
@@ -1848,6 +2092,123 @@
         return perHit * hits;
     }
 
+    function prepareManualDamageCalculation(calculationSettings) {
+        syncActorSettingsFromDom();
+        let calculation;
+        if (calculationSettings && typeof calculationSettings === 'object') {
+            calculation = normalizeCalculationSettings(calculationSettings, state.calculation);
+        } else {
+            syncSimulationSettingsFromDom();
+            calculation = normalizeCalculationSettings(state.calculation, state.calculation);
+        }
+        state.manualSimulationBaseSnapshot = createSimulationBaseSnapshot(calculation, { manualTimeline: true });
+        return cloneJson(state.manualSimulationBaseSnapshot);
+    }
+
+    function adaptManualBattleState(manualState, calculationSettings) {
+        const source = manualState || {};
+        const turn = Math.max(1, Math.floor(Number(source.turn) || 1));
+        const actors = {};
+        FRONTLINE_SLOTS.concat(SUB_SLOTS).forEach((slot) => {
+            const actor = source.actors && source.actors[slot] ? source.actors[slot] : {};
+            const settings = ensureActorSettings(slot, turn);
+            actors[slot] = Object.assign({}, actor, {
+                slot,
+                hpPercent: actor.hpPercent == null ? settings.hpPercent : actor.hpPercent,
+                statuses: Array.isArray(actor.statuses) ? actor.statuses : []
+            });
+        });
+        return Object.assign({}, source, {
+            turn,
+            manualTimeline: true,
+            calculationSettings: normalizeCalculationSettings(calculationSettings, state.calculation),
+            simulationBaseSnapshot: state.manualSimulationBaseSnapshot,
+            actors,
+            enemy: source.enemy && typeof source.enemy === 'object'
+                ? Object.assign({ statuses: [] }, source.enemy)
+                : { statuses: [] }
+        });
+    }
+
+    function ensureManualDamageSnapshot(calculationSettings) {
+        if (!state.manualSimulationBaseSnapshot) prepareManualDamageCalculation(calculationSettings);
+    }
+
+    function getManualNormalBreakdown(slot, manualState, calculationSettings) {
+        ensureManualDamageSnapshot(calculationSettings);
+        const battleState = adaptManualBattleState(manualState, calculationSettings);
+        const breakdown = calculateNormalAttackDamage(slot, battleState, { returnBreakdown: true });
+        return breakdown && typeof breakdown === 'object'
+            ? breakdown
+            : { baseDamage: 0, bonusHits: [], ranshuHits: 1, totalDamage: 0 };
+    }
+
+    function getManualBonusHitSources(manualState, slot, calculationSettings) {
+        return getManualNormalBreakdown(slot, manualState, calculationSettings).bonusHits.map((source) => Object.assign({}, source));
+    }
+
+    function getManualSkillChaseEffects(manualState, slot, calculationSettings) {
+        ensureManualDamageSnapshot(calculationSettings);
+        return getBattleSkillChaseEffects(slot, adaptManualBattleState(manualState, calculationSettings));
+    }
+
+    function calculateManualHitDamage(hit, manualState, calculationSettings) {
+        const definition = hit || {};
+        const slot = Number(definition.actorSlot == null ? 0 : definition.actorSlot);
+        ensureManualDamageSnapshot(calculationSettings);
+        const battleState = adaptManualBattleState(manualState, calculationSettings);
+        const damageType = String(definition.damageType || definition.damage_type || '').toLowerCase();
+
+        if (damageType === 'normal_attack') {
+            if (definition.kind === 'bonus') {
+                const sourceDamage = Number(definition.bonusSource && definition.bonusSource.damage);
+                const source = definition.bonusSource || {};
+                const breakdown = calculateNormalAttackDamage(slot, battleState, { returnBreakdown: true });
+                const sourceHitCount = Math.max(1, Math.floor(Number(source.hitCount)
+                    || Number(breakdown && breakdown.ranshuHits) || 1));
+                if (Number.isFinite(sourceDamage)) {
+                    return { damage: Math.max(0, sourceDamage), hitCount: sourceHitCount };
+                }
+                const matched = breakdown && Array.isArray(breakdown.bonusHits)
+                    ? breakdown.bonusHits.find((entry) => (
+                        (source.id && entry.id === source.id)
+                        || (source.key && entry.key === source.key)
+                        || (source.zone && entry.zone === source.zone
+                            && Math.abs((Number(entry.value) || 0) - (Number(source.value) || 0)) < 1e-10)
+                    ))
+                    : null;
+                return {
+                    damage: Math.max(0, Number(matched && matched.damage) || 0),
+                    hitCount: Math.max(1, Math.floor(Number(matched && matched.hitCount) || sourceHitCount))
+                };
+            }
+            const breakdown = getManualNormalBreakdown(slot, battleState, calculationSettings);
+            return {
+                damage: Math.max(0, Number(breakdown.baseDamage) || 0),
+                hitCount: Math.max(1, Math.floor(Number(breakdown.ranshuHits) || 1))
+            };
+        }
+
+        if (damageType === 'ca') {
+            return calculateCaAttackDamage(slot, {
+                caMultiplier: definition.multiplier == null ? null : Number(definition.multiplier),
+                caFixed: definition.fixed == null ? null : Number(definition.fixed)
+            }, battleState);
+        }
+
+        return calculateResolvedDamageAction({
+            type: 'damage',
+            damage: {
+                damage_type: damageType || 'skill',
+                element: definition.element || null,
+                multiplier: Number(definition.multiplier) || 0,
+                hits: 1,
+                threshold_table: definition.thresholdTableId || definition.threshold_table || null,
+                cap_per_hit: Number(definition.capPerHit != null ? definition.capPerHit : definition.cap_per_hit) || 0
+            }
+        }, slot, battleState);
+    }
+
     function resolveStatusTargetSlots(target, ownerSlot, targetSlots) {
         if (target === 'ally_slots' && Array.isArray(targetSlots)) {
             return Array.from(new Set(targetSlots.map(Number).filter((slot) => (
@@ -1873,7 +2234,7 @@
         status.target_type = 'enemy';
         status.applied_turn = battleState.turn;
         status.remaining_turns = status.duration && status.duration.value != null
-            && status.duration.type !== 'action'
+            && ['turn', 'turns'].includes(status.duration.type)
             ? Math.max(0, Number(status.duration.value) || 0)
             : null;
 
@@ -1919,7 +2280,7 @@
             status.target_slot = targetSlot;
             status.applied_turn = battleState.turn;
             status.remaining_turns = status.duration && status.duration.value != null
-                && status.duration.type !== 'action'
+                && ['turn', 'turns'].includes(status.duration.type)
                 ? Math.max(0, Number(status.duration.value) || 0)
                 : null;
             if (status.duration && status.duration.type === 'action') {
@@ -1943,6 +2304,7 @@
                 if (status.stacking.refresh_duration === false) {
                     status.remaining_turns = existing.remaining_turns;
                     status.remaining_actions = existing.remaining_actions;
+                    status.remaining_hits = existing.remaining_hits;
                 }
                 actor.statuses[existingIndex] = status;
             } else if (existingIndex >= 0) {
@@ -2189,13 +2551,13 @@
         const runtime = new window.BattleResolution.ResolutionEngine({
             state: battleState,
             effects,
-            normalizeSteps: (steps, context) => window.StatusResolver.getSkillActions({ steps }, {
+            normalizeSteps: (steps, context) => appendSkillChaseCommand(window.StatusResolver.getSkillActions({ steps }, {
                 skillId: context && context.skillId,
                 skillName: context && context.triggerSource && context.triggerSource.skill
                     ? context.triggerSource.skill.name
                     : context && context.skillId,
                 ownerSlot: context && context.ownerSlot
-            })
+            }))
         });
 
         effects.register('apply_status', (command, context) => {
@@ -2222,7 +2584,15 @@
         effects.register('damage', (command, context) => {
             const action = getRuntimeAction(context);
             const event = ensureRuntimeResultEvent(context, action);
-            const total = calculateResolvedDamageAction(command, action.ownerSlot, battleState);
+            const accumulator = context.frame.skillChase || (context.frame.skillChase = { baseDamage: 0 });
+            const eligible = action.type !== 'summon' && accumulateSkillChase(command, action.ownerSlot, battleState, accumulator);
+            const resolved = calculateRuntimeDamageAction(command, action.ownerSlot, battleState, action.type === 'summon');
+            const total = resolved.totalDamage;
+            if (eligible) accumulator.baseDamage += total;
+            event.hitCount = (event.hitCount || 0) + resolved.hitCount;
+            if ((resolved.hits || []).some((hit) => hit.durationChanges && (
+                hit.durationChanges.actor.expired.length || hit.durationChanges.enemy.expired.length
+            ))) syncRuntimeStatusTriggers(runtime, battleState);
             const damageType = command.damage && command.damage.damage_type;
             const payload = {
                 actorSlot: action.ownerSlot,
@@ -2255,6 +2625,18 @@
                 context.result.logs.push(`${action.skill && action.skill.name ? action.skill.name : action.skillId} 的伤害效果暂不可计算。`);
             }
             return { events };
+        });
+
+        effects.register('skill_chase', (command, context) => {
+            const action = getRuntimeAction(context);
+            const event = ensureRuntimeResultEvent(context, action);
+            const hits = recordSkillChase(context.frame.skillChase || {}, action, context.result, event);
+            return { events: hits.map((hit) => ({
+                type: 'damage_resolved',
+                payload: Object.assign({}, hit, {
+                    actorSlot: action.ownerSlot, ownerSlot: action.ownerSlot, skillId: action.skillId
+                })
+            })) };
         });
 
         effects.register('counter', (command) => {
@@ -2461,14 +2843,24 @@
                 expireActionStatuses('attack_action_end', attackPayload, battleState, runtime);
             }
         } else {
+            const skillChase = { baseDamage: 0 };
             resolvedActions.forEach((resolvedAction) => {
                 if (!resolvedAction) return;
+                if (resolvedAction.type === 'skill_chase') {
+                    recordSkillChase(skillChase, action, result, event);
+                    return;
+                }
                 if (resolvedAction.type === 'apply_status') {
                     applyResolvedStatus(action, resolvedAction, result, event, battleState);
                     return;
                 }
                 if (resolvedAction.type !== 'damage') return;
-                const total = calculateResolvedDamageAction(resolvedAction, action.ownerSlot, battleState);
+                const eligible = action.type !== 'summon'
+                    && accumulateSkillChase(resolvedAction, action.ownerSlot, battleState, skillChase);
+                const resolved = calculateRuntimeDamageAction(resolvedAction, action.ownerSlot, battleState, action.type === 'summon');
+                const total = resolved.totalDamage;
+                if (eligible) skillChase.baseDamage += total;
+                event.hitCount = (event.hitCount || 0) + resolved.hitCount;
                 if (total <= 0) {
                     result.logs.push(`${skill.name || action.skillId} 的伤害效果暂不可计算。`);
                     return;
@@ -2861,6 +3253,10 @@
         refresh,
         run: runSimulation,
         clear: clearActiveTurn,
+        prepareManualDamageCalculation,
+        calculateManualHitDamage,
+        getManualBonusHitSources,
+        getManualSkillChaseEffects,
         getBaseSnapshot: function () {
             return state.simulationBaseSnapshot
                 ? JSON.parse(JSON.stringify(state.simulationBaseSnapshot))

@@ -173,5 +173,30 @@
       ]
     },
     "battle_bonuses": "开局时主角获得永久伤害上升30000（独立分区，可与其他伤害上升效果共存）。"
+  },
+  {
+    "id": "c0_spear",
+    "name": "起源枪兵",
+    "proficiency": [
+      "spear",
+      "axe"
+    ],
+    "type": "class_0",
+    "image": "",
+    "description": "c0职业",
+    "bonuses": {
+    "mc_atk_base": 10000,
+    "mc_hp_base": 2000,
+    "spear_base_value_hp": 0.5,
+    "spear_base_value_atk": 0.5,
+    "axe_base_value_atk": 0.5,
+    "axe_base_value_hp": 0.5
+    },
+    "skill_refs": {
+      "passive": [
+        
+      ]
+    },
+    "battle_bonuses": "开局时主角获得永久伤害上升30000（独立分区，可与其他伤害上升效果共存）。"
   }
 ]

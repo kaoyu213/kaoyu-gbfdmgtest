@@ -36,6 +36,43 @@ run('可从多组单hit极值恢复斜率模板和近似阈值', () => {
     assert.strictEqual(result.fitStatus, 'credible');
 });
 
+run('数据剪枝与关闭剪枝的完整评分返回相同最优表', () => {
+    const thresholds = [300000, 400000, 500000, 1000000];
+    const slopes = [1, 0.5, 0.3, 0.05, 0.01];
+    const settings = { hits: 1, finalMode: 'per_hit' };
+    const samples = [180000, 280000, 320000, 380000, 430000, 480000, 550000, 750000, 980000, 1050000, 1500000, 2500000]
+        .map((theory) => {
+            const theoryMin = theory * 0.95;
+            const theoryMax = theory * 1.05;
+            return {
+                theory,
+                theoryMin,
+                theoryMax,
+                finalMin: inference.predictFinal({ theory: theoryMin, settings }, thresholds, slopes, {}),
+                finalMax: inference.predictFinal({ theory: theoryMax, settings }, thresholds, slopes, {}),
+                settings
+            };
+        });
+    const commonOptions = {
+        thresholdStep: 50000,
+        fuzzyDisplayCap: 405000,
+        maxCandidates: 3
+    };
+    const optimized = inference.infer(samples, commonOptions);
+    const unpruned = inference.infer(samples, Object.assign({}, commonOptions, { disableDataPruning: true }));
+    assert.deepStrictEqual(optimized.best.thresholds, unpruned.best.thresholds);
+    assert.deepStrictEqual(optimized.best.slopes, unpruned.best.slopes);
+    assert.strictEqual(optimized.best.rmse, unpruned.best.rmse);
+    assert.deepStrictEqual(
+        optimized.candidates.map(candidate => candidate.thresholds.join('/') + '|' + candidate.slopes.join('/')),
+        unpruned.candidates.map(candidate => candidate.thresholds.join('/') + '|' + candidate.slopes.join('/'))
+    );
+    assert.ok(optimized.prunedCandidateCount > 0);
+    assert.ok(optimized.prunedBranchCount > 0);
+    assert.ok(optimized.evaluatedCount < unpruned.evaluatedCount);
+    assert.strictEqual(unpruned.prunedCandidateCount, 0);
+});
+
 run('预测极值分别与实测上下限比较', () => {
     const candidate = {
         thresholds: [100000, 150000, 250000, 400000],
@@ -194,6 +231,77 @@ run('一组样本即可开始穷举并返回极低置信度候选', () => {
     assert.strictEqual(result.best.confidence, '极低');
     assert.ok(result.evaluatedCount > 0);
     assert.ok(result.nextTargets.length > 0);
+});
+
+run('已确认阈值作为硬约束且新增样本不会将其推翻', () => {
+    const thresholds = [500000, 600000, 700000, 800000];
+    const slopes = [1, 0.5, 0.25, 0.05, 0.01];
+    const settings = { hits: 1, finalMode: 'per_hit' };
+    const makeSample = (theory) => {
+        const theoryMin = theory * 0.95;
+        const theoryMax = theory * 1.05;
+        return {
+            theory,
+            theoryMin,
+            theoryMax,
+            finalMin: inference.predictFinal({ theory: theoryMin, settings }, thresholds, slopes, {}),
+            finalMax: inference.predictFinal({ theory: theoryMax, settings }, thresholds, slopes, {}),
+            settings
+        };
+    };
+    const options = {
+        thresholdStep: 50000,
+        fuzzyDisplayCap: 580000,
+        thresholdRanges: [500000, { min: 550000, max: 650000 }, null, null],
+        slopeConstraints: [null, 0.5, null, null, null],
+        maxCandidates: 3
+    };
+    const firstResult = inference.infer([makeSample(650000)], options);
+    assert.ok(firstResult.candidates.every(candidate => candidate.thresholds[0] === 500000));
+    assert.ok(firstResult.candidates.every(candidate => candidate.thresholds[1] >= 550000 && candidate.thresholds[1] <= 650000));
+    assert.ok(firstResult.candidates.every(candidate => candidate.slopes[1] === 0.5));
+    assert.ok(firstResult.nextTargets.every(target => target.stage !== 1));
+
+    const updatedResult = inference.infer([makeSample(650000), makeSample(900000)], options);
+    assert.strictEqual(updatedResult.best.thresholds[0], 500000);
+    assert.ok(updatedResult.best.thresholds[1] >= 550000 && updatedResult.best.thresholds[1] <= 650000);
+    assert.strictEqual(updatedResult.best.slopes[1], 0.5);
+});
+
+run('填写完整五段斜率后可穷举用户自定义模板', () => {
+    const thresholds = [100000, 200000, 300000, 400000];
+    const slopes = [1, 0.55, 0.35, 0.08, 0.02];
+    const settings = { hits: 1, finalMode: 'per_hit' };
+    const theory = 450000;
+    const theoryMin = theory * 0.95;
+    const theoryMax = theory * 1.05;
+    const result = inference.infer([{
+        theory,
+        theoryMin,
+        theoryMax,
+        finalMin: inference.predictFinal({ theory: theoryMin, settings }, thresholds, slopes, {}),
+        finalMax: inference.predictFinal({ theory: theoryMax, settings }, thresholds, slopes, {}),
+        settings
+    }], {
+        thresholdStep: 50000,
+        fuzzyDisplayCap: 198000,
+        thresholdRanges: thresholds,
+        slopeConstraints: slopes
+    });
+    assert.deepStrictEqual(result.best.thresholds, thresholds);
+    assert.deepStrictEqual(result.best.slopes, slopes);
+    assert.strictEqual(result.best.slopeTemplateId, 'custom_locked');
+    assert.strictEqual(result.best.rmse, 0);
+});
+
+run('互相冲突的阈值锁定会报错而不会静默改写', () => {
+    assert.throws(() => inference.infer([
+        { theory: 650000, final: 500000 }
+    ], {
+        thresholdStep: 50000,
+        fuzzyDisplayCap: 580000,
+        thresholdRanges: [500000, 400000, null, null]
+    }), /锁定|约束/);
 });
 
 run('没有样本时才拒绝生成探索性近似', () => {

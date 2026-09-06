@@ -90,6 +90,7 @@ const BUFF_TYPE_ZONE_RULES = {
       summon:       { rule: 'sum' },
       charabonus:   { rule: 'sum' },
       chara_skill:  { rule: 'max' },
+      testbuff:     { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   },
@@ -196,12 +197,10 @@ const BUFF_TYPE_ZONE_RULES = {
   },
 
   bonus_skill: {
-    label: '技能追伤',
+    label: '冴手（技能属性追击）',
     zones: {
       weapon_grid: { rule: 'max' },
-      A1: { rule: 'max' },
-      A2: { rule: 'max' },
-      Q:  { rule: 'max' },
+      chara_skill: { rule: 'max' },
       independent: { rule: 'sum' }
     }
   },
@@ -437,6 +436,16 @@ const BUFF_TYPE_ZONE_RULES = {
     }
   },
 
+  // 仅适用于火/水/土/风/光/暗之间的有利属性关系；破坏属性不属于六属性。
+  element_pair_dmg_amp: {
+    label: '六属性克属伤害增幅',
+    zones: {
+      charabonus:   { rule: 'sum' },
+      chara_skill:  { rule: 'max' },
+      independent:  { rule: 'sum' }
+    }
+  },
+
   anti_element_reduce: {
     label: '受克制伤害减轻',
     zones: {
@@ -551,12 +560,26 @@ const BUFF_TYPE_ZONE_RULES = {
   },
 
   na_ranshu: {
-    label: '平A乱击段数',
+    label: '乱击',
+    // 乱击数值表示最终段数；无论来自哪个分区，所有来源统一取最高值。
+    combineRule: 'max',
     zones: {
       weapon_grid:  { rule: 'max' },
       charabonus:   { rule: 'max' },
       chara_skill:  { rule: 'max' },
       independent:  { rule: 'max' }
+    }
+  },
+
+  na_ranshu_bonus: {
+    label: '猛乱击',
+    // 数值表示在最终乱击段数上追加的段数；不同来源全部相加。
+    zones: {
+      weapon_grid: { rule: 'sum' },
+      summon:      { rule: 'sum' },
+      charabonus:  { rule: 'sum' },
+      chara_skill: { rule: 'sum' },
+      independent: { rule: 'sum' }
     }
   },
 
@@ -622,12 +645,13 @@ const BUFF_TYPE_ZONE_RULES = {
   },
 
   def_down: {
-    label: '防御下降',
-    // 普通减防先结算至50%，独立减防随后加算；最终防御下降不超过99%。
+    label: '防御力下降',
+    // 片面、双面、累积先相加并封顶50%；独立减防随后加算，最终不超过99%。
     cap: 0.99,
     zones: {
-      normal:       { rule: 'sum', cap: 0.5 },
-      weapon_grid:  { rule: 'sum', cap: 0.5 },
+      one_sided:    { rule: 'max' },
+      both_sided:   { rule: 'max' },
+      cumulative:   { rule: 'sum' },
       independent:  { rule: 'sum' }
     }
   },
@@ -726,7 +750,7 @@ const BUFF_TYPE_ZONE_RULES = {
 
   // 斩与其他攻刃完全独立；多个斩效果之间只采用最高值。
   indep_zhan_atk: {
-    label: '独立攻刃【斩】',
+    label: '攻击力大幅提高',
     zones: {
       independent: { rule: 'max' }
     }
@@ -749,7 +773,18 @@ const BUFF_TYPE_ZONE_RULES = {
   taken_dmg_amp: {
     label: '承受伤害增幅',
     zones: {
-      charabonus: { rule: 'sum' }
+      enemy_db:    { rule: 'max' },
+      independent: { rule: 'sum' }
+    }
+  },
+
+  taken_dmg_supp: {
+    label: '承受伤害上升',
+    zones: {
+      enemy_db:    { rule: 'sum' },
+      enemy_sp:    { rule: 'sum' },
+      cumulative:  { rule: 'sum' },
+      independent: { rule: 'sum' }
     }
   },
 
@@ -811,8 +846,11 @@ const BUFF_ZONE_LABELS = Object.freeze({
   summon: '召唤石',
   charabonus: '角色个人加成',
   independent: '独立区',
-  cumulative: '累积分区',
-  enemy_db: '敌方状态',
+  cumulative: '累积区',
+  enemy_db: 'DB区',
+  enemy_sp: 'SP区',
+  one_sided: '片面区',
+  both_sided: '双面区',
   earring: '耳环',
   artifacts: '神器/圣遗物',
   job_passive_extra: '职业额外被动',
@@ -838,7 +876,14 @@ const BUFF_ZONE_LABELS = Object.freeze({
   'indep_special_enmity_atk',
   'indep_special_atk',
   'dmg_cap',
+  'na_dmg_cap',
+  'skill_dmg_cap',
   'dmg_amp',
+  'na_dmg_amp',
+  'skill_dmg_amp',
+  'ca_dmg_amp',
+  'na_ranshu',
+  'skill_dmg',
   'ca_dmg',
   'ca_dmg_cap',
   'dmg_supp',

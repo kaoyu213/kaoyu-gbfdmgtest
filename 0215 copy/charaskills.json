@@ -16,7 +16,8 @@
     "show_icon": "false 时，角色 Buff 栏只显示技能赋予的 buff 图标，不显示技能图标本身",
     "steps": "按顺序执行。每个 step 必须填写且只填写一个 do 行为。",
     "damage_step": "do=damage；填写 target、damage_type、element、mult、hits、threshold_table、cap。",
-    "buff_step": "do=buff；单效果填写 prop、zone、value；专用 Buff 的多个小效果填写在 effects 中。"
+    "buff_step": "do=buff；单效果填写 prop、zone、value；专用 Buff 的多个小效果填写在 effects 中。",
+    "buff_display": "大Buff可在各 buff step 填写相同 status_display: { mode: large, group_id, label, initial }；计算仍逐step执行，显示时按group_id聚合为一个首字图标。"
   },
   "_resolution_schema": {
     "events": "通用时点示例：battle_start、turn_start、attack_action_start、before_command、before_damage、damage_resolved、normal_attack_resolved、triple_attack_resolved、charge_attack_resolved、status_applied、attack_action_end、turn_end。新机制优先复用通用事件，也可通过 do=emit_event 发布新事件。",
@@ -171,7 +172,7 @@
           "do": "buff",
           "target": "self",
           "name": "久远攻刃",
-          "icon": "buff icon/dmg_supp.png",
+          "icon": "buff icon/normal_atk.png",
           "turns": 1,
           "prop": "perpetuity_atk",
           "zone": "chara_skill",
@@ -356,7 +357,7 @@
               "id": "summon_constraint_feather",
               "target": "self",
               "name": "约束之羽",
-              "icon": "buff icon/dmg_supp.png",
+              "icon": "buff icon/normal_atk.png",
               "dispel_immune": true,
               "stacking": {
                 "mode": "add",
@@ -383,7 +384,7 @@
               "id": "summon_constraint_feather",
               "target": "self",
               "name": "约束之羽",
-              "icon": "buff icon/dmg_supp.png",
+              "icon": "buff icon/normal_atk.png",
               "dispel_immune": true,
               "stacking": {
                 "mode": "add",

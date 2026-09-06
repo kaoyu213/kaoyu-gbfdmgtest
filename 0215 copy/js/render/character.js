@@ -656,6 +656,27 @@ function calculateCodexZoneEffectTotals(entries) {
     return totals;
 }
 
+function syncElementAtkStatusEntries(stats, entries) {
+    if (!stats) return;
+    const existing = Array.isArray(stats._elementAtkEntries) ? stats._elementAtkEntries : [];
+    stats._elementAtkEntries = existing.filter((entry) => String(entry && entry.sourceId || '').indexOf('status:') !== 0);
+    (Array.isArray(entries) ? entries : []).forEach((entry, idx) => {
+        if (!entry || !entry.prop || !entry.zone) return;
+        const parsed = typeof parseBuffProp === 'function'
+            ? parseBuffProp(String(entry.prop).trim())
+            : { buffType: String(entry.prop).trim(), subtype: null };
+        if (!parsed || parsed.buffType !== 'element_atk') return;
+        const payload = {
+            sourceId: 'status:' + (entry.sourceId || ('element_atk_' + idx)),
+            scope: parsed.subtype || 'own_element',
+            zone: String(entry.zone),
+            value: Number(entry.value) || 0
+        };
+        if (typeof addElementAtkEntry === 'function') addElementAtkEntry(stats, payload);
+        else if (payload.value !== 0) stats._elementAtkEntries.push(payload);
+    });
+}
+
 /** 在 applyCharaSkillBuffStatsToParty 末尾调用：把各槽图鉴行累加到 party[].stats */
 function applyBuffCodexRowsToPartyStats() {
     if (typeof party === 'undefined' || !Array.isArray(party)) return;
@@ -665,6 +686,7 @@ function applyBuffCodexRowsToPartyStats() {
             if (!party[s] || !party[s].stats) continue;
             party[s].zoneEffectEntries = [];
             party[s].stats._charabuffZoneEffectTotals = {};
+            syncElementAtkStatusEntries(party[s].stats, []);
         }
         return;
     }
@@ -683,6 +705,7 @@ function applyBuffCodexRowsToPartyStats() {
         const formulaZoneEntries = (Array.isArray(party[s].skillZoneEffectEntries) ? party[s].skillZoneEffectEntries : [])
             .concat(party[s].zoneEffectEntries);
         party[s].stats._charabuffZoneEffectTotals = calculateCodexZoneEffectTotals(formulaZoneEntries);
+        syncElementAtkStatusEntries(party[s].stats, formulaZoneEntries);
     }
 }
 

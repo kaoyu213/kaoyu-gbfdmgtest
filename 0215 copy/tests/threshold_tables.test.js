@@ -109,6 +109,21 @@ async function main() {
         ]
     );
 
+    const damageCap = require(path.join(root, 'js', 'damage_cap.js'));
+    const zhanStats = { _charabuffZoneEffectTotals: { indep_zhan_atk: 0.25 } };
+    assert.deepStrictEqual(
+        damageCap.resolveZhanCapRule('na', null, zhanStats, {}),
+        { active: true, thresholdTableId: 'na_zhan_116', thresholdLimitOffset: 0 }
+    );
+    assert.deepStrictEqual(
+        damageCap.resolveZhanCapRule('ca', null, zhanStats, {}),
+        { active: true, thresholdTableId: null, thresholdLimitOffset: 500000 }
+    );
+    assert.deepStrictEqual(
+        damageCap.resolveZhanCapRule('skill', null, zhanStats, {}),
+        { active: true, thresholdTableId: null, thresholdLimitOffset: 0 }
+    );
+
     ['damage_cap.js', 'init.js', 'na_dmg_calc.js', 'decay_table_inference.js', 'decay_table_inference_ui.js'].forEach((filename) => {
         new vm.Script(fs.readFileSync(path.join(root, 'js', filename), 'utf8'), { filename });
     });
@@ -121,6 +136,13 @@ async function main() {
     const indexHtml = fs.readFileSync(path.join(root, 'index1.html'), 'utf8');
     assert.ok(indexHtml.includes('id="main-workspace-decay-inference"'), 'Index 必须包含衰减表推算工作区');
     assert.ok(indexHtml.includes('js/decay_table_inference.js'), 'Index 必须加载衰减表推算模块');
+    for (let slot = 0; slot < 6; slot += 1) {
+        assert.ok(
+            indexHtml.includes(`id="skill-threshold-select-${slot}"`),
+            `角色槽${slot}缺少技能衰减表下拉框`
+        );
+    }
+    assert.ok(indexHtml.includes('<option value="">无衰减</option>'), '技能衰减表下拉框必须默认无衰减');
     inlineScriptPattern.lastIndex = 0;
     while ((scriptMatch = inlineScriptPattern.exec(indexHtml))) {
         if (scriptMatch[1].trim()) new vm.Script(scriptMatch[1], { filename: 'index1.html:inline' });

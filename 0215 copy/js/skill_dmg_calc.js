@@ -20,7 +20,8 @@
     /**
      * 技能伤害加成（小数）：优先读取 All Effects 的 skill_dmg 汇总，与 UI 填写的技能基础倍率相加。
      */
-    function getSkillDmgBonusFromStats(stats, charIndex, effectTotals) {
+    function getSkillDmgBonusFromStats(stats, charIndex, effectTotals, options) {
+        options = options || {};
         var s = stats || {};
         var mc = Number(s['mc_skill_dmg_passive']) || 0;
         var nonC5 = Number(s['mc_skill_dmg_passive_non_c5']) || 0;
@@ -30,9 +31,12 @@
             && typeof effectTotals.skill_dmg === 'number') {
             return effectTotals.skill_dmg;
         }
-        if (typeof getAllEffectsTotalForSlot === 'function') {
+        if (!options.ignoreTestBuffSettings && typeof getAllEffectsTotalForSlot === 'function') {
             var total = getAllEffectsTotalForSlot(charIndex != null ? charIndex : 0, 'skill_dmg', fallback);
             if (typeof total === 'number') return total;
+        }
+        if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings) {
+            fallback = new Decimal(fallback).plus(window.buffSettings.skillDmg || 0).toNumber();
         }
         return fallback;
     }
@@ -126,6 +130,12 @@
         naOptions.defenseDown = defenseDown;
         naOptions.isAdvantage = isAdvantage;
         naOptions.charIndex = charIndex;
+        naOptions.actorElement = options.actorElement || naOptions.actorElement;
+        naOptions.damageElement = options.damageElement || naOptions.damageElement || naOptions.actorElement;
+        naOptions.enemyElement = options.enemyElement || naOptions.enemyElement;
+        naOptions.mainElement = options.mainElement || naOptions.mainElement || naOptions.actorElement;
+        naOptions.forceAdvantage = options.forceAdvantage === true || isAdvantage;
+        naOptions.forceNeutral = options.forceNeutral === true;
         if (naOptions.randomFactor == null) naOptions.randomFactor = 1;
         // 与平A/奥义使用同一组基础伤害乘区，避免技能重算基础伤害时漏掉角色强化。
         naOptions.strongCaps = options.strongCaps || [];
@@ -155,8 +165,16 @@
         var critMult = 1;
         var critFlag = false;
         var critAmpRate = 0;
-        if (typeof window !== 'undefined' && typeof window.getIndependentCritSources === 'function' && typeof window.getCritMultiplierByMode === 'function') {
-            var critSources = window.getIndependentCritSources(charIndex, stats);
+        var damageElementContext = typeof resolveDamageElementContext === 'function'
+            ? resolveDamageElementContext(naOptions)
+            : { isAdvantage: isAdvantage, critEligible: isAdvantage };
+        var critEligible = typeof isCritEligibleForDamage === 'function'
+            ? isCritEligibleForDamage(damageElementContext)
+            : true;
+        if (critEligible && typeof window !== 'undefined' && typeof window.getIndependentCritSources === 'function' && typeof window.getCritMultiplierByMode === 'function') {
+            var critSources = window.getIndependentCritSources(charIndex, stats, {
+                ignoreTestBuffSettings: options.ignoreTestBuffSettings === true
+            });
             critMult = window.getCritMultiplierByMode(critMode, critSources);
             if (typeof window.getCritFlagByMode === 'function') {
                 critFlag = window.getCritFlagByMode(critMode, critSources);
@@ -166,7 +184,7 @@
             } else {
                 critAmpRate = critFlag ? 1 : 0;
             }
-        } else if (typeof window.CaDmgCalc !== 'undefined' && typeof window.CaDmgCalc.getCritMultiplier === 'function') {
+        } else if (critEligible && typeof window.CaDmgCalc !== 'undefined' && typeof window.CaDmgCalc.getCritMultiplier === 'function') {
             critMult = window.CaDmgCalc.getCritMultiplier(stats);
             critFlag = critMult > 1;
             critAmpRate = critFlag ? 1 : 0;
@@ -189,7 +207,7 @@
             })
             : 0;
 
-        var skillDmgBonus = getSkillDmgBonusFromStats(stats, charIndex, options.effectTotals);
+        var skillDmgBonus = getSkillDmgBonusFromStats(stats, charIndex, options.effectTotals, options);
 
         var raw = calcSkillDamageRaw({
             baseDamage: baseDamage,
@@ -211,6 +229,7 @@
             skillBaseMultUsed: skillBaseMult,
             skillDmgBonusUsed: skillDmgBonus,
             critMultiplierUsed: critMult,
+            critEligible: critEligible,
             skillAmpUsed: skillAmp,
             takenDmgAmpUsed: takenDmgAmp,
             suppZones: {

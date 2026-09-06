@@ -47,7 +47,9 @@
                 multiplier: numberValue('decay-infer-multiplier', null),
                 fuzzyCapWan: numberValue('decay-infer-fuzzy-cap', null),
                 damageLimitType: el('decay-infer-limit-type') ? el('decay-infer-limit-type').value : '',
-                thresholdStep: numberValue('decay-infer-threshold-step', 50000)
+                thresholdStep: numberValue('decay-infer-threshold-step', 50000),
+                thresholdConstraints: thresholdConstraintInputs().map(function (input) { return input.value.trim(); }),
+                slopeConstraints: slopeConstraintInputs().map(function (input) { return input.value.trim(); })
             };
             global.localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 samples: state.samples,
@@ -88,6 +90,17 @@
         if (metadata.fuzzyCapWan > 0 && el('decay-infer-fuzzy-cap')) el('decay-infer-fuzzy-cap').value = metadata.fuzzyCapWan;
         if (metadata.damageLimitType && el('decay-infer-limit-type')) el('decay-infer-limit-type').value = metadata.damageLimitType;
         if (metadata.thresholdStep > 0 && el('decay-infer-threshold-step')) el('decay-infer-threshold-step').value = metadata.thresholdStep;
+        if (Array.isArray(metadata.thresholdConstraints)) {
+            thresholdConstraintInputs().forEach(function (input, index) {
+                input.value = metadata.thresholdConstraints[index] || '';
+            });
+        }
+        if (Array.isArray(metadata.slopeConstraints)) {
+            slopeConstraintInputs().forEach(function (input, index) {
+                input.value = metadata.slopeConstraints[index] || '';
+            });
+        }
+        renderConstraintState();
     }
 
     function el(id) {
@@ -97,6 +110,137 @@
     function numberValue(id, fallback) {
         var value = Number(el(id) && el(id).value);
         return Number.isFinite(value) ? value : fallback;
+    }
+
+    function thresholdConstraintInputs() {
+        return [1, 2, 3, 4].map(function (index) { return el('decay-infer-threshold-constraint-' + index); })
+            .filter(Boolean);
+    }
+
+    function slopeConstraintInputs() {
+        return [1, 2, 3, 4, 5].map(function (index) { return el('decay-infer-slope-constraint-' + index); })
+            .filter(Boolean);
+    }
+
+    function parsePositiveInteger(text, label) {
+        var normalized = String(text || '').replace(/[,，\s]/g, '');
+        if (!/^\d+$/.test(normalized)) throw new Error(label + '必须是正整数。');
+        var value = Number(normalized);
+        if (!Number.isSafeInteger(value) || value <= 0) throw new Error(label + '必须是有效的正整数。');
+        return value;
+    }
+
+    function parseThresholdConstraint(text, index) {
+        var raw = String(text || '').trim();
+        if (!raw) return null;
+        var exactMatch = raw.match(/^[\d,，\s]+$/);
+        if (exactMatch) {
+            var exact = parsePositiveInteger(raw, '第' + index + '阈值');
+            return { min: exact, max: exact };
+        }
+        var rangeMatch = raw.match(/^([\d,，\s]+)\s*(?:-|~|～|—|–|至)\s*([\d,，\s]+)$/);
+        if (!rangeMatch) throw new Error('第' + index + '阈值请填写精确值或“最小值-最大值”。');
+        var minimum = parsePositiveInteger(rangeMatch[1], '第' + index + '阈值下限');
+        var maximum = parsePositiveInteger(rangeMatch[2], '第' + index + '阈值上限');
+        if (minimum > maximum) throw new Error('第' + index + '阈值下限不能大于上限。');
+        return { min: minimum, max: maximum };
+    }
+
+    function readInferenceConstraints() {
+        var thresholdRanges = thresholdConstraintInputs().map(function (input, index) {
+            return parseThresholdConstraint(input.value, index + 1);
+        });
+        var slopeConstraints = slopeConstraintInputs().map(function (input, index) {
+            var raw = input.value.trim();
+            if (!raw) return null;
+            var percent = Number(raw);
+            if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+                throw new Error('第' + (index + 1) + '段斜率必须大于0且不超过100%。');
+            }
+            return percent / 100;
+        });
+        return { thresholdRanges: thresholdRanges, slopeConstraints: slopeConstraints };
+    }
+
+    function renderConstraintState() {
+        var thresholdInputs = thresholdConstraintInputs();
+        var slopeInputs = slopeConstraintInputs();
+        thresholdInputs.concat(slopeInputs).forEach(function (input) {
+            input.classList.toggle('has-lock', !!input.value.trim());
+        });
+        var thresholdCount = thresholdInputs.filter(function (input) { return !!input.value.trim(); }).length;
+        var slopeCount = slopeInputs.filter(function (input) { return !!input.value.trim(); }).length;
+        var node = el('decay-infer-constraint-state');
+        if (!node) return;
+        node.textContent = thresholdCount || slopeCount
+            ? '硬约束已启用：' + thresholdCount + '个阈值、' + slopeCount + '段斜率。新增样本不会改写这些内容。'
+            : '当前没有锁定项。';
+    }
+
+    function constraintsChanged() {
+        renderConstraintState();
+        saveSamples();
+        if (inferenceSamples().length >= 1) inferTable({ automatic: true });
+    }
+
+    function clearConstraints() {
+        thresholdConstraintInputs().concat(slopeConstraintInputs()).forEach(function (input) { input.value = ''; });
+        renderConstraintState();
+        saveSamples();
+        if (inferenceSamples().length >= 1) inferTable({ automatic: true });
+        if (state.result) setStatus('已清空全部阈值与斜率锁定，并重新推算。', 'success');
+    }
+
+    function slopeIsLocked(candidate, stageIndex) {
+        var slopeInput = el('decay-infer-slope-constraint-' + (stageIndex + 1));
+        var slopePercent = slopeInput && slopeInput.value.trim() ? Number(slopeInput.value) : NaN;
+        return Number.isFinite(slopePercent)
+            && Math.abs(slopePercent / 100 - candidate.slopes[stageIndex]) < 1e-9;
+    }
+
+    function thresholdIsLocked(candidate, thresholdIndex) {
+        if (thresholdIndex >= candidate.thresholds.length) return false;
+        try {
+            var range = parseThresholdConstraint(el('decay-infer-threshold-constraint-' + (thresholdIndex + 1)).value, thresholdIndex + 1);
+            return range && range.min === candidate.thresholds[thresholdIndex] && range.max === candidate.thresholds[thresholdIndex];
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function lockCandidateThreshold(thresholdIndex) {
+        var candidate = state.result && state.result.best;
+        if (!candidate || thresholdIndex < 0 || thresholdIndex >= candidate.thresholds.length) return;
+        el('decay-infer-threshold-constraint-' + (thresholdIndex + 1)).value = String(candidate.thresholds[thresholdIndex]);
+        renderConstraintState();
+        saveSamples();
+        inferTable({ automatic: true });
+        if (state.result) setStatus('第' + (thresholdIndex + 1) + '个阈值已锁定；后续推算不会改写它。', 'success');
+    }
+
+    function lockCandidateSlope(stageIndex) {
+        var candidate = state.result && state.result.best;
+        if (!candidate || !candidate.slopes || stageIndex < 0 || stageIndex >= candidate.slopes.length) return;
+        el('decay-infer-slope-constraint-' + (stageIndex + 1)).value = String(Math.round(candidate.slopes[stageIndex] * 10000) / 100);
+        renderConstraintState();
+        saveSamples();
+        inferTable({ automatic: true });
+        if (state.result) setStatus('第' + (stageIndex + 1) + '段斜率已锁定；后续推算不会改写它。', 'success');
+    }
+
+    function lockEntireCandidate() {
+        var candidate = state.result && state.result.best;
+        if (!candidate) return;
+        candidate.thresholds.forEach(function (threshold, index) {
+            el('decay-infer-threshold-constraint-' + (index + 1)).value = String(threshold);
+        });
+        candidate.slopes.forEach(function (slope, index) {
+            el('decay-infer-slope-constraint-' + (index + 1)).value = String(Math.round(slope * 10000) / 100);
+        });
+        renderConstraintState();
+        saveSamples();
+        inferTable({ automatic: true });
+        if (state.result) setStatus('当前候选的4个阈值和5段斜率已全部锁定。', 'success');
     }
 
     function escapeHtml(value) {
@@ -358,11 +502,14 @@
                 throw new Error('至少需要1组新版理论样本；当前有' + usableSamples.length + '组。原有'
                     + legacyCount + '组旧口径记录已保留，但不会参与修复后的推算。');
             }
+            var constraints = readInferenceConstraints();
             state.result = global.DecayTableInference.infer(usableSamples, {
                 thresholdStep: numberValue('decay-infer-threshold-step', 50000),
                 fuzzyDisplayCap: Math.max(0, numberValue('decay-infer-fuzzy-cap', 0)) * 10000,
                 fuzzyCapTolerance: 10000,
                 slopeTemplates: getKnownSkillSlopeTemplates(),
+                thresholdRanges: constraints.thresholdRanges,
+                slopeConstraints: constraints.slopeConstraints,
                 maxCandidates: 3
             });
             renderResult(state.result);
@@ -413,11 +560,20 @@
         var stageRows = best.slopes.map(function (slope, index) {
             var start = index === 0 ? 0 : best.thresholds[index - 1];
             var end = index < best.thresholds.length ? best.thresholds[index] : null;
+            var thresholdLocked = thresholdIsLocked(best, index);
+            var slopeLocked = slopeIsLocked(best, index);
+            var thresholdButton = index < best.thresholds.length
+                ? '<button type="button" class="decay-infer-lock-btn" data-decay-lock-threshold="' + index + '"'
+                    + (thresholdLocked ? ' disabled' : '') + '>' + (thresholdLocked ? '阈值已锁' : '锁定阈值') + '</button>'
+                : '';
             return '<tr><td>' + (index + 1) + '</td>'
                 + '<td>' + rangeText(start, end) + '</td>'
                 + '<td>' + Math.round(slope * 100) + '%</td>'
                 + '<td>' + Math.round((1 - slope) * 100) + '%</td>'
-                + '<td>' + (index < cumulativeCaps.length ? formatDamage(cumulativeCaps[index]) : '-') + '</td></tr>';
+                + '<td>' + (index < cumulativeCaps.length ? formatDamage(cumulativeCaps[index]) : '-') + '</td>'
+                + '<td><div class="decay-infer-lock-actions">' + thresholdButton
+                + '<button type="button" class="decay-infer-lock-btn" data-decay-lock-slope="' + index + '"'
+                + (slopeLocked ? ' disabled' : '') + '>' + (slopeLocked ? '斜率已锁' : '锁定斜率') + '</button></div></td></tr>';
         }).join('');
         var predictionRows = best.predictions.map(function (prediction) {
             var minimumError = Number(prediction.minimumError) || 0;
@@ -446,16 +602,25 @@
             + '<div><strong>' + resultTitle + best.displayCap + '万</strong><span>置信度：' + escapeHtml(best.confidence) + '</span></div>'
             + '<div>端点RMSE ' + formatDamage(best.rmse) + '（' + formatPercent(best.relativeRmse * 100) + '） / 最大误差 ' + formatDamage(best.maxError) + '</div>'
             + '<div class="decay-infer-template-line">斜率模板：' + escapeHtml(best.slopeTemplateLabel || best.slopeTemplateId || '已知技伤斜率') + '</div>'
-            + '<div class="decay-infer-template-line">完整穷举：' + formatDamage(result.evaluatedCount) + ' 张 / 阈值单位 '
+            + '<div class="decay-infer-template-line">数据剪枝穷举：实际评估 ' + formatDamage(result.evaluatedCount)
+            + ' 张 / 安全剪枝 ' + formatDamage(result.prunedCandidateCount || 0) + ' 张 / 阈值单位 '
             + formatDamage(searchBounds.thresholdStep) + ' / 第四阈值搜索上界 ' + formatDamage(searchBounds.maximumThreshold) + '</div>'
+            + '<div><button type="button" class="decay-infer-lock-btn" id="decay-infer-lock-all">锁定当前候选全部分段</button></div>'
             + '</div>'
             + (result.warning ? '<div class="decay-infer-warning">' + escapeHtml(result.warning) + '</div>' : '')
-            + '<h4>推算分段</h4><div class="decay-infer-table-wrap"><table class="decay-infer-table"><thead><tr><th>段</th><th>理论区间</th><th>余量斜率</th><th>衰减率</th><th>分段累计上限</th></tr></thead><tbody>' + stageRows + '</tbody></table></div>'
+            + '<h4>推算分段</h4><div class="decay-infer-table-wrap"><table class="decay-infer-table"><thead><tr><th>段</th><th>理论区间</th><th>余量斜率</th><th>衰减率</th><th>分段累计上限</th><th>确认</th></tr></thead><tbody>' + stageRows + '</tbody></table></div>'
             + '<h4>极值范围对比</h4><div class="decay-infer-table-wrap"><table class="decay-infer-table"><thead><tr><th>无衰减理论极值</th><th>衰减前本体极值</th><th>实测极值</th><th>候选预测极值</th><th>极值偏差</th></tr></thead><tbody>' + predictionRows + '</tbody></table></div>'
             + '<h4>可能结果</h4><div class="decay-infer-candidates">' + result.candidates.map(candidateSummary).join('') + '</div>'
             + '<h4>' + (noMatch ? '最低误差候选配置（不建议入库）' : '统一配置') + '</h4><textarea id="decay-infer-export" class="decay-infer-export" readonly>' + escapeHtml(json) + '</textarea>'
             + '<button type="button" class="decay-infer-primary" id="decay-infer-copy">' + (noMatch ? '复制排查用JSON' : '复制JSON') + '</button>';
         el('decay-infer-copy').addEventListener('click', copyResult);
+        el('decay-infer-lock-all').addEventListener('click', lockEntireCandidate);
+        node.querySelectorAll('[data-decay-lock-threshold]').forEach(function (button) {
+            button.addEventListener('click', function () { lockCandidateThreshold(Number(button.dataset.decayLockThreshold)); });
+        });
+        node.querySelectorAll('[data-decay-lock-slope]').forEach(function (button) {
+            button.addEventListener('click', function () { lockCandidateSlope(Number(button.dataset.decayLockSlope)); });
+        });
     }
 
     function copyResult() {
@@ -525,6 +690,11 @@
         el('decay-infer-threshold-step').addEventListener('change', saveSamples);
         el('decay-infer-limit-type').addEventListener('change', saveSamples);
         el('decay-infer-char').addEventListener('change', refresh);
+        el('decay-infer-clear-constraints').addEventListener('click', clearConstraints);
+        thresholdConstraintInputs().concat(slopeConstraintInputs()).forEach(function (input) {
+            input.addEventListener('input', renderConstraintState);
+            input.addEventListener('change', constraintsChanged);
+        });
         global.addEventListener('skillDamageInferenceSnapshotUpdated', function (event) {
             if (event.detail && event.detail.charIndex === selectedCharIndex()) refresh();
         });

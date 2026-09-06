@@ -1,5 +1,22 @@
 [
   {
+    "id": "test_dark_skill_chase_10",
+    "name": "暗冴手测试（固定10%）",
+    "description": "暗属性角色造成属性技能伤害后，按原技能最终伤害总和的10%追加1次暗属性技能伤害。武器盘区，不受神石加护影响；冴手不消耗按命中次数持续的Buff或Debuff。",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_bonus_skill_own_element",
+        "boost": "none",
+        "value": "10%"
+      }
+    ]
+  },
+  {
     "id": "cosmic_sabre",
     "name": "剑之宇宙",
     "description": "装备中的「剑」类型武器，面板攻击力与HP上升50%",
@@ -88,6 +105,23 @@
         "prop": "weapon_ta",
         "boost": "optimus",
         "value": "10:2.5% 15:3.5%"
+      }
+    ]
+  },
+  {
+    "id": "optimus_trium_small",
+    "name": "神石的恩宠中",
+    "description": "属性角色的HP、弱体耐性提升（中），弱体耐性先不写",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_hp",
+        "boost": "optimus",
+        "value": "10:15% 15:17%"
       }
     ]
   },
@@ -856,6 +890,23 @@
         "prop": "weapon_normal_stamina",
         "boost": "optimus",
         "value": "curve:stamina_normal_medium"
+      }
+    ]
+  },
+  {
+    "id": "optimus_stamina_big2",
+    "name": "神石的浑身大2",
+    "description": "属性角色HP越多 攻击力越高（大2）",
+    "image": "",
+    "element": "weapon",
+    "race": "all",
+    "position": "all",
+    "condition": "",
+    "effects": [
+      {
+        "prop": "weapon_normal_stamina",
+        "boost": "optimus",
+        "value": "curve:stamina_normal_big2"
       }
     ]
   },

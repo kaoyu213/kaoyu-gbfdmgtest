@@ -340,6 +340,13 @@
         naOptions.defense = defense;
         naOptions.defenseDown = defenseDown;
         naOptions.isAdvantage = isAdvantage;
+        naOptions.charIndex = charIndex;
+        naOptions.actorElement = options.actorElement || naOptions.actorElement;
+        naOptions.damageElement = options.damageElement || naOptions.damageElement || naOptions.actorElement;
+        naOptions.enemyElement = options.enemyElement || naOptions.enemyElement;
+        naOptions.mainElement = options.mainElement || naOptions.mainElement || naOptions.actorElement;
+        naOptions.forceAdvantage = options.forceAdvantage === true || isAdvantage;
+        naOptions.forceNeutral = options.forceNeutral === true;
         if (naOptions.randomFactor == null) naOptions.randomFactor = 1;
         // 传递强壮/逆境等乘区参数，确保奥义基础伤害计算时能正确包含这些加成
         naOptions.strongCaps = options.strongCaps || [];
@@ -348,6 +355,10 @@
         naOptions.adversityCharSkill = options.adversityCharSkill || 0;
         naOptions.adversityWeapon = options.adversityWeapon || 0;
         naOptions.adversityStrongBonus = options.adversityStrongBonus || 0;
+        // 攻击力大幅提高的独立攻刃部分在奥义中按原值的 2/3 生效。
+        naOptions.indepZhanScale = options.indepZhanScale != null
+            ? Number(options.indepZhanScale)
+            : (2 / 3);
 
         var baseDamage = getBaseDamageBeforeDefense(panelAtk, stats, hpPercent, naOptions);
 
@@ -382,8 +393,16 @@
         var critMult = 1;
         var critFlag = false;
         var critAmpRate = 0;
-        if (typeof window !== 'undefined' && typeof window.getIndependentCritSources === 'function' && typeof window.getCritMultiplierByMode === 'function') {
-            var critSources = window.getIndependentCritSources(charIndex, stats);
+        var damageElementContext = typeof resolveDamageElementContext === 'function'
+            ? resolveDamageElementContext(naOptions)
+            : { isAdvantage: isAdvantage, critEligible: isAdvantage };
+        var critEligible = typeof isCritEligibleForDamage === 'function'
+            ? isCritEligibleForDamage(damageElementContext)
+            : true;
+        if (critEligible && typeof window !== 'undefined' && typeof window.getIndependentCritSources === 'function' && typeof window.getCritMultiplierByMode === 'function') {
+            var critSources = window.getIndependentCritSources(charIndex, stats, {
+                ignoreTestBuffSettings: options.ignoreTestBuffSettings === true
+            });
             critMult = window.getCritMultiplierByMode(critMode, critSources);
             if (typeof window.getCritFlagByMode === 'function') {
                 critFlag = window.getCritFlagByMode(critMode, critSources);
@@ -393,7 +412,7 @@
             } else {
                 critAmpRate = critFlag ? 1 : 0;
             }
-        } else {
+        } else if (critEligible) {
             critMult = getCritMultiplier(stats);
             critFlag = critMult > 1;
             critAmpRate = critFlag ? 1 : 0;
@@ -401,11 +420,12 @@
 
         var critOnlyAmp = Number(stats['weapon_critical_hit_amp'] || 0) * critAmpRate;
         var fallbackCaDmgAmp = (stats['weapon_ca_dmg_amp'] || 0) + (stats['weapon_special_ca_dmg_amp'] || 0) + (stats['weapon_dmg_amp'] || 0);
+        fallbackCaDmgAmp += Number(buffs.dmgAmp || 0) + Number(buffs.caDmgAmp || 0);
         if (teshuStats && teshuStats['dmg_amp']) {
             fallbackCaDmgAmp += teshuStats['dmg_amp'];
         }
         // 玲珑佩/武器盘的"对克制属性伤害增幅"，仅克属时生效
-        if (isAdvantage) {
+        if (damageElementContext.isAdvantage === true) {
             fallbackCaDmgAmp += aggregateZoneValue('dmg_to_elemental_amp', stats, teshuStats);
         }
         var caDmgAmp = options.effectTotals && typeof options.effectTotals === 'object'
@@ -445,6 +465,8 @@
             theoryValue: raw.value,
             steps: raw.steps,
             caMultiplierUsed: caMultiplier,
+            critMultiplierUsed: critMult,
+            critEligible: critEligible,
             suppZones: {
                 weaponGrid: caDmgSuppWeapon,
                 earring: caDmgSuppEarring,
@@ -602,6 +624,10 @@
             caMultiplier: charIndex === 0 ? undefined : (caMultiplier != null ? caMultiplier : undefined),
             charIndex: charIndex,
             isAdvantage: isAdvantage,
+            actorElement: typeof party !== 'undefined' && party[charIndex] ? party[charIndex].element : null,
+            damageElement: typeof party !== 'undefined' && party[charIndex] ? party[charIndex].element : null,
+            enemyElement: typeof window.getStaticEnemyElement === 'function' ? window.getStaticEnemyElement() : window.staticEnemyElement,
+            mainElement: typeof party !== 'undefined' && party[0] ? party[0].element : null,
             applyCap: false,
             critMode: critMode,
             naOptions: { randomFactor: randomFactor },

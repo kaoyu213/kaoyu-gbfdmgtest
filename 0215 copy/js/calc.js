@@ -17,12 +17,13 @@ const MC_LB_OPTIONS = [
     { id: 'debuff_res', label: '弱体耐性', values: [1, 3, 5], kind: 'percent', apply: 'debuffRes' },
     { id: 'debuff_success_std', label: '弱体成功率(1/3/5)', values: [1, 3, 5], kind: 'percent', apply: 'debuffSuccess' },
     { id: 'debuff_success_high', label: '弱体成功率(2/4/8)', values: [2, 4, 8], kind: 'percent', apply: 'debuffSuccess' },
-    { id: 'fire_atk', label: '火属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
-    { id: 'water_atk', label: '水属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
-    { id: 'earth_atk', label: '土属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
-    { id: 'wind_atk', label: '风属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
-    { id: 'light_atk', label: '光属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
-    { id: 'dark_atk', label: '暗属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtk' },
+    { id: 'fire_atk', label: '火属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtkFire' },
+    { id: 'water_atk', label: '水属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtkWater' },
+    { id: 'earth_atk', label: '土属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtkEarth' },
+    { id: 'wind_atk', label: '风属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtkWind' },
+    { id: 'light_atk', label: '光属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtkLight' },
+    { id: 'dark_atk', label: '暗属性攻击', values: [1, 3, 5], kind: 'percent', apply: 'elementAtkDark' },
+    { id: 'all_element_atk', label: '全属性属攻加成', values: [1, 3, 5], kind: 'percent', apply: 'elementAtkAll' },
     { id: 'ca_dmg_std', label: '奥义伤害(1/3/5)', values: [1, 3, 5], kind: 'percent', apply: 'caDmg' },
     { id: 'ca_dmg_high', label: '奥义伤害(2/4/8)', values: [2, 4, 8], kind: 'percent', apply: 'caDmg' },
     { id: 'prof1', label: '得意武器攻击1', values: [1, 3, 5], kind: 'percent', apply: 'prof1' },
@@ -186,7 +187,10 @@ window.getMcLbTotals = function() {
     ensureMcLbUI();
     const totals = {
         baseAtk: 0, baseHp: 0, partyHpFlat: 0, prof1: 0, prof2: 0, mcDef: 0, healCap: 0,
-        skillDmg: 0, debuffRes: 0, debuffSuccess: 0, elementAtk: 0, elementReduce: 0, caDmg: 0,
+        skillDmg: 0, debuffRes: 0, debuffSuccess: 0, elementAtk: 0,
+        elementAtkFire: 0, elementAtkWater: 0, elementAtkEarth: 0,
+        elementAtkWind: 0, elementAtkLight: 0, elementAtkDark: 0, elementAtkAll: 0,
+        elementReduce: 0, caDmg: 0,
         da: 0, ta: 0, crit: 0, allCap: 0, naCap: 0, cbDmg: 0, dodge: 0, skillCap: 0, cbCap: 0,
         expRp: 0, odSuppression: 0, breakdown: {}
     };
@@ -201,6 +205,9 @@ window.getMcLbTotals = function() {
         const rawValue = opt.values[sel.lvl - 1];
         const numericVal = opt.kind === 'percent' ? rawValue / 100 : rawValue;
         totals[opt.apply] = (totals[opt.apply] || 0) + numericVal;
+        if (String(opt.apply).indexOf('elementAtk') === 0) {
+            totals.elementAtk = (totals.elementAtk || 0) + numericVal;
+        }
         totals.breakdown[`${opt.label}#${i + 1}`] = numericVal;
         const valEl = document.getElementById(`mc-lb-val-${i}`);
         if (valEl) valEl.textContent = opt.kind === 'percent' ? `${rawValue}%` : `${rawValue}`;
@@ -844,6 +851,7 @@ function recalculate() {
         }
         STAT_CONFIG.forEach(cfg => party[i].stats[cfg.key] = 0);
         party[i].stats['weapon_na_ranshu'] = 1;
+        party[i].stats._elementAtkEntries = [];
     }
 
     // 解析当前召唤石的 effect 字符串，并写入 stats 统筹字典（主要写给主角，后续可以通过共享或者复制传给全队）
@@ -855,6 +863,16 @@ function recalculate() {
                 if (!Number.isFinite(value) || value === 0) return;
                 if (!STAT_CONFIG.some((cfg) => cfg.key === entry.stat_key)) return;
                 party[0].stats[entry.stat_key] = (party[0].stats[entry.stat_key] || 0) + value;
+                if (entry.stat_key === 'summon_element_atk' && typeof addElementAtkEntry === 'function') {
+                    addElementAtkEntry(party[0].stats, {
+                        sourceId: entry.sourceId,
+                        statKey: entry.stat_key,
+                        scope: entry.elementScope || 'main_element',
+                        element: entry.element,
+                        zone: entry.zone || 'summon',
+                        value
+                    });
+                }
             });
         } else {
         const mainOnlySet = new Set();
@@ -980,6 +998,12 @@ function recalculate() {
             globalSummonKeys.forEach(key => {
                 party[i].stats[key] = (party[i].stats[key] || 0) + (party[0].stats[key] || 0);
             });
+            const summonElementEntries = Array.isArray(party[0].stats._elementAtkEntries)
+                ? party[0].stats._elementAtkEntries.filter((entry) => entry && entry.zone === 'summon')
+                : [];
+            summonElementEntries.forEach((entry) => {
+                if (typeof addElementAtkEntry === 'function') addElementAtkEntry(party[i].stats, entry);
+            });
             
             if (summonDamageCap > 0 && !party[i].stats['summon_dmg_cap']) {
                 party[i].stats['summon_dmg_cap'] = summonDamageCap;
@@ -1019,7 +1043,23 @@ function recalculate() {
     party[0].stats['mc_heal_cap_passive_non_c5'] = (party[0].stats['mc_heal_cap_passive_non_c5'] || 0) + (mcLbTotals.healCap || 0);
     party[0].stats['weapon_dodge_rate'] = (party[0].stats['weapon_dodge_rate'] || 0) + (mcLbTotals.dodge || 0);
     party[0].stats['weapon_cb_dmg'] = (party[0].stats['weapon_cb_dmg'] || 0) + (mcLbTotals.cbDmg || 0);
-    party[0].stats['element_atk'] = (party[0].stats['element_atk'] || 0) + (mcLbTotals.elementAtk || 0);
+    if (typeof addElementAtkEntry === 'function') {
+        [
+            ['fire', mcLbTotals.elementAtkFire],
+            ['water', mcLbTotals.elementAtkWater],
+            ['earth', mcLbTotals.elementAtkEarth],
+            ['wind', mcLbTotals.elementAtkWind],
+            ['light', mcLbTotals.elementAtkLight],
+            ['dark', mcLbTotals.elementAtkDark],
+            ['all', mcLbTotals.elementAtkAll]
+        ].forEach(([scope, value]) => addElementAtkEntry(party[0].stats, {
+            sourceId: `mc_lb:element_atk:${scope}`,
+            statKey: `mc_lb_element_atk_${scope}`,
+            scope,
+            zone: 'charabonus',
+            value: Number(value) || 0
+        }));
+    }
     
     // 2. 将 currentMC.bonuses 中的对应职业加成也汇入 stats 中
     if (currentMC && currentMC.bonuses) {
@@ -1217,6 +1257,22 @@ function recalculate() {
                         member.stats['weapon_na_ranshu'] = Math.max(member.stats['weapon_na_ranshu'] || 1, v);
                     } else if (member.stats.hasOwnProperty(effect.prop)) {
                         member.stats[effect.prop] += finalVal;
+                        if (typeof addElementAtkEntry === 'function'
+                            && (effect.prop === 'weapon_element_atk'
+                                || effect.prop === 'weapon_progression_element_atk'
+                                || effect.prop === 'weapon_awaken_element_atk'
+                                || effect.prop === 'weapon_ax_element_atk')) {
+                            const allElement = effect.prop === 'weapon_ax_element_atk'
+                                || effectiveSkillEl === '全'
+                                || effectiveSkillEl === 'all';
+                            addElementAtkEntry(member.stats, {
+                                sourceId: `weapon:${weapon.id || weapon.name || 'unknown'}:${realSkill.id || realSkill.name || idx}:${effect.prop}`,
+                                statKey: effect.prop,
+                                scope: allElement ? 'all' : effectiveSkillEl,
+                                zone: 'weapon_grid',
+                                value: finalVal
+                            });
+                        }
                     }
                 });
             });
@@ -1254,17 +1310,8 @@ function recalculate() {
     // 规则：只有武器盘提供的加成需要 cap，其他来源不做上限处理
     // =====================================
     function applyWeaponCaps(statsObj) {
-        if (!statsObj || typeof STAT_CONFIG === 'undefined') return;
-        STAT_CONFIG.forEach(cfg => {
-            if (!cfg || cfg.category !== 'weapon') return;
-            if (cfg.cap === null || cfg.cap === undefined) return;
-            const key = cfg.key;
-            // 暴击率允许溢出用于“过量技能·暴击”换算，因此不在此处截断
-            if (key === 'weapon_critical_hit_rate') return;
-            const cur = statsObj[key];
-            if (typeof cur !== 'number') return;
-            if (cur > cfg.cap) statsObj[key] = cfg.cap;
-        });
+        if (typeof applyWeaponStatCaps !== 'function' || typeof STAT_CONFIG === 'undefined') return;
+        applyWeaponStatCaps(statsObj, STAT_CONFIG);
     }
 
     party.forEach(m => {

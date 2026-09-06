@@ -8,7 +8,14 @@
     const AUTO_BOARD_ID = 'burst-sim-board';
     const MANUAL_BOARD_ID = 'manual-burst-sim-board';
     const MANUAL_ID_PREFIX = 'manual-';
+    const MANUAL_TIMELINE_STORAGE_PREFIX = 'gbf_manual_timeline_v1';
+    const MANUAL_TIMELINE_STORAGE_VERSION = 1;
     const FRONTLINE_SLOTS = [0, 1, 2, 3];
+    const ACTION_MODES = new Set(['sa', 'da', 'ta', 'ca', 'none']);
+    const DYNAMIC_BLOCK_TYPES = new Set(['extra_action', 'buff', 'damage', 'debuff']);
+    const MANUAL_ENEMY_ELEMENTS = new Set(['', '火', '水', '土', '风', '光', '暗', '无属性']);
+    const MANUAL_CRIT_MODES = new Set(['non_crit', 'expected', 'lower_bound', 'upper_bound']);
+    const MANUAL_WORLD_CAP_MODES = new Set(['660', '1310', 'none']);
     const RAGE_ICON = 'chara skill/SK_14_3.webp';
     const NORMAL_ATK_BUFF_ICON = 'buff icon/normal_atk.png';
     const MANUAL_TARGET_LABELS = Object.freeze({
@@ -24,7 +31,17 @@
         turns: '持续回合',
         action: '持续行动',
         hit: '持续命中次数',
-        permanent: '永续/手动移除'
+        permanent: '永久'
+    });
+    const MANUAL_DAMAGE_ELEMENT_LABELS = Object.freeze({
+        own_element: '自属性',
+        fire: '火属性',
+        water: '水属性',
+        earth: '土属性',
+        wind: '风属性',
+        light: '光属性',
+        dark: '暗属性',
+        non_elemental: '无属性'
     });
 
     const state = {
@@ -39,8 +56,36 @@
         customEditorType: 'buff',
         customEditingSkillId: '',
         customOwnerSlot: 0,
+        calculation: createDefaultCalculationSettings(),
+        loadedStorageKey: '',
         initialized: false
     };
+
+    function createDefaultCalculationSettings() {
+        return {
+            enemyElement: '',
+            defense: 10,
+            randomMode: 'theory',
+            critMode: 'non_crit',
+            worldCapMode: '660'
+        };
+    }
+
+    function normalizeCalculationSettings(settings) {
+        const source = settings && typeof settings === 'object' ? settings : {};
+        const defaults = createDefaultCalculationSettings();
+        const enemyElement = String(source.enemyElement == null ? defaults.enemyElement : source.enemyElement);
+        const defense = Number(source.defense);
+        const critMode = String(source.critMode || defaults.critMode);
+        const worldCapMode = String(source.worldCapMode || defaults.worldCapMode);
+        return {
+            enemyElement: MANUAL_ENEMY_ELEMENTS.has(enemyElement) ? enemyElement : defaults.enemyElement,
+            defense: Number.isFinite(defense) ? Math.max(0.1, defense) : defaults.defense,
+            randomMode: source.randomMode === 'min' ? 'min' : 'theory',
+            critMode: MANUAL_CRIT_MODES.has(critMode) ? critMode : defaults.critMode,
+            worldCapMode: MANUAL_WORLD_CAP_MODES.has(worldCapMode) ? worldCapMode : defaults.worldCapMode
+        };
+    }
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -61,6 +106,26 @@
 
     function formatDamage(value) {
         return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('zh-CN');
+    }
+
+    function cloneJson(value) {
+        if (value == null) return value;
+        return JSON.parse(JSON.stringify(value));
+    }
+
+    function getCurrentUserId() {
+        return typeof currentUserId !== 'undefined' && currentUserId
+            ? String(currentUserId)
+            : 'user1';
+    }
+
+    function getTimelineStorageKey() {
+        return `${MANUAL_TIMELINE_STORAGE_PREFIX}_${getCurrentUserId()}`;
+    }
+
+    function normalizeActionMode(mode) {
+        const normalized = String(mode || '').toLowerCase();
+        return ACTION_MODES.has(normalized) ? normalized : 'ta';
     }
 
     function normalizeDamageSummary(summary) {
@@ -212,9 +277,16 @@
 
     function getSkillBlockType(skill) {
         const steps = skill && Array.isArray(skill.steps) ? skill.steps : [];
+        // 自定义强化技能即使带附加伤害，仍以强化技能方块显示。
+        if (skill && skill.custom_type === 'buff') return 'buff';
+        if (skill && skill.custom_type === 'damage') return 'damage';
         if (steps.some((step) => step && step.do === 'damage')) return 'damage';
         if (steps.some((step) => step && step.target === 'enemy')) return 'debuff';
         return 'buff';
+    }
+
+    function blockHasDamage(block) {
+        return !!(block && Array.isArray(block.steps) && block.steps.some((step) => step && step.do === 'damage'));
     }
 
     function getSkillTargetLabel(skill) {
@@ -234,33 +306,85 @@
             name: skill.name || String(skillId),
             target: getSkillTargetLabel(skill),
             skillIcon: skill.icon || '',
+            buffDisplayMode: skill.buff_display_mode
+                || skill.manual_definition && skill.manual_definition.displayMode
+                || 'small',
             steps: Array.isArray(skill.steps) ? skill.steps : []
         });
     }
 
+    function applyCurrentSkillToBlock(block, skill) {
+        if (!block || block.fixed || !skill) return false;
+        block.type = getSkillBlockType(skill);
+        block.name = skill.name || block.skillId || block.name;
+        block.target = getSkillTargetLabel(skill);
+        block.skillIcon = skill.icon || '';
+        block.buffDisplayMode = skill.buff_display_mode
+            || skill.manual_definition && skill.manual_definition.displayMode
+            || 'small';
+        block.steps = cloneJson(Array.isArray(skill.steps) ? skill.steps : []);
+        return true;
+    }
+
+    function syncPlacedSkillBlocks(skillId) {
+        const requestedId = skillId == null ? '' : String(skillId);
+        let updated = 0;
+        state.turns.forEach((turn) => {
+            (turn && Array.isArray(turn.blocks) ? turn.blocks : []).forEach((block) => {
+                if (!block || block.fixed || !block.skillId) return;
+                if (requestedId && String(block.skillId) !== requestedId) return;
+                const skill = getSkillById(block.skillId);
+                if (skill && applyCurrentSkillToBlock(block, skill)) updated += 1;
+            });
+        });
+        return updated;
+    }
+
     function createTurn(turnNumber, withDemo) {
-        const buffEntry = { icon: NORMAL_ATK_BUFF_ICON, name: '攻刃【普刃】+30%' };
         const fixedActions = FRONTLINE_SLOTS.map((slot) => createFixedAction(
             turnNumber,
             slot,
-            withDemo ? [buffEntry] : []
+            []
         ));
         if (!withDemo) return { number: turnNumber, blocks: fixedActions };
 
-        const rage = createDynamicBlock('buff', {
+        const rage = createSkillBlock('mc_skill_rage_3', 0) || createDynamicBlock('buff', {
             actorSlot: 0,
+            skillId: 'mc_skill_rage_3',
             name: '狂怒3',
             target: '己方全体',
-            skillIcon: RAGE_ICON
+            skillIcon: RAGE_ICON,
+            steps: [{
+                do: 'buff',
+                id: 'status_rage_3_normal_atk',
+                target: 'ally_party',
+                name: '攻刃【普刃】+30%',
+                icon: NORMAL_ATK_BUFF_ICON,
+                prop: 'normal_atk',
+                zone: 'chara_skill',
+                value: 0.3,
+                turns: 3
+            }]
         });
         const defenseDown = createDynamicBlock('debuff', {
             name: '防御DOWN 50%',
-            target: '敌方'
+            target: '敌方',
+            steps: [{
+                do: 'buff',
+                id: 'status_manual_demo_defense_down_50',
+                target: 'enemy',
+                name: '防御DOWN 50%',
+                duration: { type: 'permanent' },
+                effects: [{
+                    effect_type: 'enemy_defense_down',
+                    zone: 'normal',
+                    value: 0.5
+                }]
+            }]
         });
         const extraAction = createDynamicBlock('extra_action', {
             actorSlot: 0,
-            name: '二动追加行动',
-            buffs: [buffEntry]
+            name: '二动追加行动'
         });
         const extraDamage = createDynamicBlock('damage', {
             actorSlot: 1,
@@ -281,9 +405,168 @@
         return { number: turnNumber, blocks };
     }
 
+    function getDynamicBlockNumber(blockId) {
+        const match = /^manual-block-(\d+)$/.exec(String(blockId || ''));
+        return match ? Number(match[1]) : 0;
+    }
+
+    function createTimelineSnapshot() {
+        return {
+            version: MANUAL_TIMELINE_STORAGE_VERSION,
+            savedAt: new Date().toISOString(),
+            nextBlockId: state.nextBlockId,
+            calculation: normalizeCalculationSettings(state.calculation),
+            turns: state.turns.map((turn) => ({
+                number: turn.number,
+                blocks: turn.blocks.map((block) => {
+                    const savedBlock = cloneJson(block) || {};
+                    // 这两项由每次重算生成，不写入存档，避免恢复过期的显示结果。
+                    delete savedBlock.buffs;
+                    delete savedBlock.damage;
+                    return savedBlock;
+                })
+            }))
+        };
+    }
+
+    function saveTimelineToLocal() {
+        if (!state.initialized || !global.localStorage) return false;
+        const storageKey = state.loadedStorageKey || getTimelineStorageKey();
+        try {
+            global.localStorage.setItem(storageKey, JSON.stringify(createTimelineSnapshot()));
+            return true;
+        } catch (error) {
+            console.error('[ManualBurstSimulator] 手动时间轴本地保存失败', error);
+            return false;
+        }
+    }
+
+    function normalizeStoredTimeline(payload) {
+        if (!payload || typeof payload !== 'object') return null;
+        if (Number(payload.version) !== MANUAL_TIMELINE_STORAGE_VERSION) return null;
+        if (!Array.isArray(payload.turns) || payload.turns.length === 0) return null;
+
+        let greatestBlockNumber = 0;
+        payload.turns.forEach((turn) => {
+            if (!turn || !Array.isArray(turn.blocks)) return;
+            turn.blocks.forEach((block) => {
+                greatestBlockNumber = Math.max(greatestBlockNumber, getDynamicBlockNumber(block && block.id));
+            });
+        });
+        let nextBlockId = Math.max(
+            1,
+            greatestBlockNumber + 1,
+            Math.floor(Number(payload.nextBlockId) || 0)
+        );
+        const usedDynamicIds = new Set();
+        const allocateDynamicId = () => {
+            let id = `manual-block-${nextBlockId++}`;
+            while (usedDynamicIds.has(id)) id = `manual-block-${nextBlockId++}`;
+            return id;
+        };
+
+        const turns = payload.turns.map((sourceTurn, turnIndex) => {
+            const turnNumber = turnIndex + 1;
+            const blocks = [];
+            const fixedSlots = new Set();
+            const sourceBlocks = sourceTurn && Array.isArray(sourceTurn.blocks) ? sourceTurn.blocks : [];
+
+            sourceBlocks.forEach((sourceBlock) => {
+                if (!sourceBlock || typeof sourceBlock !== 'object') return;
+                const actorSlot = Number(sourceBlock.actorSlot);
+                if (sourceBlock.fixed === true) {
+                    if (
+                        sourceBlock.type !== 'actor_action'
+                        || !FRONTLINE_SLOTS.includes(actorSlot)
+                        || fixedSlots.has(actorSlot)
+                    ) return;
+                    const fixedBlock = createFixedAction(turnNumber, actorSlot, []);
+                    fixedBlock.actionMode = normalizeActionMode(sourceBlock.actionMode);
+                    blocks.push(fixedBlock);
+                    fixedSlots.add(actorSlot);
+                    return;
+                }
+
+                const restoredBlock = cloneJson(sourceBlock) || {};
+                const blockType = String(restoredBlock.type || 'buff');
+                restoredBlock.type = DYNAMIC_BLOCK_TYPES.has(blockType) || /^[a-z][a-z0-9_]*$/.test(blockType)
+                    ? blockType
+                    : 'buff';
+                restoredBlock.fixed = false;
+                delete restoredBlock.buffs;
+                delete restoredBlock.damage;
+                if (restoredBlock.actionMode != null || restoredBlock.type === 'extra_action') {
+                    restoredBlock.actionMode = normalizeActionMode(restoredBlock.actionMode);
+                    if (restoredBlock.type === 'extra_action' && restoredBlock.actionMode === 'none') {
+                        restoredBlock.actionMode = 'ta';
+                    }
+                }
+                if (Number.isInteger(actorSlot) && actorSlot >= 0) restoredBlock.actorSlot = actorSlot;
+                else if (restoredBlock.actorSlot != null) restoredBlock.actorSlot = 0;
+
+                let blockId = String(restoredBlock.id || '');
+                if (!/^manual-block-\d+$/.test(blockId) || usedDynamicIds.has(blockId)) {
+                    blockId = allocateDynamicId();
+                }
+                restoredBlock.id = blockId;
+                usedDynamicIds.add(blockId);
+                blocks.push(restoredBlock);
+            });
+
+            // 即使旧存档不完整，也补齐不可移动的四个基础行动槽。
+            FRONTLINE_SLOTS.forEach((slot) => {
+                if (!fixedSlots.has(slot)) blocks.push(createFixedAction(turnNumber, slot, []));
+            });
+            return { number: turnNumber, blocks };
+        });
+
+        return {
+            turns,
+            nextBlockId,
+            calculation: normalizeCalculationSettings(payload.calculation)
+        };
+    }
+
+    function loadTimelineFromLocal(storageKey) {
+        if (!global.localStorage) return false;
+        try {
+            const raw = global.localStorage.getItem(storageKey);
+            if (!raw) return false;
+            const restored = normalizeStoredTimeline(JSON.parse(raw));
+            if (!restored) return false;
+            state.turns = restored.turns;
+            state.nextBlockId = restored.nextBlockId;
+            state.calculation = restored.calculation;
+            return true;
+        } catch (error) {
+            console.error('[ManualBurstSimulator] 手动时间轴本地存档读取失败', error);
+            return false;
+        }
+    }
+
+    function setMutationDetail(board, message) {
+        const saved = saveTimelineToLocal();
+        setDetail(
+            board,
+            saved
+                ? `${message} 已自动保存到本地。`
+                : `${message} 本地自动保存失败，请检查浏览器存储权限。`
+        );
+    }
+
     function ensureInitialState() {
-        if (state.initialized) return;
-        state.turns = [createTurn(1, true)];
+        const storageKey = getTimelineStorageKey();
+        if (state.initialized && state.loadedStorageKey === storageKey) return;
+
+        state.turns = [];
+        state.nextBlockId = 1;
+        state.selectedPayload = null;
+        state.damageSummary = { totalDamage: 0, byCharacter: {} };
+        state.calculation = createDefaultCalculationSettings();
+        state.loadedStorageKey = storageKey;
+        if (!loadTimelineFromLocal(storageKey)) {
+            state.turns = [createTurn(1, true)];
+        }
         state.initialized = true;
     }
 
@@ -348,23 +631,31 @@
         return `<span class="${className}" aria-label="${escapeHtml(name)}">${content}</span>`;
     }
 
-    function renderBuffStrip(block) {
+    function renderBuffStrip(block, emptyLabel = 'Buff槽') {
         const buffs = Array.isArray(block.buffs) ? block.buffs : [];
         if (!buffs.length) {
-            return '<span class="manual-timeline-buff-strip"><span class="manual-timeline-buff-empty">Buff槽</span></span>';
+            return `<span class="manual-timeline-buff-strip"><span class="manual-timeline-buff-empty">${escapeHtml(emptyLabel)}</span></span>`;
         }
         const icons = buffs.map((buff) => {
-            const src = buildImageSrc(buff.icon);
-            return `<span class="manual-timeline-buff-icon" aria-label="${escapeHtml(buff.name || 'Buff')}">${src
+            const isLarge = buff.displayMode === 'large';
+            const src = isLarge ? '' : buildImageSrc(buff.icon);
+            const tooltip = String(buff.tooltip || buff.name || 'Buff');
+            const initial = String(buff.initial || Array.from(String(buff.name || 'Buff'))[0] || '强');
+            return `<span class="manual-timeline-buff-icon${isLarge ? ' is-large' : ''}" tabindex="0"
+                aria-label="${escapeHtml(buff.name || 'Buff')}" data-manual-buff-tooltip="${escapeHtml(tooltip)}">${src
                 ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(buff.name || 'Buff')}">`
-                : escapeHtml((buff.name || 'Buff').slice(0, 1))}</span>`;
+                : escapeHtml(initial)}</span>`;
         }).join('');
         return `<span class="manual-timeline-buff-strip">${icons}</span>`;
     }
 
     function renderSkillIcon(block) {
-        const src = buildImageSrc(block.skillIcon);
-        const fallback = block.type === 'damage' ? '伤' : '技';
+        const src = block.buffDisplayMode === 'large' ? '' : buildImageSrc(block.skillIcon);
+        const fallback = block.type === 'damage'
+            ? '伤'
+            : block.buffDisplayMode === 'large'
+                ? (Array.from(String(block.name || '强'))[0] || '强')
+                : '技';
         return `<span class="manual-timeline-skill-icon">${src
             ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(block.name || '技能')}图标">`
             : `<span>${fallback}</span>`}</span>`;
@@ -372,6 +663,7 @@
 
     function getActionMode(block) {
         const mode = String(block && block.actionMode || '').toLowerCase();
+        if (block && block.fixed && mode === 'none') return mode;
         if (['sa', 'da', 'ta', 'ca'].includes(mode)) return mode;
         if (String(block && block.actionType || '').includes('奥义')) return 'ca';
         const legacyChain = String(block && block.chain || '').toLowerCase();
@@ -379,7 +671,7 @@
     }
 
     function getActionModeLabel(mode) {
-        return ({ sa: 'SA', da: 'DA', ta: 'TA', ca: '奥义' })[mode] || 'TA';
+        return ({ sa: 'SA', da: 'DA', ta: 'TA', ca: '奥义', none: '不行动' })[mode] || 'TA';
     }
 
     function renderActionModeSelect(block, label) {
@@ -388,12 +680,21 @@
             ['sa', 'SA'],
             ['da', 'DA'],
             ['ta', 'TA'],
-            ['ca', '奥义']
+            ['ca', '奥义'],
+            ...(block && block.fixed ? [['none', '不行动']] : [])
         ].map(([value, text]) => (
             `<option value="${value}"${value === currentMode ? ' selected' : ''}>${text}</option>`
         )).join('');
         return `<select class="manual-timeline-action-select" data-manual-action-mode
             aria-label="${escapeHtml(label)}类型">${options}</select>`;
+    }
+
+    function renderBlockDamage(block, ariaLabel) {
+        const hitCount = Math.max(0, Math.floor(Number(block && block.hitCount) || 0));
+        return `<span class="manual-timeline-block-damage" aria-label="${escapeHtml(ariaLabel)}">
+            <span class="manual-timeline-block-hits"><small>HIT</small><strong>${hitCount}</strong></span>
+            <span class="manual-timeline-block-damage-value"><small>伤害</small><strong>${formatDamage(block && block.damage)}</strong></span>
+        </span>`;
     }
 
     function renderBlock(block) {
@@ -410,18 +711,21 @@
                         <strong>${label}</strong>
                         ${renderActionModeSelect(block, `${getActorName(block.actorSlot)}${label}`)}
                     </span>
+                    ${renderBlockDamage(block, '本次行动hit数与伤害')}
                 </div>
             `;
         }
 
         if (block.type === 'buff' || block.type === 'damage') {
+            const hasDamage = blockHasDamage(block);
             return `
-                <button type="button" class="manual-timeline-block manual-timeline-compact is-${escapeHtml(block.type)} is-source"
+                <button type="button" class="manual-timeline-block manual-timeline-compact is-${escapeHtml(block.type)} is-source${hasDamage ? ' has-damage' : ''}"
                     data-manual-block-id="${escapeHtml(block.id)}">
                     ${renderActorAvatar(block.actorSlot == null ? 0 : block.actorSlot, true)}
                     ${renderSkillIcon(block)}
                     <span class="manual-timeline-block-name">${escapeHtml(block.name)}</span>
                     <span class="manual-timeline-block-target">${escapeHtml(block.target)}</span>
+                    ${hasDamage ? renderBlockDamage(block, '该技能附加伤害的hit数与伤害') : ''}
                 </button>
             `;
         }
@@ -443,6 +747,59 @@
     function renderTimeline(board) {
         const track = board.querySelector('[data-manual-timeline-track]');
         if (!track) return;
+        // 每次投影前都从技能注册表刷新，兼容旧的本地时间轴快照。
+        syncPlacedSkillBlocks();
+        const resolver = global.ManualBattleResolution
+            && typeof global.ManualBattleResolution.resolveTimeline === 'function'
+            ? global.ManualBattleResolution.resolveTimeline
+            : null;
+        const calculator = global.BurstSimulator || null;
+        let timelineResult = {
+            buffsByBlockId: {},
+            damageByBlockId: {},
+            hitCountByBlockId: {},
+            totalDamage: 0,
+            byCharacter: {},
+            enemyBuffs: []
+        };
+        if (resolver) {
+            try {
+                if (calculator && typeof calculator.prepareManualDamageCalculation === 'function') {
+                    calculator.prepareManualDamageCalculation(state.calculation);
+                }
+                timelineResult = resolver(state.turns, {
+                    actorCount: 4,
+                    getSkillById,
+                    calculateHit: calculator && typeof calculator.calculateManualHitDamage === 'function'
+                        ? (hit, context) => calculator.calculateManualHitDamage(hit, context.state, state.calculation)
+                        : () => 0,
+                    getBonusHits: calculator && typeof calculator.getManualBonusHitSources === 'function'
+                        ? (runtimeState, actorSlot) => calculator.getManualBonusHitSources(runtimeState, actorSlot, state.calculation)
+                        : null,
+                    getSkillChaseEffects: calculator && typeof calculator.getManualSkillChaseEffects === 'function'
+                        ? (runtimeState, actorSlot) => calculator.getManualSkillChaseEffects(runtimeState, actorSlot, state.calculation)
+                        : null
+                });
+            } catch (error) {
+                console.error('[ManualBurstSimulator] 手动时间轴伤害重算失败', error);
+            }
+        }
+        const projectedBuffs = timelineResult.buffsByBlockId || {};
+        const projectedDamage = timelineResult.damageByBlockId || {};
+        const projectedHitCounts = timelineResult.hitCountByBlockId || {};
+        state.turns.forEach((turn) => {
+            turn.blocks.forEach((block) => {
+                if (block.type === 'actor_action' || block.type === 'extra_action') {
+                    block.buffs = projectedBuffs[block.id] || [];
+                }
+                block.damage = Math.max(0, Number(projectedDamage[block.id]) || 0);
+                block.hitCount = Math.max(0, Math.floor(Number(projectedHitCounts[block.id]) || 0));
+            });
+        });
+        state.damageSummary = normalizeDamageSummary({
+            totalDamage: timelineResult.totalDamage,
+            byCharacter: timelineResult.byCharacter
+        });
         track.innerHTML = state.turns.map((turn) => {
             let flow = renderDropzone(turn.number, 0);
             turn.blocks.forEach((block, index) => {
@@ -451,7 +808,12 @@
             });
             return `
                 <section class="manual-timeline-turn" data-manual-turn="${turn.number}">
-                    <div class="manual-timeline-turn-title"><span>第${turn.number}回合</span></div>
+                    <div class="manual-timeline-turn-title">
+                        <span>第${turn.number}回合</span>
+                        ${turn.number > 1 ? `<button type="button" class="manual-timeline-delete-turn"
+                            data-manual-delete-turn="${turn.number}" aria-label="删除第${turn.number}回合"
+                            title="删除此回合及其中的全部行动和技能">删除回合</button>` : ''}
+                    </div>
                     <div class="manual-timeline-flow">
                         <div class="manual-timeline-flow-content">${flow}</div>
                     </div>
@@ -459,6 +821,20 @@
             `;
         }).join('');
         wireTimeline(board);
+        renderDamageSummary(board);
+        renderEnemyBuffArea(board, timelineResult.enemyBuffs || []);
+    }
+
+    function renderEnemyBuffArea(board, buffs) {
+        const area = board.querySelector('[data-manual-enemy-buff-area]');
+        if (!area) return;
+        const slots = area.querySelector('.manual-enemy-buff-slots');
+        const detail = area.querySelector('small');
+        const items = Array.isArray(buffs) ? buffs : [];
+        if (slots) {
+            slots.innerHTML = renderBuffStrip({ buffs: items }, '暂无生效状态');
+        }
+        if (detail) detail.textContent = items.length ? `${items.length}个生效状态` : '';
     }
 
     function isSamePayload(left, right) {
@@ -504,13 +880,15 @@
         return `<option value="${escapeHtml(value)}"${String(value) === String(selected) ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     }
 
-    function getDefaultBuffType(catalog) {
+    function getDefaultBuffType(catalog, target) {
+        if (target === 'enemy' && catalog.some((entry) => entry.buffType === 'def_down')) return 'def_down';
         return catalog.some((entry) => entry.buffType === 'normal_atk') ? 'normal_atk' : (catalog[0] && catalog[0].buffType || '');
     }
 
-    function getDefaultZone(entry, requested) {
+    function getDefaultZone(entry, requested, preferred) {
         const ids = entry && Array.isArray(entry.zones) ? entry.zones.map((zone) => zone.id) : [];
         if (requested && ids.includes(requested)) return requested;
+        if (preferred && ids.includes(preferred)) return preferred;
         if (ids.includes('chara_skill')) return 'chara_skill';
         if (ids.includes('charabonus')) return 'charabonus';
         return ids[0] || '';
@@ -530,24 +908,28 @@
         `).join('');
     }
 
-    function renderBuffEffectRow(effect, index) {
+    function renderBuffEffectRow(effect, index, displayMode) {
         const api = getManualCustomApi();
-        const catalog = api ? api.getBuffCatalog() : [];
         const seed = effect || {};
+        const target = MANUAL_TARGET_LABELS[seed.target] ? seed.target : 'self';
+        const catalog = api ? api.getBuffCatalog(target) : [];
         const requestedType = String(seed.buffType || '');
         const buffType = catalog.some((entry) => entry.buffType === requestedType)
             ? requestedType
-            : getDefaultBuffType(catalog);
+            : getDefaultBuffType(catalog, target);
         const entry = catalog.find((item) => item.buffType === buffType) || { zones: [], subtypes: [] };
         const subtype = entry.subtypes.includes(seed.subtype) ? seed.subtype : (entry.subtypes[0] || '');
-        const zone = getDefaultZone(entry, seed.zone);
+        const zone = getDefaultZone(entry, seed.zone, displayMode === 'large' ? 'independent' : '');
         const prop = subtype ? `${buffType}_${subtype}` : buffType;
         const format = api ? api.resolveBuffFormat(buffType, prop, zone) : 'percent';
         const unit = api ? api.getValueUnit(buffType, format) : '%';
         const zoneMeta = entry.zones.find((item) => item.id === zone) || null;
-        const target = MANUAL_TARGET_LABELS[seed.target] ? seed.target : 'self';
         const durationType = MANUAL_DURATION_LABELS[seed.durationType] ? seed.durationType : 'turns';
-        const value = seed.value == null ? (format === 'fixed' ? 1 : 10) : seed.value;
+        const value = entry.fixedValue != null
+            ? entry.fixedValue
+            : seed.value == null
+                ? (entry.defaultValue != null ? entry.defaultValue : (format === 'fixed' ? 1 : 10))
+                : seed.value;
         const durationValue = seed.durationValue == null ? 1 : seed.durationValue;
         return `
             <fieldset class="manual-custom-effect" data-manual-custom-effect>
@@ -562,7 +944,7 @@
                     </label>
                     <label>加成类别
                         <select data-manual-effect-type>
-                            ${catalog.map((item) => renderOption(item.buffType, `${item.label} (${item.buffType})`, buffType)).join('')}
+                            ${catalog.map((item) => renderOption(item.buffType, `${item.optionLabel || item.label} (${item.buffType})`, buffType)).join('')}
                         </select>
                     </label>
                     <label data-manual-effect-subtype-field${entry.subtypes.length ? '' : ' hidden'}>子类型
@@ -577,7 +959,7 @@
                         <small data-manual-zone-rule>${escapeHtml(getZoneRuleText(zoneMeta))}</small>
                     </label>
                     <label>加成数值
-                        <span class="manual-custom-value-input"><input type="number" step="any" value="${escapeHtml(value)}" data-manual-effect-value required><span data-manual-effect-unit>${escapeHtml(unit)}</span></span>
+                        <span class="manual-custom-value-input"><input type="number" step="any" value="${escapeHtml(value)}" data-manual-effect-value${entry.fixedValue != null ? ' readonly' : ''} required><span data-manual-effect-unit>${escapeHtml(unit)}</span></span>
                     </label>
                     <label>持续时间
                         <select data-manual-effect-duration-type>
@@ -595,14 +977,28 @@
         `;
     }
 
-    function updateBuffEffectRowMeta(row, resetDependent) {
+    function updateBuffEffectRowMeta(row, resetDependent, preferredZone, forcePreferred) {
         const api = getManualCustomApi();
         if (!row || !api) return;
         const typeSelect = row.querySelector('[data-manual-effect-type]');
         const subtypeSelect = row.querySelector('[data-manual-effect-subtype]');
         const subtypeField = row.querySelector('[data-manual-effect-subtype-field]');
         const zoneSelect = row.querySelector('[data-manual-effect-zone]');
-        const entry = api.getBuffType(typeSelect && typeSelect.value);
+        const targetSelect = row.querySelector('[data-manual-effect-target]');
+        const target = targetSelect ? targetSelect.value : 'self';
+        const catalog = api.getBuffCatalog(target);
+        const previousType = typeSelect && typeSelect.value;
+        const buffType = catalog.some((item) => item.buffType === previousType)
+            ? previousType
+            : getDefaultBuffType(catalog, target);
+        if (typeSelect) {
+            typeSelect.innerHTML = catalog.map((item) => renderOption(
+                item.buffType,
+                `${item.optionLabel || item.label} (${item.buffType})`,
+                buffType
+            )).join('');
+        }
+        const entry = api.getBuffType(buffType, target);
         if (!entry) return;
 
         const previousSubtype = resetDependent ? '' : subtypeSelect.value;
@@ -610,13 +1006,19 @@
         subtypeSelect.innerHTML = entry.subtypes.map((item) => renderOption(item, `${getSubtypeLabel(item)} (${item})`, subtype)).join('');
         subtypeField.hidden = entry.subtypes.length === 0;
 
-        const previousZone = resetDependent ? '' : zoneSelect.value;
-        const zone = getDefaultZone(entry, previousZone);
+        const previousZone = resetDependent || forcePreferred ? '' : zoneSelect.value;
+        const zone = getDefaultZone(entry, previousZone, preferredZone);
         zoneSelect.innerHTML = entry.zones.map((item) => renderOption(item.id, `${item.label} (${item.id})`, zone)).join('');
         const prop = subtype ? `${entry.buffType}_${subtype}` : entry.buffType;
         const format = api.resolveBuffFormat(entry.buffType, prop, zone);
         const unit = row.querySelector('[data-manual-effect-unit]');
         if (unit) unit.textContent = api.getValueUnit(entry.buffType, format);
+        const valueInput = row.querySelector('[data-manual-effect-value]');
+        if (valueInput) {
+            valueInput.readOnly = entry.fixedValue != null;
+            if (entry.fixedValue != null) valueInput.value = entry.fixedValue;
+            else if (resetDependent) valueInput.value = entry.defaultValue != null ? entry.defaultValue : (format === 'fixed' ? 1 : 10);
+        }
         const zoneHint = row.querySelector('[data-manual-zone-rule]');
         if (zoneHint) zoneHint.textContent = getZoneRuleText(entry.zones.find((item) => item.id === zone));
     }
@@ -627,12 +1029,19 @@
         const zoneSelect = row.querySelector('[data-manual-effect-zone]');
         const targetSelect = row.querySelector('[data-manual-effect-target]');
         const durationSelect = row.querySelector('[data-manual-effect-duration-type]');
-        if (typeSelect) typeSelect.addEventListener('change', () => updateBuffEffectRowMeta(row, true));
+        if (typeSelect) typeSelect.addEventListener('change', () => {
+            const modeSelect = row.closest('[data-manual-custom-form]')
+                && row.closest('[data-manual-custom-form]').querySelector('[data-manual-buff-display-mode]');
+            updateBuffEffectRowMeta(row, true, modeSelect && modeSelect.value === 'large' ? 'independent' : '');
+        });
         if (subtypeSelect) subtypeSelect.addEventListener('change', () => updateBuffEffectRowMeta(row, false));
         if (zoneSelect) zoneSelect.addEventListener('change', () => updateBuffEffectRowMeta(row, false));
         if (targetSelect) targetSelect.addEventListener('change', () => {
             const slots = row.querySelector('[data-manual-effect-target-slots]');
             if (slots) slots.hidden = targetSelect.value !== 'ally_slots';
+            const modeSelect = row.closest('[data-manual-custom-form]')
+                && row.closest('[data-manual-custom-form]').querySelector('[data-manual-buff-display-mode]');
+            updateBuffEffectRowMeta(row, true, modeSelect && modeSelect.value === 'large' ? 'independent' : '');
         });
         if (durationSelect) durationSelect.addEventListener('change', () => {
             const field = row.querySelector('[data-manual-effect-duration-value-field]');
@@ -661,6 +1070,80 @@
         )).join('')}`;
     }
 
+    function getDamageDefinitions(definition) {
+        const source = definition || {};
+        if (Array.isArray(source.damages) && source.damages.length) return source.damages;
+        return [{
+            element: source.element || 'own_element',
+            multiplier: source.multiplier == null ? 1 : source.multiplier,
+            hits: source.hits == null ? 1 : source.hits,
+            decayMode: source.decayMode || 'fuzzy',
+            thresholdTable: source.thresholdTable || '',
+            cap: source.cap == null ? 100000 : source.cap
+        }];
+    }
+
+    function renderDamageElementOptions(selected) {
+        const api = getManualCustomApi();
+        const allowed = api && Array.isArray(api.DAMAGE_ELEMENTS)
+            ? api.DAMAGE_ELEMENTS
+            : Object.keys(MANUAL_DAMAGE_ELEMENT_LABELS);
+        const current = allowed.includes(selected) ? selected : 'own_element';
+        return allowed.map((element) => renderOption(
+            element,
+            MANUAL_DAMAGE_ELEMENT_LABELS[element] || element,
+            current
+        )).join('');
+    }
+
+    function renderDamageRow(damage, index) {
+        const seed = damage || {};
+        const decayMode = seed.decayMode === 'exact' ? 'exact' : 'fuzzy';
+        return `
+            <fieldset class="manual-custom-effect manual-custom-damage" data-manual-custom-damage>
+                <legend>伤害 <span data-manual-damage-number>${index + 1}</span></legend>
+                <button type="button" class="manual-custom-effect-remove" data-manual-remove-damage aria-label="删除该段伤害">删除</button>
+                <div class="manual-custom-form-grid">
+                    <label>伤害属性
+                        <select data-manual-damage-element>${renderDamageElementOptions(seed.element || 'own_element')}</select>
+                    </label>
+                    <label>单hit倍率<input type="number" min="0.01" step="0.01" value="${escapeHtml(seed.multiplier == null ? 1 : seed.multiplier)}" data-manual-damage-mult required></label>
+                    <label>hit数<input type="number" min="1" max="999" step="1" value="${escapeHtml(seed.hits == null ? 1 : seed.hits)}" data-manual-damage-hits required></label>
+                    <label>衰减计算
+                        <select data-manual-decay-mode>
+                            ${renderOption('fuzzy', '模糊衰减上限', decayMode)}
+                            ${renderOption('exact', '精确衰减表', decayMode)}
+                        </select>
+                    </label>
+                    <label data-manual-fuzzy-cap-field${decayMode === 'fuzzy' ? '' : ' hidden'}>单hit模糊上限<input type="number" min="1" step="1" value="${escapeHtml(seed.cap == null ? 100000 : seed.cap)}" data-manual-fuzzy-cap></label>
+                    <label data-manual-threshold-field${decayMode === 'exact' ? '' : ' hidden'}>精确衰减表<select data-manual-threshold-table>${renderThresholdOptions(seed.thresholdTable || '')}</select></label>
+                </div>
+            </fieldset>
+        `;
+    }
+
+    function wireDamageRow(row) {
+        if (!row) return;
+        const decay = row.querySelector('[data-manual-decay-mode]');
+        if (decay) decay.addEventListener('change', () => {
+            const fuzzyField = row.querySelector('[data-manual-fuzzy-cap-field]');
+            const thresholdField = row.querySelector('[data-manual-threshold-field]');
+            if (fuzzyField) fuzzyField.hidden = decay.value !== 'fuzzy';
+            if (thresholdField) thresholdField.hidden = decay.value !== 'exact';
+        });
+        const remove = row.querySelector('[data-manual-remove-damage]');
+        if (remove) remove.addEventListener('click', () => {
+            const list = row.parentElement;
+            if (!list) return;
+            const allowEmpty = list.hasAttribute('data-manual-damage-optional');
+            if (!allowEmpty && list.querySelectorAll('[data-manual-custom-damage]').length <= 1) return;
+            row.remove();
+            list.querySelectorAll('[data-manual-damage-number]').forEach((label, itemIndex) => {
+                label.textContent = itemIndex + 1;
+            });
+        });
+    }
+
     function getEditingDefinition(type) {
         const api = getManualCustomApi();
         const skill = api && state.customEditingSkillId ? api.get(state.customEditingSkillId) : null;
@@ -675,6 +1158,17 @@
         output.hidden = !message;
     }
 
+    function collectDamageDefinitions(form) {
+        return Array.from(form.querySelectorAll('[data-manual-custom-damage]')).map((row) => ({
+            element: row.querySelector('[data-manual-damage-element]').value,
+            multiplier: row.querySelector('[data-manual-damage-mult]').value,
+            hits: row.querySelector('[data-manual-damage-hits]').value,
+            decayMode: row.querySelector('[data-manual-decay-mode]').value,
+            thresholdTable: row.querySelector('[data-manual-threshold-table]').value,
+            cap: row.querySelector('[data-manual-fuzzy-cap]').value
+        }));
+    }
+
     function collectCustomDefinition(form) {
         const type = form.getAttribute('data-manual-custom-form');
         const base = {
@@ -684,13 +1178,11 @@
             desc: form.querySelector('[data-manual-custom-desc]').value
         };
         if (type === 'damage') {
-            base.multiplier = form.querySelector('[data-manual-damage-mult]').value;
-            base.hits = form.querySelector('[data-manual-damage-hits]').value;
-            base.decayMode = form.querySelector('[data-manual-decay-mode]').value;
-            base.thresholdTable = form.querySelector('[data-manual-threshold-table]').value;
-            base.cap = form.querySelector('[data-manual-fuzzy-cap]').value;
+            base.damages = collectDamageDefinitions(form);
             return base;
         }
+        base.damages = collectDamageDefinitions(form);
+        base.displayMode = form.querySelector('[data-manual-buff-display-mode]').value;
         base.effects = Array.from(form.querySelectorAll('[data-manual-custom-effect]')).map((row) => ({
             target: row.querySelector('[data-manual-effect-target]').value,
             targetSlots: Array.from(row.querySelectorAll('[data-manual-effect-target-slots] input:checked')).map((input) => Number(input.value)),
@@ -723,22 +1215,14 @@
         `;
 
         if (type === 'damage') {
-            const decayMode = common.decayMode === 'exact' ? 'exact' : 'fuzzy';
+            const damages = getDamageDefinitions(common);
             container.innerHTML = `
                 <form class="manual-custom-form" data-manual-custom-form="damage">
                     ${commonFields}
-                    <div class="manual-custom-form-grid">
-                        <label>单hit倍率<input type="number" min="0.01" step="0.01" value="${escapeHtml(common.multiplier == null ? 1 : common.multiplier)}" data-manual-damage-mult required></label>
-                        <label>hit数<input type="number" min="1" max="999" step="1" value="${escapeHtml(common.hits == null ? 1 : common.hits)}" data-manual-damage-hits required></label>
-                        <label>衰减计算
-                            <select data-manual-decay-mode>
-                                ${renderOption('fuzzy', '模糊衰减上限', decayMode)}
-                                ${renderOption('exact', '精确衰减表', decayMode)}
-                            </select>
-                        </label>
-                        <label data-manual-fuzzy-cap-field${decayMode === 'fuzzy' ? '' : ' hidden'}>单hit模糊上限<input type="number" min="1" step="1" value="${escapeHtml(common.cap == null ? 100000 : common.cap)}" data-manual-fuzzy-cap></label>
-                        <label data-manual-threshold-field${decayMode === 'exact' ? '' : ' hidden'}>精确衰减表<select data-manual-threshold-table>${renderThresholdOptions(common.thresholdTable || '')}</select></label>
+                    <div class="manual-custom-effect-list manual-custom-damage-list" data-manual-damage-list>
+                        ${damages.map(renderDamageRow).join('')}
                     </div>
+                    <button type="button" class="manual-custom-add-effect manual-custom-add-damage" data-manual-add-damage>＋ 新增伤害</button>
                     <div class="manual-custom-error" data-manual-custom-error hidden></div>
                     <div class="manual-custom-form-actions">
                         <button type="submit" class="manual-custom-save">${editing ? '保存修改' : '保存伤害技能'}</button>
@@ -746,13 +1230,42 @@
                     </div>
                 </form>
             `;
+            container.querySelectorAll('[data-manual-custom-damage]').forEach(wireDamageRow);
+            const addDamage = container.querySelector('[data-manual-add-damage]');
+            if (addDamage) addDamage.addEventListener('click', () => {
+                const list = container.querySelector('[data-manual-damage-list]');
+                const index = list.querySelectorAll('[data-manual-custom-damage]').length;
+                list.insertAdjacentHTML('beforeend', renderDamageRow({}, index));
+                wireDamageRow(list.lastElementChild);
+            });
         } else {
             const effects = editing && Array.isArray(editing.effects) && editing.effects.length ? editing.effects : [{}];
+            const damages = editing && Array.isArray(editing.damages) ? editing.damages : [];
+            const displayMode = common.displayMode === 'large' ? 'large' : 'small';
             container.innerHTML = `
                 <form class="manual-custom-form" data-manual-custom-form="buff">
                     ${commonFields}
+                    <section class="manual-custom-optional-damage">
+                        <div class="manual-custom-subsection-head">
+                            <strong>附加伤害</strong>
+                            <small>选填；技能会先按顺序结算这里的伤害，再赋予下方强化效果。</small>
+                        </div>
+                        <div class="manual-custom-effect-list manual-custom-damage-list" data-manual-damage-list data-manual-damage-optional>
+                            ${damages.map(renderDamageRow).join('')}
+                        </div>
+                        <button type="button" class="manual-custom-add-effect manual-custom-add-damage" data-manual-add-damage>＋ 新增伤害</button>
+                    </section>
+                    <div class="manual-custom-display-mode">
+                        <label>Buff显示方式
+                            <select data-manual-buff-display-mode>
+                                ${renderOption('small', '小Buff（每项独立图标）', displayMode)}
+                                ${renderOption('large', '大Buff（首字专属图标）', displayMode)}
+                            </select>
+                            <small>大Buff会把全部加成归入一个首字图标，新增效果的加成分区默认选择独立区。</small>
+                        </label>
+                    </div>
                     <div class="manual-custom-effect-list" data-manual-effect-list>
-                        ${effects.map((effect, index) => renderBuffEffectRow(effect, index)).join('')}
+                        ${effects.map((effect, index) => renderBuffEffectRow(effect, index, displayMode)).join('')}
                     </div>
                     <button type="button" class="manual-custom-add-effect" data-manual-add-effect>＋ 新增效果</button>
                     <div class="manual-custom-error" data-manual-custom-error hidden></div>
@@ -762,32 +1275,49 @@
                     </div>
                 </form>
             `;
+            container.querySelectorAll('[data-manual-custom-damage]').forEach(wireDamageRow);
+            const addDamage = container.querySelector('[data-manual-add-damage]');
+            if (addDamage) addDamage.addEventListener('click', () => {
+                const list = container.querySelector('[data-manual-damage-list]');
+                const index = list.querySelectorAll('[data-manual-custom-damage]').length;
+                list.insertAdjacentHTML('beforeend', renderDamageRow({}, index));
+                wireDamageRow(list.lastElementChild);
+            });
             container.querySelectorAll('[data-manual-custom-effect]').forEach(wireBuffEffectRow);
+            const displayModeSelect = container.querySelector('[data-manual-buff-display-mode]');
+            if (displayModeSelect) displayModeSelect.addEventListener('change', () => {
+                if (displayModeSelect.value !== 'large') return;
+                container.querySelectorAll('[data-manual-custom-effect]').forEach((row) => {
+                    updateBuffEffectRowMeta(row, false, 'independent', true);
+                });
+            });
             const add = container.querySelector('[data-manual-add-effect]');
             if (add) add.addEventListener('click', () => {
                 const list = container.querySelector('[data-manual-effect-list]');
                 const index = list.querySelectorAll('[data-manual-custom-effect]').length;
-                list.insertAdjacentHTML('beforeend', renderBuffEffectRow({}, index));
+                const mode = displayModeSelect ? displayModeSelect.value : 'small';
+                list.insertAdjacentHTML('beforeend', renderBuffEffectRow({}, index, mode));
                 wireBuffEffectRow(list.lastElementChild);
             });
         }
 
         const form = container.querySelector('[data-manual-custom-form]');
-        const decay = form.querySelector('[data-manual-decay-mode]');
-        if (decay) decay.addEventListener('change', () => {
-            form.querySelector('[data-manual-fuzzy-cap-field]').hidden = decay.value !== 'fuzzy';
-            form.querySelector('[data-manual-threshold-field]').hidden = decay.value !== 'exact';
-        });
         form.addEventListener('submit', (event) => {
             event.preventDefault();
             try {
                 const skill = api.save(collectCustomDefinition(form));
+                const updatedBlocks = syncPlacedSkillBlocks(skill.id);
                 state.customEditingSkillId = '';
-                setDetail(board, `已保存自定义技能“${skill.name}”，可从本地技能库插入时间轴。`);
                 renderCustomEditor(board);
                 renderCustomLibrary(board);
+                renderTimeline(board);
                 const builder = board.querySelector('[data-manual-custom-builder]');
                 if (builder) builder.open = false;
+                if (updatedBlocks > 0) {
+                    setMutationDetail(board, `已保存自定义技能“${skill.name}”，并同步更新${updatedBlocks}个已放置方块。`);
+                } else {
+                    setDetail(board, `已保存自定义技能“${skill.name}”，可从本地技能库插入时间轴。`);
+                }
             } catch (error) {
                 showCustomEditorError(form, error && error.message ? error.message : String(error));
             }
@@ -802,14 +1332,21 @@
     function getCustomSkillSummary(skill) {
         const definition = skill && skill.manual_definition || {};
         if (definition.type === 'damage') {
-            const decay = definition.decayMode === 'exact'
-                ? `精确表 ${definition.thresholdTable || '—'}`
-                : `单hit上限 ${formatDamage(definition.cap)}`;
-            return `${definition.multiplier}倍 × ${definition.hits}hit · ${decay}`;
+            const damages = getDamageDefinitions(definition);
+            const parts = damages.map((damage) => (
+                `${MANUAL_DAMAGE_ELEMENT_LABELS[damage.element || 'own_element'] || damage.element} ${damage.multiplier}倍×${damage.hits}hit`
+            ));
+            return `${damages.length}段伤害 · ${parts.join('；')}`;
         }
-        return (Array.isArray(skill.steps) ? skill.steps : []).map((step) => (
+        const damageDefinitions = Array.isArray(definition.damages) ? definition.damages : [];
+        const damageHitCount = damageDefinitions.reduce((total, damage) => total + Math.max(0, Number(damage.hits) || 0), 0);
+        const damageSummary = damageDefinitions.length
+            ? `先造成${damageDefinitions.length}段/${damageHitCount}hit伤害 · `
+            : '';
+        const summary = (Array.isArray(skill.steps) ? skill.steps : []).filter((step) => step && step.do === 'buff').map((step) => (
             `${step.name || step.prop} · ${MANUAL_TARGET_LABELS[step.target] || step.target}`
         )).join('；');
+        return `${damageSummary}${definition.displayMode === 'large' ? '大Buff' : '小Buff'} · ${summary}`;
     }
 
     function renderCustomLibrary(board) {
@@ -821,11 +1358,20 @@
         const cards = skills.length ? skills.map((skill) => {
             const type = skill.custom_type === 'damage' ? 'damage' : 'buff';
             const icon = buildImageSrc(skill.icon);
+            const isLargeBuff = type === 'buff' && (
+                skill.buff_display_mode === 'large'
+                || skill.manual_definition && skill.manual_definition.displayMode === 'large'
+            );
+            const fallbackIcon = type === 'damage'
+                ? '伤'
+                : isLargeBuff
+                    ? (Array.from(String(skill.name || '强'))[0] || '强')
+                    : '强';
             return `
                 <article class="manual-custom-skill-card is-${type}">
                     <button type="button" class="manual-custom-skill-source" data-manual-skill-id="${escapeHtml(skill.id)}" data-manual-owner-slot="${state.customOwnerSlot}">
                         ${renderActorAvatar(state.customOwnerSlot, true)}
-                        <span class="manual-custom-skill-icon">${icon ? `<img src="${escapeHtml(icon)}" alt="">` : (type === 'damage' ? '伤' : '强')}</span>
+                        <span class="manual-custom-skill-icon${isLargeBuff ? ' is-large' : ''}">${icon && !isLargeBuff ? `<img src="${escapeHtml(icon)}" alt="">` : escapeHtml(fallbackIcon)}</span>
                         <span class="manual-custom-skill-copy"><strong>${escapeHtml(skill.name)}</strong><small>${escapeHtml(getCustomSkillSummary(skill))}</small></span>
                     </button>
                     <div class="manual-custom-card-actions">
@@ -1165,7 +1711,7 @@
         }
         const name = found.block.name || '角色行动';
         found.turn.blocks.splice(found.index, 1);
-        setDetail(board, `已删除“${name}”。`);
+        setMutationDetail(board, `已删除“${name}”。`);
         renderTimeline(board);
     }
 
@@ -1196,11 +1742,19 @@
             return;
         }
         targetTurn.blocks.splice(insertionIndex, 0, block);
-        setDetail(board, `${payload.source === 'timeline' ? '已移动' : '已插入'}“${block.name || '角色行动'}”。`);
+        setMutationDetail(
+            board,
+            `${payload.source === 'timeline' ? '已移动' : '已插入'}“${block.name || '角色行动'}”。`
+        );
         renderTimeline(board);
     }
 
     function wireTimeline(board) {
+        board.querySelectorAll('[data-manual-delete-turn]').forEach((button) => {
+            button.addEventListener('click', () => {
+                deleteTurn(board, Number(button.getAttribute('data-manual-delete-turn')));
+            });
+        });
         board.querySelectorAll('[data-manual-block-id]').forEach((element) => {
             const found = findBlock(element.getAttribute('data-manual-block-id'));
             if (!found) return;
@@ -1210,10 +1764,11 @@
                 actionSelect.addEventListener('click', (event) => event.stopPropagation());
                 actionSelect.addEventListener('change', () => {
                     found.block.actionMode = actionSelect.value;
-                    setDetail(
+                    setMutationDetail(
                         board,
                         `${getActorName(found.block.actorSlot)}的${found.block.fixed ? '基础行动' : '追加行动'}已设为${getActionModeLabel(actionSelect.value)}。`
                     );
+                    renderTimeline(board);
                 });
             }
             element.addEventListener('click', (event) => {
@@ -1221,7 +1776,7 @@
                 if (element.dataset.manualSuppressClick === 'true') return;
                 const block = found.block;
                 if (block.fixed) {
-                    setDetail(board, `${getActorName(block.actorSlot)}的基础行动槽固定不可移动；可在下拉框选择SA、DA、TA或奥义。`);
+                    setDetail(board, `${getActorName(block.actorSlot)}的基础行动槽固定不可移动；可在下拉框选择SA、DA、TA、奥义或不行动。`);
                 } else {
                     setDetail(board, `${block.name || '行为方块'}可以拖到任意“＋”位置。`);
                 }
@@ -1246,11 +1801,115 @@
         });
     }
 
+    function deleteTurn(board, turnNumber) {
+        const index = state.turns.findIndex((turn) => turn.number === turnNumber);
+        if (index <= 0) return;
+
+        const removedTurn = state.turns.splice(index, 1)[0];
+        if (state.selectedPayload && state.selectedPayload.source === 'timeline'
+            && removedTurn.blocks.some((block) => block.id === state.selectedPayload.blockId)) {
+            state.selectedPayload = null;
+        }
+        state.turns.forEach((turn, turnIndex) => {
+            turn.number = turnIndex + 1;
+            // 固定行动ID包含回合号，随编号更新，避免再次新增回合时发生ID冲突。
+            turn.blocks.forEach((block) => {
+                if (block.fixed) block.id = `manual-fixed-${turn.number}-${block.actorSlot}`;
+            });
+        });
+        renderTimeline(board);
+        setMutationDetail(board, `已删除第${turnNumber}回合及其中的全部行动和技能，后续回合已重新编号。`);
+    }
+
     function addTurn(board) {
         const number = state.turns.length + 1;
         state.turns.push(createTurn(number, false));
         renderTimeline(board);
-        setDetail(board, `已新增第${number}回合，并生成主角至4号位的固定基础行动槽。`);
+        setMutationDetail(board, `已新增第${number}回合，并生成主角至4号位的固定基础行动槽。`);
+    }
+
+    function renderCalculationControls() {
+        const settings = normalizeCalculationSettings(state.calculation);
+        return `
+            <div class="manual-calculation-groups">
+                <div class="manual-calculation-controls manual-enemy-controls" role="group" aria-label="敌方设置">
+                    <strong class="manual-calculation-controls-title">敌方设置</strong>
+                    <label class="burst-top-field">属性
+                        <select id="manual-enemy-element" data-manual-calc-setting="enemyElement">
+                            <option value=""${settings.enemyElement === '' ? ' selected' : ''}>未指定</option>
+                            ${['火', '水', '土', '风', '光', '暗', '无属性'].map((element) => (
+                                `<option value="${element}"${settings.enemyElement === element ? ' selected' : ''}>${element}</option>`
+                            )).join('')}
+                        </select>
+                    </label>
+                    <label class="burst-top-field">防御值
+                        <input type="number" id="manual-defense" min="0.1" step="0.1"
+                            value="${escapeHtml(settings.defense)}" data-manual-calc-setting="defense">
+                    </label>
+                    <label class="burst-top-field">世界上限
+                        <select id="manual-world-cap" data-manual-calc-setting="worldCapMode">
+                            <option value="660"${settings.worldCapMode === '660' ? ' selected' : ''}>660万</option>
+                            <option value="1310"${settings.worldCapMode === '1310' ? ' selected' : ''}>1310万</option>
+                            <option value="none"${settings.worldCapMode === 'none' ? ' selected' : ''}>不限制</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="manual-calculation-controls manual-damage-value-controls" role="group" aria-label="伤害取值">
+                    <strong class="manual-calculation-controls-title">伤害取值</strong>
+                    <label class="burst-top-field">暴击
+                        <select id="manual-crit-mode" data-manual-calc-setting="critMode">
+                            <option value="non_crit"${settings.critMode === 'non_crit' ? ' selected' : ''}>非暴击</option>
+                            <option value="expected"${settings.critMode === 'expected' ? ' selected' : ''}>期望值</option>
+                            <option value="lower_bound"${settings.critMode === 'lower_bound' ? ' selected' : ''}>预期值</option>
+                            <option value="upper_bound"${settings.critMode === 'upper_bound' ? ' selected' : ''}>上限值</option>
+                        </select>
+                    </label>
+                    <label class="burst-min-damage-toggle" title="开启后，普通攻击、奥义与技能伤害均使用 0.95 随机补正">
+                        <input type="checkbox" id="manual-min-damage" data-manual-calc-setting="randomMode"${settings.randomMode === 'min' ? ' checked' : ''}>
+                        <span>最小伤害</span>
+                    </label>
+                </div>
+                <div class="manual-enemy-buff-area" data-manual-enemy-buff-area aria-label="敌方DB区域">
+                    <strong>敌方 DB</strong>
+                    <div class="manual-enemy-buff-slots">
+                        ${renderBuffStrip({ buffs: [] }, '暂无生效状态')}
+                    </div>
+                    <small></small>
+                </div>
+            </div>
+            <button type="button" class="burst-action-btn" data-manual-refresh>刷新角色/技能</button>
+            <button type="button" class="burst-action-btn" data-manual-add-turn>新增下一回合</button>
+        `;
+    }
+
+    function wireCalculationControls(board) {
+        board.querySelectorAll('[data-manual-calc-setting]').forEach((control) => {
+            const setting = control.getAttribute('data-manual-calc-setting');
+            const eventName = control.type === 'number' ? 'input' : 'change';
+            control.addEventListener(eventName, () => {
+                const next = Object.assign({}, state.calculation);
+                if (setting === 'defense') {
+                    const value = Number(control.value);
+                    if (!Number.isFinite(value) || value < 0.1) return;
+                    next.defense = value;
+                } else if (setting === 'randomMode') {
+                    next.randomMode = control.checked ? 'min' : 'theory';
+                } else {
+                    next[setting] = control.value;
+                }
+                state.calculation = normalizeCalculationSettings(next);
+                renderTimeline(board);
+                setMutationDetail(board, '伤害调节已更新，手动时间轴已重新计算。');
+            });
+        });
+        const refreshButton = board.querySelector('[data-manual-refresh]');
+        if (refreshButton) {
+            refreshButton.addEventListener('click', () => {
+                createBoard();
+                const refreshedBoard = document.getElementById(MANUAL_BOARD_ID);
+                if (refreshedBoard) setDetail(refreshedBoard, '已刷新角色、技能与当前时间轴伤害。');
+            });
+        }
     }
 
     function prepareBoard(board) {
@@ -1262,7 +1921,7 @@
 
         const topActions = board.querySelector('.burst-axis-actions');
         if (topActions) {
-            topActions.innerHTML = '<button type="button" class="burst-action-btn" data-manual-add-turn>新增下一回合</button>';
+            topActions.innerHTML = renderCalculationControls();
         }
         const navigator = board.querySelector('.burst-turn-navigator');
         if (navigator) navigator.remove();
@@ -1291,6 +1950,7 @@
 
         const addTurnButton = board.querySelector('[data-manual-add-turn]');
         if (addTurnButton) addTurnButton.addEventListener('click', () => addTurn(board));
+        wireCalculationControls(board);
 
         renderPalette(board);
         renderTimeline(board);
@@ -1319,9 +1979,17 @@
         return true;
     }
 
+    function reloadForCurrentUser() {
+        state.initialized = false;
+        state.loadedStorageKey = '';
+        return createBoard();
+    }
+
     const api = {
         init: createBoard,
         refresh: createBoard,
+        saveTimeline: saveTimelineToLocal,
+        reloadForCurrentUser,
         setDamageSummary,
         clearDamageSummary
     };

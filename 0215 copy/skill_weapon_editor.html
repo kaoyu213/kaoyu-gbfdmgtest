@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GBF 技能/武器 快捷新增编辑器</title>
+<style>
+  :root{
+    --bg:#141414; --panel:#1e1e1e; --panel2:#262626; --line:#333;
+    --txt:#e8e8e8; --muted:#9a9a9a; --accent:#e04241; --ok:#4caf50;
+  }
+  *{box-sizing:border-box}
+  body{font-family:'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--txt);margin:0;padding:20px;}
+  h1{font-size:20px;margin:0 0 4px;color:#fff}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:14px;line-height:1.6}
+
+  .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tab{flex:0 1 auto;padding:9px 26px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:var(--panel);color:var(--txt);font-size:14px;font-weight:600;transition:.15s}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .tab:hover:not(.active){background:var(--panel2)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px}
+  .card h2{font-size:15px;margin:0 0 10px;color:#fff;border-bottom:1px solid var(--line);padding-bottom:6px}
+
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin-bottom:8px}
+  .field{display:flex;flex-direction:column;gap:4px;flex:1 1 220px}
+  .field label{font-size:12px;color:var(--muted);white-space:nowrap}
+  .field input,.field select,.field textarea{
+    background:#141414;color:var(--txt);border:1px solid var(--line);border-radius:5px;
+    padding:7px 9px;font-size:13px;font-family:inherit;
+  }
+  .field textarea{min-height:60px;resize:vertical}
+  .field .hint{font-size:11px;color:#7b7b7b}
+  .field .dup{font-size:11px;color:#ffb648}
+
+  .suggest{border:1px solid var(--accent);background:var(--panel2);border-radius:5px;max-height:150px;overflow:auto;display:none}
+  .suggest .opt{display:block;padding:5px 9px;font-size:12px;color:var(--muted);cursor:pointer;border-bottom:1px solid var(--line)}
+  .suggest .opt b{color:var(--txt)}
+  .suggest .opt.sel{background:#333}
+
+  button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer}
+  button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  button.small{background:var(--panel2);color:var(--txt);border:1px solid var(--line);font-size:12px;padding:5px 10px;border-radius:5px}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .output{margin-top:14px}
+  .output label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+  .output textarea{width:100%;min-height:220px;background:#101010;color:#7ee787;border:1px solid var(--line);border-radius:6px;padding:10px;font-family:'Consolas','Menlo',monospace;font-size:12px;white-space:pre;resize:vertical;}
+
+  .notice{background:#2d1a1a;border:1px solid #5a3a3a;color:#ffb4b4;border-radius:6px;padding:10px 14px;margin-top:14px;font-size:12.5px;line-height:1.6}
+
+  .dynrow{border:1px dashed var(--line);border-radius:6px;padding:8px;margin-bottom:6px;background:var(--panel2)}
+  .dynrow .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .dynrow .head span{font-size:11px;color:var(--muted)}
+  .dynrow .head button.ghost{padding:2px 8px;font-size:11px}
+
+  .slot-preview{font-size:11px;color:var(--muted);margin-bottom:4px}
+  .slot-preview span{color:#f5e08b}
+  .slot-preview .desc{color:#b8b8b8}
+
+  .switch{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .switch input{accent-color:var(--accent)}
+  table.mini{width:100%;border-collapse:collapse}
+  table.mini td,table.mini th{border:1px solid var(--line);padding:6px;font-size:12px}
+</style>
+</head>
+<body>
+<h1>GBF 技能 / 武器 快捷新增编辑器</h1>
+<div class="sub">
+  自动读取本目录 <b>skills.json</b> 与 <b>weapons.json</b> 做快捷联想与重复检测。<br>
+  由于是静态页面（无后端），无法直接改写 json 文件 —— 请在下方生成<b>单条对象</b>后手动粘贴进对应 json 数组（注意上一项结尾 <b>逗号</b>）。<br>
+  需要本地 HTTP 服务打开（如 <code>python -m http.server</code>），不能直接双击 <code>file://</code>。
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('skill')">➕ 新增技能 (skills.json)</div>
+  <div class="tab" onclick="switchTab('weapon')">⚔️ 新增武器 (weapons.json)</div>
+</div>
+
+<!-- ============ 技能 Tab ============ -->
+<div id="tab-skill" class="card">
+  <h2>基础信息</h2>
+  <div class="row">
+    <div class="field">
+      <label>id *</label>
+      <input id="s_id" data-suggest="skillId" placeholder="如 optimus_tempering_big / axe_voltage_medium">
+      <div class="dup" id="s_id_dup"></div>
+      <div class="suggest" id="s_id_sug"></div>
+    </div>
+    <div class="field">
+      <label>name（技能名）*</label>
+      <input id="s_name" data-suggest="skillName" placeholder="如：神石的神威小">
+      <div class="dup" id="s_name_dup"></div>
+      <div class="suggest" id="s_name_sug"></div>
+    </div>
+  </div>
+  <div class="field">
+    <label>description（效果描述）*</label>
+    <textarea id="s_desc" rows="2" placeholder="如：属性角色的攻击力提升（小）  （多行用 \n 表示换行）"></textarea>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>element（属性）</label>
+      <select id="s_element">
+        <option value="weapon">weapon（武器技能，默认）</option>
+        <option value="all">all（全属性）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>race（种族）</label>
+      <input id="s_race" value="all" list="raceList">
+      <datalist id="raceList"><option value="all"></datalist>
+    </div>
+    <div class="field">
+      <label>position（位置）</label>
+      <select id="s_position">
+        <option value="all">all（默认，任意武器）</option>
+        <option value="mc">mc（主角得意武器）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>condition（条件）</label>
+      <input id="s_condition" placeholder="留空 / 如：aura_up_280">
+    </div>
+  </div>
+  <div class="field">
+    <label>image（图片路径，可选，可留空占位）</label>
+    <input id="s_image" placeholder="留空占位；示例：chara skill/icon_skill_xxx.webp">
+  </div>
+
+  <h2>效果 effects[] *</h2>
+  <div id="s_effects"></div>
+  <button class="ghost" onclick="addEffect()">＋ 添加效果</button>
+
+  <div class="toolbar">
+    <button onclick="generateSkill()">🎯 生成技能 JSON（单条对象）</button>
+  </div>
+</div>
+
+<!-- ============ 武器 Tab ============ -->
+<div id="tab-weapon" class="card" style="display:none">
+  <h2>基础信息</h2>
+  <div class="row">
+    <div class="field">
+      <label>id *（英文/罗马音）</label>
+      <input id="w_id" data-suggest="weaponId" placeholder="如：Skeletal Eclipse">
+      <div class="dup" id="w_id_dup"></div>
+      <div class="suggest" id="w_id_sug"></div>
+    </div>
+    <div class="field">
+      <label>name *（中文名）</label>
+      <input id="w_name" data-suggest="weaponName" placeholder="如：暗龙枪">
+      <div class="dup" id="w_name_dup"></div>
+      <div class="suggest" id="w_name_sug"></div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>type *（武器类型）</label>
+      <select id="w_type">
+        <option value="sabre">剑 sabre</option>
+        <option value="dagger">短剑 dagger</option>
+        <option value="spear">枪 spear</option>
+        <option value="axe">斧 axe</option>
+        <option value="staff">杖 staff</option>
+        <option value="gun">铳 gun</option>
+        <option value="fist">格斗 fist</option>
+        <option value="bow">弓 bow</option>
+        <option value="harp">琴 harp</option>
+        <option value="katana">刀 katana</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>element *（属性）</label>
+      <select id="w_element">
+        <option value="火">火</option><option value="水">水</option><option value="土">土</option>
+        <option value="风">风</option><option value="光">光</option><option value="暗" selected>暗</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>category *（分类）</label>
+      <input id="w_category" data-suggest="weaponCategory" list="catList" placeholder="如：lm / fawu / 方阵 ..." value="lm">
+      <datalist id="catList"></datalist>
+      <div class="dup" id="w_category_dup"></div>
+      <div class="suggest" id="w_category_sug"></div>
+    </div>
+    <div class="field">
+      <label>image（图片路径，可选，留空占位）</label>
+      <input id="w_image" placeholder="留空占位；示例：weapons/M_xxx.webp">
+    </div>
+  </div>
+
+  <h2>基础数值 stats</h2>
+  <div class="row">
+    <div class="field"><label>hp</label><input id="w_hp" type="text" inputmode="decimal" placeholder="请输入基准 HP"></div>
+    <div class="field"><label>atk</label><input id="w_atk" type="text" inputmode="decimal" placeholder="请输入基准 atk"></div>
+    <div class="field"><label>max_level</label><input id="w_maxlevel" type="text" inputmode="decimal" value="150"></div>
+    <div class="field"><label>weapon_multiplier（奥义倍率）</label><input id="w_multiply" type="text" inputmode="decimal" value="5"></div>
+    <div class="field"><label>ca_fixed（奥义固定值）</label><input id="w_cafixed" type="text" inputmode="decimal" value="4000"></div>
+    <div class="field"><label>allow_extra（容许 +）</label>
+      <select id="w_allowextra"><option value="false">false</option><option value="true">true</option></select>
+    </div>
+  </div>
+
+  <h2>技能槽 skill_slots（下拉选择已有技能）</h2>
+  <div class="notice" style="font-size:12px">
+    每个槽可用下拉选择<b>已存在</b>的技能（显示「技能名 — 效果」）。默认是<b>固定技能</b>；勾选「可选槽」后改为多选 options。
+  </div>
+  <div id="w_slots"></div>
+  <button class="ghost" onclick="addSlot()">＋ 添加技能槽</button>
+
+  <div class="toolbar">
+    <button onclick="generateWeapon()">🎯 生成武器 JSON（单条对象）</button>
+  </div>
+</div>
+
+<!-- ============ 输出 ============ -->
+<div class="card output">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+    <label>输出（复制/下载单条对象）：</label>
+    <div>
+      <button class="ghost" onclick="copyOut()">📋 复制</button>
+      <button class="ghost" onclick="downloadOut()">⬇ 下载 .json</button>
+      <button class="ghost" onclick="clearOut()">🗑 清空</button>
+    </div>
+  </div>
+  <textarea id="output" placeholder="生成的单条 JSON 对象会显示在这里……"></textarea>
+  <div id="output-msg"></div>
+</div>
+
+<div class="notice">
+  <b>粘贴说明（手动写入 json 文件）：</b><br>
+  ① 用记事本/编辑器打开 <code>skills.json</code> 或 <code>weapons.json</code>；<br>
+  ② 找到数组最后一个对象结尾的 <code>}</code>，在其后补一个 <code>,</code>（若后面已经紧跟 <code>,</code> 则跳过）；<br>
+  ③ 把下方生成的单条对象（不含外层数组括号）粘贴到逗号之后、<code>]</code> 之前，并确认 <code>id</code> 不重复。<br>
+  静态页面无法直接写入服务器上的 json 文件，因此采用「生成 → 复制 → 粘贴」方式。
+</div>
+
+<script>
+/* =====================================================================
+ * 数据加载：读取本目录 skills.json / weapons.json / js/constants.js
+ * 纯静态页无法直接写文件，仅用于联想与重复检测。
+ * ===================================================================== */
+let SKILLS = [], WEAPONS = [], STAT_CONFIG = [];
+let dataReady = false;
+
+const STAT_CONFIG_FALLBACK = [
+  ["weapon_normal_atk","攻刃","percent"],["weapon_omega_atk","M攻刃","percent"],
+  ["weapon_odious_atk","od攻刃","percent"],["weapon_ex_atk","ex攻刃","percent"],
+  ["weapon_special_ex_atk","ex攻刃（特殊）","percent"],["weapon_normal_stamina","浑身","percent"],
+  ["weapon_omega_stamina","M浑身","percent"],["weapon_normal_enmity","背水","percent"],
+  ["weapon_omega_enmity","M背水","percent"],["weapon_element_atk","属性攻击","percent"],
+  ["weapon_progression_element_atk","属性攻击（进境）","percent"],["weapon_critical_hit_rate","暴击率","percent"],
+  ["weapon_counter_rate","反击发生率","percent"],["weapon_counter_dmg","反击伤害增加","percent"],
+  ["weapon_da","da几率","percent"],["weapon_ta","ta几率","percent"],
+  ["weapon_enhance_optimus","神石","percent"],["weapon_enhance_omega","方阵","percent"],
+  ["weapon_elem_bonus_na","平a属性追击","percent"],["weapon_elem_bonus_ca","奥义属性追击","percent"],
+  ["weapon_elem_bonus_skill","技能属性追击","percent"],["weapon_hp","hp","percent"],
+  ["weapon_hp_cut","hp减少","percent"],["weapon_hp_dmg","hp开局减少","percent"],
+  ["weapon_turn_dmg","hp每回合减少","percent"],["weapon_heal","回复力","percent"],
+  ["weapon_heal_cap","回复上限","percent"],["weapon_def","防御","percent"],
+  ["weapon_hit_to_def","防御下降","percent"],["weapon_dmg_reduce","先制的防壁","percent"],
+  ["weapon_element_reduce","属性伤害减轻","percent"],["weapon_dodge_all","全回避发生率","percent"],
+  ["weapon_dodge_rate","回避率","percent"],["weapon_hostility","敌对心","percent"],
+  ["weapon_debuff_resistance","弱体耐性","percent"],["weapon_turn_dmg_reduce","回合类伤害减轻","percent"],
+  ["weapon_dmg_cap","全上限","percent"],["weapon_special_dmg_cap","全上限（特殊）","percent"],
+  ["weapon_dmg_amp","全伤害增幅","percent"],["weapon_dmg_to_elemental_amp","对有利属性伤害增幅","percent"],
+  ["weapon_dmg_to_non_elemental_amp","对无属性伤害增幅","percent"],["weapon_na_dmg_cap","普通攻击伤害上限","percent"],
+  ["weapon_na_dmg_amp","普通攻击伤害增幅","percent"],["weapon_na_ranshu","平A乱击段数","fixed"],
+  ["weapon_skill_dmg","技能伤害提升","percent"],["weapon_ca_dmg","奥义伤害","percent"],
+  ["weapon_skill_dmg_cap","技能伤害上限","percent"],["weapon_ca_dmg_cap","奥义伤害上限","percent"],
+  ["weapon_special_skill_dmg_cap","技能伤害上限（特殊）","percent"],["weapon_skill_dmg_amp","技能伤害增幅","percent"],
+  ["weapon_special_skill_dmg_amp","技能伤害增幅（特殊）","percent"],["weapon_special_ca_dmg_cap","奥义伤害上限（特殊）","percent"],
+  ["weapon_special_na_dmg_amp","普通攻击伤害增幅（特殊）","percent"],["weapon_special_ca_dmg_amp","奥义伤害增幅（特殊）","percent"],
+  ["weapon_special_skill_dmg_supp","技能伤害上升（特殊）","fixed"],["weapon_cb_dmg","CB伤害","percent"],
+  ["weapon_cb_dmg_cap","CB伤害上限","percent"],["weapon_cb_dmg_amp","CB伤害增幅","percent"],
+  ["weapon_fc_dmg_amp","致命连锁伤害增幅","percent"],["weapon_critical_hit_amp","暴击时伤害增幅","percent"],
+  ["weapon_dmg_supp","全伤害上升","fixed"],["weapon_na_dmg_supp","普通攻击伤害上升","fixed"],
+  ["weapon_special_na_dmg_supp","普通攻击伤害上升（特殊）","fixed"],["weapon_skill_dmg_supp","技能伤害上升","fixed"],
+  ["weapon_skill_special_dmg_supp","技能伤害上升（特殊）","fixed"],["weapon_ca_dmg_supp","奥义伤害上升","fixed"],
+  ["weapon_special_ca_dmg_supp","奥义伤害上升（特殊）","fixed"],["weapon_skill_hit_rate","技能命中率","percent"],
+  ["weapon_debuff_success_rate","弱体成功率","percent"],["weapon_charge_gain","奥义值上升量","percent"],
+  ["weapon_def_ignore","无视防御","percent"],["weapon_ax_atk","附魔攻击力","percent"],
+  ["weapon_ax_stamina","附魔浑身","percent"],["weapon_ax_enmity","附魔背水","percent"],
+  ["weapon_ax_element_atk","附魔属攻","percent"],["weapon_ax_da","附魔da几率","percent"],
+  ["weapon_ax_ta","附魔ta几率","percent"],["weapon_ax_hp","附魔hp","percent"],
+  ["weapon_ax_heal","附魔治愈力","percent"],["weapon_ax_heal_cap","附魔治愈上限","percent"],
+  ["weapon_ax_def","附魔防御","percent"],["weapon_ax_element_reduce","附魔全属性伤害减轻","percent"],
+  ["weapon_ax_debuff_resistance","附魔弱体耐性","percent"],["weapon_ax_na_dmg_cap","附魔普通攻击伤害上限","percent"],
+  ["weapon_ax_skill_dmg_cap","附魔技能伤害上限","percent"],["weapon_ax_ca_dmg","附魔奥义伤害","percent"],
+  ["weapon_ax_ca_dmg_cap","附魔奥义伤害上限","percent"],["weapon_ax_skill_dmg_supp","附魔技能伤害上升","fixed"],
+  ["weapon_ax_ca_dmg_supp","附魔奥义伤害上升","fixed"],["weapon_ax_exp_gain","附魔经验加成","percent"],
+  ["weapon_ax_rupie_gain","附魔卢布获取量加成","percent"],["weapon_des_bonus_na","平a破坏属性追击","percent"],
+  ["weapon_des_bonus_ca","奥义破坏属性追击","percent"],["weapon_des_bonus_skill","技能破坏属性追击","percent"],
+  ["weapon_shuichong_bonus_na","水铳sa属性追击","percent"]
+];
+
+async function loadData(){
+  try{
+    const [s, w] = await Promise.all([
+      fetch('./skills.json').then(r=>r.ok?r.json():[]).catch(()=>[]),
+      fetch('./weapons.json').then(r=>r.ok?r.json():[]).catch(()=>[])
+    ]);
+    if(Array.isArray(s)) SKILLS = s;
+    if(Array.isArray(w)) WEAPONS = w;
+    STAT_CONFIG = STAT_CONFIG_FALLBACK.map((x,i)=>({key:x[0],label:x[1],format:x[2]}));
+    fillCats();
+    document.title += '（已加载 ' + SKILLS.length + ' 技能 / ' + WEAPONS.length + ' 武器）';
+  }catch(e){ STAT_CONFIG = STAT_CONFIG_FALLBACK.map((x,i)=>({key:x[0],label:x[1],format:x[2]})); }
+  dataReady = true;
+  refreshAllSlotOptions();
+}
+function fillCats(){
+  const set = [...new Set(WEAPONS.map(w=>w.category).filter(Boolean))];
+  const dl = document.getElementById('catList');
+  if(dl) dl.innerHTML = set.map(c=>`<option value="${esc(c)}"></option>`).join('');
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ================= Tab 切换 ================= */
+function switchTab(t){
+  document.getElementById('tab-skill').style.display = t==='skill'?'':'none';
+  document.getElementById('tab-weapon').style.display = t==='weapon'?'':'none';
+  const tabs = document.querySelectorAll('.tab');
+  tabs[0].classList.toggle('active', t==='skill');
+  tabs[1].classList.toggle('active', t==='weapon');
+}
+
+/* ================= 快捷联想（输入时列出已有数据） ================= */
+function skillIdList(){
+  const q = (document.getElementById('s_id').value||'').trim().toLowerCase();
+  const el = document.getElementById('s_id_sug');
+  if(!q){ el.innerHTML=''; el.style.display='none'; return; }
+  const hit = SKILLS.filter(x=>(x.id||'').toLowerCase().includes(q)).slice(0,15);
+  if(!hit.length){ el.innerHTML='<div class="opt">无匹配，可用新 id</div>'; el.style.display='block'; return; }
+  el.innerHTML = hit.map(x=>`<div class="opt" onclick="pickSkillId('${esc(x.id)}')">${esc(x.id)} — <b>${esc(x.name)}</b></div>`).join('');
+  el.style.display='block';
+  const dup = document.getElementById('s_id_dup');
+  dup.textContent = SKILLS.some(x=>x.id===document.getElementById('s_id').value)? '⚠ 该 id 已存在' : '';
+}
+function pickSkillId(v){ document.getElementById('s_id').value=v; skillIdList(); document.getElementById('s_id_sug').style.display='none'; }
+
+function skillNameList(){
+  const q = (document.getElementById('s_name').value||'').trim();
+  const el = document.getElementById('s_name_sug');
+  if(!q){ el.innerHTML=''; el.style.display='none'; return; }
+  const hit = SKILLS.filter(x=>(x.name||'').includes(q)).slice(0,15);
+  if(!hit.length){ el.innerHTML='<div class="opt">无匹配</div>'; el.style.display='block'; return; }
+  el.innerHTML = hit.map(x=>`<div class="opt" onclick="pickSkillName('${esc(x.name)}')">${esc(x.id)} — <b>${esc(x.name)}</b></div>`).join('');
+  el.style.display='block';
+  document.getElementById('s_name_dup').textContent =
+    SKILLS.some(x=>x.name===document.getElementById('s_name').value) ? '⚠ 同名技能已存在' : '';
+}
+function pickSkillName(v){ document.getElementById('s_name').value=v; document.getElementById('s_name_sug').style.display='none'; }
+
+function weaponIdList(){
+  const q = (document.getElementById('w_id').value||'').trim().toLowerCase();
+  const el = document.getElementById('w_id_sug');
+  if(!q){ el.innerHTML=''; el.style.display='none'; return; }
+  const hit = WEAPONS.filter(x=>(x.id||'').toLowerCase().includes(q)).slice(0,15);
+  if(!hit.length){ el.innerHTML='<div class="opt">无匹配，可用新 id</div>'; el.style.display='block'; return; }
+  el.innerHTML = hit.map(x=>`<div class="opt" onclick="pickWeaponId('${esc(x.id)}')">${esc(x.id)} — <b>${esc(x.name)}</b></div>`).join('');
+  el.style.display='block';
+  document.getElementById('w_id_dup').textContent =
+    WEAPONS.some(x=>x.id===document.getElementById('w_id').value) ? '⚠ 该 id 已存在' : '';
+}
+function pickWeaponId(v){ document.getElementById('w_id').value=v; document.getElementById('w_id_sug').style.display='none'; }
+
+function weaponNameList(){
+  const q = (document.getElementById('w_name').value||'').trim();
+  const el = document.getElementById('w_name_sug');
+  if(!q){ el.innerHTML=''; el.style.display='none'; return; }
+  const hit = WEAPONS.filter(x=>(x.name||'').includes(q)).slice(0,10);
+  if(!hit.length){ el.innerHTML='<div class="opt">无匹配</div>'; el.style.display='block'; return; }
+  el.innerHTML = hit.map(x=>`<div class="opt" onclick="pickWeaponName('${esc(x.name)}')">${esc(x.id)} — <b>${esc(x.name)}</b></div>`).join('');
+  el.style.display='block';
+  document.getElementById('w_name_dup').textContent =
+    WEAPONS.some(x=>x.name===document.getElementById('w_name').value) ? '⚠ 同名武器已存在' : '';
+}
+function pickWeaponName(v){ document.getElementById('w_name').value=v; document.getElementById('w_name_sug').style.display='none'; }
+
+function weaponCatList(){
+  const q = (document.getElementById('w_category').value||'').trim();
+  const el = document.getElementById('w_category_sug');
+  if(!q){ el.innerHTML=''; el.style.display='none'; return; }
+  const cats = [...new Set(WEAPONS.map(x=>x.category).filter(c=>c&&c.includes(q)))].slice(0,10);
+  if(!cats.length){ el.innerHTML='<div class="opt">无匹配分类（可新建）</div>'; el.style.display='block'; return; }
+  el.innerHTML = cats.map(c=>`<div class="opt" onclick="pickCat('${esc(c)}')">${esc(c)}</div>`).join('');
+  el.style.display='block';
+}
+function pickCat(v){ document.getElementById('w_category').value=v; document.getElementById('w_category_sug').style.display='none'; }
+
+/* ================= 效果 effects 动态行 ================= */
+let effectCount = 0;
+function addEffect(data){
+  const box = document.getElementById('s_effects');
+  const wrap = document.createElement('div');
+  wrap.className = 'dynrow';
+  wrap.id = 'effrow_' + (++effectCount);
+  const opts = STAT_CONFIG.map(c=>`<option value="${esc(c.key)}" ${data&&data.prop===c.key?'selected':''}>${esc(c.key)} — ${esc(c.label)}</option>`).join('');
+  wrap.innerHTML =
+    '<div class="head"><span>效果 #' + effectCount + '</span>' +
+    '<button class="ghost" onclick="removeRow(this)">✕ 删除</button></div>' +
+    '<div class="row">' +
+      '<div class="field" style="flex:2"><label>prop（stat 键）*</label><select class="effect-prop">' + opts + '</select>' +
+        '<div class="hint">来自 constants.js STAT_CONFIG（category=weapon）</div></div>' +
+      '<div class="field"><label>boost *</label><select class="effect-boost">' +
+        '<option value="none">none</option><option value="optimus">optimus（神石）</option><option value="omega">omega（方阵）</option></select></div>' +
+    '</div>' +
+    '<div class="row">' +
+      '<div class="field" style="flex:2"><label>value *</label><input class="effect-value" placeholder="如：10:10% 15:12% / curve:stamina_element_ancestral / 50000 / count_axe*0.08"></div>' +
+    '</div>';
+  if(data){
+    wrap.querySelector('.effect-boost').value = data.boost || 'none';
+    wrap.querySelector('.effect-value').value = data.value || '';
+  }
+  box.appendChild(wrap);
+}
+function removeRow(btn){ btn.closest('.dynrow').remove(); }
+function collectEffects(){
+  return [...document.querySelectorAll('#s_effects .dynrow')].map(w=>({
+    prop: w.querySelector('.effect-prop').value,
+    boost: w.querySelector('.effect-boost').value,
+    value: w.querySelector('.effect-value').value.trim()
+  }));
+}
+
+/* ================= 武器技能槽 skill_slots 动态行（下拉选择已有技能） ================= */
+function skillOptionHtml(selId){
+  // 单条 option：技能名 — 效果描述（第一行）
+  const opts = SKILLS.map(x=>{
+    const k = x.id;
+    const nm = x.name || x.id;
+    const desc0 = (x.description || '').split('\n')[0] || '';
+    return `<option value="${esc(k)}" ${k===selId?'selected':''}>${esc(nm)} — ${esc(desc0)}</option>`;
+  }).join('');
+  return opts;
+}
+function skillDescPreview(skillId){
+  const x = SKILLS.find(s=>s.id===skillId);
+  if(!x) return '<span style="color:#ff8080">⚠ 未匹配到该技能（请确认 id 已在 skills.json 中）</span>';
+  return '<span>' + esc(x.name||x.id) + '</span><span class="desc"> — ' + esc(x.description||'(无描述)') + '</span>';
+}
+
+let slotCount = 0;
+function addSlot(data){
+  const box = document.getElementById('w_slots');
+  const wrap = document.createElement('div');
+  wrap.className = 'dynrow';
+  wrap.id = 'slotrow_' + (++slotCount);
+  const isSlot = data && data.is_slot === true;
+  const selId = data && !isSlot ? data.skill_id : '';
+  const unlock = data ? (data.unlock_level ?? 0) : 0;
+  wrap.innerHTML =
+    '<div class="head">' +
+      '<span>技能槽 #' + slotCount + '</span>' +
+      '<div style="display:flex;gap:10px;align-items:center">' +
+        '<label class="switch"><input type="checkbox" class="slot-isslot" onclick="toggleSlotMode(this)" ' + (isSlot?'checked':'') + '>可选槽(多选 options)</label>' +
+        '<button class="ghost" onclick="removeRow(this)">✕ 删除</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="slot-fixed">' +
+      '<div class="field"><label>固定技能 skill_id（下拉选择已有技能）</label>' +
+        '<select class="slot-skill" onchange="slotPreview(this)"><option value="">— 请选择技能 —</option>' + skillOptionHtml(selId) + '</select>' +
+        '<div class="slot-preview" id="slotprev_' + slotCount + '"></div>' +
+      '</div>' +
+      '<div class="field" style="flex:0 0 160px"><label>unlock_level（解锁等级）</label><input type="number" class="slot-unlock" value="' + unlock + '" min="0"></div>' +
+    '</div>' +
+    '<div class="slot-opt" style="display:none">' +
+      '<div class="field"><label>可选槽 options（按住 Ctrl 多选已有技能，显示技能名 — 效果）</label>' +
+        '<select multiple size="4" class="slot-options">' + skillOptionHtml(selId) + '</select>' +
+      '</div>' +
+    '</div>';
+  box.appendChild(wrap);
+  // 回填描述预览
+  if(!isSlot && selId){
+    const s = SKILLS.find(x=>x.id===selId);
+    if(s) wrap.querySelector('.slot-preview').innerHTML = skillDescPreview(selId);
+  }
+  if(isSlot && data && Array.isArray(data.options)){
+    const sel = new Set(data.options);
+    [...wrap.querySelectorAll('.slot-options option')].forEach(o=>{ if(sel.has(o.value)) o.selected=true; });
+  }
+}
+function toggleSlotMode(cb){
+  const wrap = cb.closest('.dynrow');
+  const mode = cb.checked;
+  wrap.querySelector('.slot-fixed').style.display = mode?'none':'';
+  wrap.querySelector('.slot-opt').style.display = mode?'':'none';
+}
+function slotPreview(sel){
+  const wrap = sel.closest('.dynrow');
+  const box = wrap.querySelector('.slot-preview');
+  if(!sel.value){ box.innerHTML=''; box.style.display='none'; return; }
+  box.innerHTML = skillDescPreview(sel.value);
+  box.style.display='';
+}
+function collectSlots(){
+  return [...document.querySelectorAll('#w_slots .dynrow')].map(w=>{
+    const isSlot = w.querySelector('.slot-isslot').checked;
+    const unlock = parseInt(w.querySelector('.slot-unlock').value) || 0;
+    if(isSlot){
+      const sel = [...w.querySelectorAll('.slot-options option')].filter(o=>o.selected).map(o=>o.value);
+      const o = { is_slot: true, options: sel, unlock_level: unlock };
+      if(!sel.length) delete o.options;
+      return o;
+    }
+    return { is_slot: false, skill_id: w.querySelector('.slot-skill').value, unlock_level: unlock };
+  }).filter(x=>x);
+}
+
+/* 数据加载完成后刷新所有已存在技能槽下拉的选项（保留当前选中） */
+function refreshAllSlotOptions(){
+  document.querySelectorAll('#w_slots .dynrow').forEach(w=>{
+    // 回填前保留选中值
+    const fixedSel = w.querySelector('.slot-skill').value;
+    const optSel = [...w.querySelectorAll('.slot-options option')].filter(o=>o.selected).map(o=>o.value);
+    // 重建固定技能下拉
+    const cur = w.querySelector('.slot-skill').value;
+    w.querySelector('.slot-skill').innerHTML =
+      '<option value="">— 请选择技能 —</option>' + skillOptionHtml(cur);
+    // 重建多选下拉
+    w.querySelector('.slot-options').innerHTML = skillOptionHtml('');
+    [...w.querySelectorAll('.slot-options option')].forEach(o=>{ if(optSel.indexOf(o.value)>-1) o.selected=true; });
+    if(fixedSel){
+      w.querySelector('.slot-skill').value = fixedSel;
+      const p = w.querySelector('.slot-preview');
+      p.innerHTML = skillDescPreview(fixedSel);
+      p.style.display = '';
+    }
+  });
+}
+
+/* ================= 生成 技能 JSON ================= */
+function generateSkill(){
+  const id = document.getElementById('s_id').value.trim();
+  const name = document.getElementById('s_name').value.trim();
+  const el = document.getElementById('s_desc').value;
+  if(!id){ alert('请填写技能 id'); return; }
+  if(!name){ alert('请填写技能 name'); return; }
+  const effects = collectEffects().filter(e=>e.value && e.prop);
+  if(!effects.length){ alert('请至少添加一个有效 effect（prop + value）'); return; }
+  const obj = {
+    id,
+    name,
+    description: el,
+    image: document.getElementById('s_image').value.trim(),
+    element: document.getElementById('s_element').value,
+    race: document.getElementById('s_race').value.trim() || 'all',
+    position: document.getElementById('s_position').value,
+    condition: document.getElementById('s_condition').value.trim(),
+    effects
+  };
+  const pre = document.getElementById('output');
+  pre.value = JSON.stringify(obj, null, 2);
+  setMsg('✅ 已生成技能单条对象（共 ' + effects.length + ' 个效果）');
+  pre.focus(); pre.select();
+}
+
+/* ================= 生成 武器 JSON ================= */
+function generateWeapon(){
+  const id = document.getElementById('w_id').value.trim();
+  const name = document.getElementById('w_name').value.trim();
+  if(!id){ alert('请填写武器 id'); return; }
+  if(!name){ alert('请填写武器 name'); return; }
+  const slots = collectSlots();
+  if(slots.some(s=>!s.is_slot && !s.skill_id)){
+    alert('⚠ 存在未选择固定技能的槽位，将生成时留空 skill_id，请自行检查。');
+  }
+  const obj = {
+    id,
+    name,
+    type: document.getElementById('w_type').value,
+    element: document.getElementById('w_element').value,
+    category: document.getElementById('w_category').value.trim() || 'lm',
+    image: document.getElementById('w_image').value.trim(),
+    stats: {
+      hp: parseFloat(document.getElementById('w_hp').value) || 0,
+      atk: parseFloat(document.getElementById('w_atk').value) || 0,
+      max_level: parseInt(document.getElementById('w_maxlevel').value) || 150,
+      allow_extra: document.getElementById('w_allowextra').value === 'true',
+      weapon_multiplier: parseFloat(document.getElementById('w_multiply').value) || 0,
+      ca_fixed: parseInt(document.getElementById('w_cafixed').value) || 0
+    },
+    skill_slots: slots.filter(s=>s.is_slot || (s.skill_id && s.skill_id!=='')).map(s=>
+      s.is_slot
+        ? { is_slot: true, options: (s.options&&s.options.length)?s.options:undefined, unlock_level: s.unlock_level }
+        : { is_slot: false, skill_id: s.skill_id, unlock_level: s.unlock_level }
+    )
+  };
+  const pre = document.getElementById('output');
+  // 由于用了 undefined，需手动清理空可选槽 options
+  for(const sl of obj.skill_slots){ if(sl.is_slot && !sl.options) delete sl.options; }
+  pre.value = JSON.stringify(obj, null, 2);
+  setMsg('✅ 已生成武器单条对象（' + obj.skill_slots.length + ' 个技能槽，其中可选槽 ' + obj.skill_slots.filter(s=>s.is_slot).length + ' 个）');
+  pre.focus(); pre.select();
+}
+
+/* ================= 输出区：复制 / 下载 / 清空 ================= */
+function setMsg(t, isErr){
+  document.getElementById('output-msg').innerHTML =
+    (isErr?'❌ ':'') + t;
+}
+function copyOut(){
+  const t = document.getElementById('output').value;
+  if(!t){ setMsg('没有可复制的内容', true); return; }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(()=>setMsg('已复制到剪贴板')).catch(()=>fallbackCopy(t));
+  } else fallbackCopy(t);
+}
+function fallbackCopy(t){
+  const ta = document.getElementById('output');
+  ta.focus(); ta.select();
+  try{ document.execCommand('copy'); setMsg('已复制到剪贴板（兼容方式）'); }
+  catch(e){ setMsg('复制失败，请手动全选复制', true); }
+}
+function downloadOut(){
+  const t = document.getElementById('output').value;
+  if(!t){ setMsg('没有可下载的内容', true); return; }
+  const blob = new Blob([t], {type:'application/json;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'new_entry.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setMsg('已下载 new_entry.json');
+}
+function clearOut(){ document.getElementById('output').value=''; setMsg(''); }
+
+/* ================= 事件绑定 & 初始化 ================= */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  await loadData();
+  addEffect();
+  addSlot();
+  const binds = [
+    ['s_id','s_id_sug', skillIdList], ['s_name','s_name_sug', skillNameList],
+    ['w_id','w_id_sug', weaponIdList], ['w_name','w_name_sug', weaponNameList],
+    ['w_category','w_category_sug', weaponCatList]
+  ];
+  for(const [inp, sug, fn] of binds){
+    document.getElementById(inp).addEventListener('input', ()=>{ fn(); });
+    document.getElementById(inp).addEventListener('blur', ()=>{ setTimeout(()=>{ document.getElementById(sug).style.display='none'; }, 150); });
+  }
+  window._guessSkill = (prefix)=>{   // 可为 skills.json 新条目建议 id 前缀
+    const matches = SKILLS.filter(x=>(x.id||'').startsWith(prefix)).map(x=>x.id);
+    return matches.slice(0,5);
+  };
+});
+</script>
+</body>
+</html>

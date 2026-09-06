@@ -510,7 +510,7 @@ const STAT_CONFIG = [
     { "key": "special_def_linglongpei", "label": "防御力", "cap": null, "format": "percent", "category": "special", "prop": "def_mod", "zone": "independent" },
     { "key": "special_skill_dmg", "label": "技能伤害", "cap": null, "format": "percent", "category": "special", "prop": "skill_dmg", "zone": "independent" },
     { "key": "special_ca_dmg", "label": "奥义伤害", "cap": null, "format": "percent", "category": "special", "prop": "ca_dmg", "zone": "independent" },
-    { "key": "special_dmg_to_elemental_amp", "label": "对克制伤害增幅", "cap": null, "format": "percent", "category": "special", "prop": "dmg_to_elemental_amp", "zone": "independent" },
+    { "key": "special_element_pair_dmg_amp", "label": "六属性克属伤害增幅", "cap": null, "format": "percent", "category": "special", "prop": "element_pair_dmg_amp", "zone": "independent" },
     { "key": "special_na_dmg_cap", "label": "普攻上限", "cap": null, "format": "percent", "category": "special", "prop": "na_dmg_cap", "zone": "independent" },
     { "key": "special_skill_dmg_cap", "label": "技伤上限", "cap": null, "format": "percent", "category": "special", "prop": "skill_dmg_cap", "zone": "independent" },
     { "key": "special_ca_dmg_cap", "label": "奥义上限", "cap": null, "format": "percent", "category": "special", "prop": "ca_dmg_cap", "zone": "independent" },
@@ -624,7 +624,13 @@ const MC_LB_DISPLAY_TABLE = [
     { key: 'debuffRes', label: '弱体耐性', format: 'percent', cap: null },
     { key: 'debuffSuccess', label: '弱体成功率', format: 'percent', cap: null },
     { key: 'healCap', label: '回复性能', format: 'percent', cap: null },
-    { key: 'elementAtk', label: '属性攻击', format: 'percent', cap: null },
+    { key: 'elementAtkFire', label: '火属性攻击', format: 'percent', cap: null },
+    { key: 'elementAtkWater', label: '水属性攻击', format: 'percent', cap: null },
+    { key: 'elementAtkEarth', label: '土属性攻击', format: 'percent', cap: null },
+    { key: 'elementAtkWind', label: '风属性攻击', format: 'percent', cap: null },
+    { key: 'elementAtkLight', label: '光属性攻击', format: 'percent', cap: null },
+    { key: 'elementAtkDark', label: '暗属性攻击', format: 'percent', cap: null },
+    { key: 'elementAtkAll', label: '全属性属攻加成', format: 'percent', cap: null },
     { key: 'elementReduce', label: '属性减轻', format: 'percent', cap: null }
     
 ];

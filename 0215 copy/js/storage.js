@@ -53,6 +53,13 @@ function restoreDamageViewStatesFromStorage(savedStates) {
     }
 }
 
+function normalizeStaticEnemyElement(value) {
+    const normalized = String(value || '');
+    return ['', 'fire', 'water', 'earth', 'wind', 'light', 'dark', 'non_elemental'].includes(normalized)
+        ? normalized
+        : '';
+}
+
 function serializeBuffCodexRowsForStorage() {
     const rowsBySlot = (typeof window !== 'undefined' && window.buffCodexPanelRowsBySlot)
         ? window.buffCodexPanelRowsBySlot
@@ -203,6 +210,7 @@ function saveToLocal(silent) {
         saveData.buffCodexRowsBySlot = serializeBuffCodexRowsForStorage();
         saveData.staticEnemyBuffIds = serializeStaticEnemyBuffsForStorage();
         saveData.staticEnemyDefenseDownManual = Math.min(50, Math.max(0, Number(window.staticEnemyDefenseDownManual) || 0));
+        saveData.staticEnemyElement = normalizeStaticEnemyElement(window.staticEnemyElement);
         saveData.damageViewStates = serializeDamageViewStatesForStorage();
         const compressedData = JSON.parse(JSON.stringify(saveData));
         
@@ -426,6 +434,10 @@ function loadFromLocal(silent) {
         }
         restoreBuffCodexRowsFromStorage(data.buffCodexRowsBySlot);
         restoreStaticEnemyBuffsFromStorage(data.staticEnemyBuffIds, data.staticEnemyDefenseDownManual);
+        window.staticEnemyElement = normalizeStaticEnemyElement(data.staticEnemyElement);
+        if (typeof window.refreshStaticEnemyElementControl === 'function') {
+            window.refreshStaticEnemyElementControl();
+        }
         restoreDamageViewStatesFromStorage(data.damageViewStates);
         
         // 重新渲染并计算

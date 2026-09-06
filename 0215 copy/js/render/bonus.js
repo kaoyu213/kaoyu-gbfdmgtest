@@ -730,7 +730,21 @@ function buildAllEffectsForSlot(charIndex, options) {
     function isAdvantageEnabledForSlot() {
         if (typeof options.isAdvantage === 'boolean') return options.isAdvantage;
         if (typeof window !== 'undefined' && window.damageViewStates && window.damageViewStates[charIndex]) {
-            return !!window.damageViewStates[charIndex].isAdvantage;
+            if (window.damageViewStates[charIndex].isAdvantage === true) return true;
+            if (typeof resolveDamageElementContext === 'function') {
+                var actorElement = typeof party !== 'undefined' && party[charIndex] ? party[charIndex].element : null;
+                var mainElement = typeof party !== 'undefined' && party[0] ? party[0].element : actorElement;
+                var enemyElement = typeof window.getStaticEnemyElement === 'function'
+                    ? window.getStaticEnemyElement()
+                    : window.staticEnemyElement;
+                return resolveDamageElementContext({
+                    actorElement: actorElement,
+                    damageElement: actorElement,
+                    enemyElement: enemyElement,
+                    mainElement: mainElement
+                }).isAdvantage === true;
+            }
+            return false;
         }
         if (typeof document !== 'undefined') {
             var weaknessId = charIndex === 0 ? 'weakness-toggle' : 'weakness-toggle-' + charIndex;
@@ -743,9 +757,10 @@ function buildAllEffectsForSlot(charIndex, options) {
     function applyFormulaReadyTotals() {
         var allAmp = Number(totals.dmg_amp) || 0;
         var elementalAmp = isAdvantageEnabledForSlot() ? (Number(totals.dmg_to_elemental_amp) || 0) : 0;
+        var elementPairAmp = isAdvantageEnabledForSlot() ? (Number(totals.element_pair_dmg_amp) || 0) : 0;
         ['na_dmg_amp', 'skill_dmg_amp', 'ca_dmg_amp'].forEach(function(bt) {
             var base = Number(totals[bt]) || 0;
-            var combined = base + allAmp + elementalAmp;
+            var combined = base + allAmp + elementalAmp + elementPairAmp;
             if (combined !== 0) totals[bt] = combined;
         });
 
@@ -1120,17 +1135,36 @@ function buildAllEffectsForSlot(charIndex, options) {
             enmity: { prop: 'enmity', label: '背水', format: 'percent' },
             strong: { prop: 'stamina', label: '强壮', format: 'percent' },
             adversity: { prop: 'enmity', label: '逆境', format: 'percent' },
-            element: { prop: 'element_atk', label: '属攻', format: 'percent' },
+            element: {
+                prop: 'element_atk',
+                label: '属攻',
+                format: 'percent',
+                resolveProp: function() { return 'element_atk_' + (window.buffSettings.elementScope || 'all'); }
+            },
             marriage: { prop: 'perpetuity_atk', label: '独立攻刃【久远】', format: 'percent' },
             indepCumulative: { prop: 'indep_cumulative_atk', label: '独立攻刃【累积】', format: 'percent' },
             indepUnjudged: { prop: 'indep_unjudged_atk', label: '独立攻刃【未判定】', format: 'percent' },
             indepSpecialEnmity: { prop: 'indep_special_enmity_atk', label: '独立攻刃【特殊背水】', format: 'percent' },
             indepSpecial: { prop: 'indep_special_atk', label: '独立攻刃【特殊】', format: 'percent' },
             dmgCap: { prop: 'dmg_cap', label: '伤害上限', format: 'percent' },
+            naCap: { prop: 'na_dmg_cap', label: '平A上限', format: 'percent' },
+            skillCap: { prop: 'skill_dmg_cap', label: '技伤上限', format: 'percent' },
             dmgAmp: { prop: 'dmg_amp', label: '伤害增幅', format: 'percent' },
+            naDmgAmp: { prop: 'na_dmg_amp', label: '平A伤害增幅', format: 'percent' },
+            skillDmgAmp: { prop: 'skill_dmg_amp', label: '技伤伤害增幅', format: 'percent' },
+            caDmgAmp: { prop: 'ca_dmg_amp', label: '奥义伤害增幅', format: 'percent' },
+            ranshu: { prop: 'na_ranshu', label: '乱击', format: 'fixed' },
+            criticalMultiplier: {
+                prop: 'critical_hit',
+                label: '独立暴击倍率（发动率100%）',
+                format: 'percent',
+                zone: 'independent',
+                registerValue: 1
+            },
             caWeaponDmg: { prop: 'ca_dmg', label: '武器盘奥义伤害加成', format: 'percent', caDmgPart: 'weapon_grid' },
             caDmg: { prop: 'ca_dmg', label: '奥义伤害加成', format: 'percent', caDmgPart: 'other' },
-            caCap: { prop: 'ca_dmg_cap', label: '奥义上限加成', format: 'percent' },
+            caCap: { prop: 'ca_dmg_cap', label: '奥义上限', format: 'percent' },
+            skillDmg: { prop: 'skill_dmg', label: '技能伤害', format: 'percent' },
             dmgSupp: { prop: 'dmg_supp', label: '伤害上升', format: 'fixed' },
             caDmgSupp: { prop: 'ca_dmg_supp', label: '奥义伤害上升效果', format: 'fixed' },
             takenDmgAmp: { prop: 'taken_dmg_amp', label: '承受伤害增幅', format: 'percent' }
@@ -1139,13 +1173,16 @@ function buildAllEffectsForSlot(charIndex, options) {
             var cfg = testBuffMap[key];
             var v = Number(window.buffSettings[key]) || 0;
             if (v === 0) return;
-            registerEffect(cfg.prop, 'testbuff', 'testbuff:' + key, v);
+            var effectZone = cfg.zone || 'testbuff';
+            var registerValue = cfg.registerValue == null ? v : Number(cfg.registerValue) || 0;
+            var effectProp = typeof cfg.resolveProp === 'function' ? cfg.resolveProp() : cfg.prop;
+            registerEffect(effectProp, effectZone, 'testbuff:' + key, registerValue);
             testBuffEntries['testbuff:' + key] = {
                 label: cfg.label,
                 value: v,
                 format: cfg.format,
-                prop: cfg.prop,
-                zone: 'testbuff',
+                prop: effectProp,
+                zone: effectZone,
                 source: 'testbuff',
                 caDmgPart: cfg.caDmgPart || null
             };
@@ -1192,6 +1229,36 @@ function buildAllEffectsForSlot(charIndex, options) {
         var val = registry ? registry.getTotal(bt) : (stats['_' + bt + '_total'] || 0);
         if (typeof val === 'number' && val !== 0) totals[bt] = val;
     });
+    // 属性攻击拥有属性子类型，不能把六属性的值直接全部相加展示。
+    // All Effects 默认展示“当前角色以自身属性造成伤害”时实际可读取的属攻。
+    if (typeof resolveElementAtkForDamage === 'function') {
+        var elementStats = Object.assign({}, stats, {
+            _elementAtkEntries: Array.isArray(stats._elementAtkEntries)
+                ? stats._elementAtkEntries.map(function(entry) { return Object.assign({}, entry); })
+                : []
+        });
+        if (typeof overlayCharaEarringElementAtkFromParty === 'function') {
+            overlayCharaEarringElementAtkFromParty(elementStats, charIndex);
+        }
+        if (typeof overlayCharaLbElementAtkFromParty === 'function') {
+            overlayCharaLbElementAtkFromParty(elementStats, charIndex);
+        }
+        var actorElement = typeof party !== 'undefined' && party[charIndex] ? party[charIndex].element : null;
+        var mainElement = typeof party !== 'undefined' && party[0] ? party[0].element : actorElement;
+        var relevantElementAtk = resolveElementAtkForDamage(
+            elementStats,
+            typeof getTeshuStats === 'function' ? getTeshuStats() : {},
+            {
+                actorElement: actorElement,
+                damageElement: actorElement,
+                mainElement: mainElement,
+                isAdvantage: isAdvantageEnabledForSlot(),
+                ignoreTestBuffSettings: options.ignoreTestBuffSettings === true
+            }
+        );
+        if (relevantElementAtk !== 0) totals.element_atk = relevantElementAtk;
+        else delete totals.element_atk;
+    }
     applyFormulaReadyTotals();
 
     if (typeof window !== 'undefined' && options.persist !== false) {
@@ -1245,6 +1312,7 @@ function renderAllEffectsSummary(charIndex, target) {
         { bt: 'element_atk', label: '属性攻击力' },
         { bt: 'perpetuity_atk', label: '独立攻刃【久远】' },
         { bt: 'indep_cumulative_atk', label: '独立攻刃【累积】' },
+        { bt: 'indep_zhan_atk', label: '攻击力大幅提高' },
         { bt: 'indep_unjudged_atk', label: '独立攻刃【未判定】' },
         { bt: 'indep_special_enmity_atk', label: '独立攻刃【特殊背水】' },
         { bt: 'indep_special_atk', label: '独立攻刃【特殊】' },
@@ -1259,6 +1327,7 @@ function renderAllEffectsSummary(charIndex, target) {
         { bt: 'ca_dmg_cap', label: '奥义上限' },
         { bt: 'dmg_amp', label: '全伤害增幅' },
         { bt: 'dmg_to_elemental_amp', label: '对克制属性伤害增幅' },
+        { bt: 'element_pair_dmg_amp', label: '六属性克属伤害增幅' },
         { bt: 'dmg_to_non_elemental_amp', label: '对无属性伤害增幅' },
         { bt: 'critical_dmg_amp', label: '暴击时伤害增幅' },
         { bt: 'na_dmg_amp', label: '普攻伤害增幅' },
@@ -1303,7 +1372,8 @@ function renderAllEffectsSummary(charIndex, target) {
         { bt: 'turn_dmg_reduce', label: '回合类伤害减轻' },
         { bt: 'optimus_boost', label: '神石加护' },
         { bt: 'omega_boost', label: '方阵加护' },
-        { bt: 'na_ranshu', label: '平A乱击段数' },
+        { bt: 'na_ranshu', label: '乱击' },
+        { bt: 'na_ranshu_bonus', label: '猛乱击' },
         { bt: 'exp_gain', label: '经验加成' },
         { bt: 'rupie_gain', label: '卢布获取量加成' }
     ];
@@ -1319,6 +1389,8 @@ function renderAllEffectsSummary(charIndex, target) {
             valStr = v >= 0 ? '+' + Math.round(v) : Math.round(v).toString();
         } else if (sk.bt === 'na_ranshu') {
             valStr = Math.round(v).toString();
+        } else if (sk.bt === 'na_ranshu_bonus') {
+            valStr = '+' + Math.round(v);
         } else {
             valStr = (v * 100).toFixed(2) + '%';
         }

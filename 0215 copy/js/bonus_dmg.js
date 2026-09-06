@@ -37,6 +37,165 @@
         return subtype || fallbackElement || 'unknown';
     }
 
+    function resolveAdvantageDamageElement(enemyElement, fallbackElement) {
+        const enemy = typeof normalizeElementKey === 'function'
+            ? normalizeElementKey(enemyElement)
+            : enemyElement;
+        const targets = typeof ELEMENT_ADVANTAGE_TARGET !== 'undefined'
+            ? ELEMENT_ADVANTAGE_TARGET
+            : {
+                fire: 'wind', water: 'fire', earth: 'water',
+                wind: 'earth', light: 'dark', dark: 'light'
+            };
+        const matched = Object.keys(targets).find((element) => targets[element] === enemy);
+        return matched || fallbackElement || 'unknown';
+    }
+
+    function resolveChaseDamageElement(effect, params, baseContext) {
+        const subtype = effect && effect.subtype ? String(effect.subtype) : '';
+        if (subtype === 'own_element') return baseContext.actorElement || params.fallbackElement || 'unknown';
+        if (subtype === 'advantage') {
+            return resolveAdvantageDamageElement(baseContext.enemyElement, baseContext.actorElement || params.fallbackElement);
+        }
+        const raw = effect && effect.element && effect.element !== 'advantage'
+            ? effect.element
+            : subtype;
+        return typeof normalizeElementKey === 'function'
+            ? (normalizeElementKey(raw) || baseContext.actorElement || 'unknown')
+            : (raw || baseContext.actorElement || 'unknown');
+    }
+
+    function getDamageElementContext(params, damageElement) {
+        const actorElement = params.actorElement || params.fallbackElement || damageElement;
+        const mainElement = params.mainElement || actorElement;
+        const forceAdvantage = params.forceAdvantage === true
+            && (!damageElement || !actorElement || String(damageElement) === String(actorElement));
+        const enemyElement = params.enemyElement || (
+            forceAdvantage && typeof inferEnemyElementFromActor === 'function'
+                ? inferEnemyElementFromActor(actorElement)
+                : null
+        );
+        if (typeof resolveDamageElementContext === 'function') {
+            return resolveDamageElementContext({
+                actorElement,
+                damageElement: damageElement || actorElement,
+                enemyElement,
+                mainElement,
+                forceAdvantage,
+                forceNeutral: params.forceNeutral === true
+            });
+        }
+        return {
+            actorElement,
+            damageElement: damageElement || actorElement,
+            enemyElement,
+            mainElement,
+            isAdvantage: !!params.isAdv,
+            isDestruction: damageElement === 'destruction',
+            isNonElemental: damageElement === 'non_elemental'
+        };
+    }
+
+    function isContextCritEligible(context) {
+        return typeof isCritEligibleForDamage === 'function'
+            ? isCritEligibleForDamage(context)
+            : !!(context && context.isAdvantage);
+    }
+
+    function getElementMultiplier(params, context) {
+        if (typeof resolveElementMultiplierForDamage === 'function') {
+            return resolveElementMultiplierForDamage(params.stats || {}, params.teshuStats || {}, {
+                actorElement: context.actorElement,
+                damageElement: context.damageElement,
+                enemyElement: context.enemyElement,
+                mainElement: context.mainElement,
+                forceAdvantage: context.forceAdvantage === true,
+                forceNeutral: context.forceNeutral === true,
+                ignoreTestBuffSettings: params.ignoreTestBuffSettings === true
+                    || !!(params.capOptions && params.capOptions.ignoreTestBuffSettings === true)
+            });
+        }
+        return {
+            context,
+            elementAtk: 0,
+            weaknessBonus: context.isAdvantage ? 0.5 : 0,
+            multiplier: context.isAdvantage ? 1.5 : 1
+        };
+    }
+
+    function isNormalElement(element) {
+        const normalized = typeof normalizeElementKey === 'function'
+            ? normalizeElementKey(element)
+            : element;
+        return ['fire', 'water', 'earth', 'wind', 'light', 'dark'].includes(normalized);
+    }
+
+    /**
+     * 六属性配对增幅（玲珑佩/龙心、命运之环）判断的是：
+     * “该属性角色是否正在攻击其属性克制的敌人”。
+     *
+     * 它与泛用 dmg_to_elemental_amp 不同，后者判断当前这一 hit 的
+     * damageElement 是否克制敌人。异属性追击不能用自身克属关系触发配对增幅。
+     */
+    function isActorPairAmpApplicable(params) {
+        const actorElement = params.actorElement || params.fallbackElement || params.damageElement;
+        if (!isNormalElement(actorElement) || params.forceNeutral === true) return false;
+
+        const actorContext = getDamageElementContext(params, actorElement);
+        if (!actorContext || actorContext.isAdvantage !== true) return false;
+
+        // 明确指定六属性敌人时，以角色属性和敌方属性的自然关系为准；
+        // “对克属”便利拨片则由 forceAdvantage 显式覆盖。
+        if (params.forceAdvantage === true) return true;
+        if (isNormalElement(actorContext.enemyElement)) {
+            return typeof isDamageElementAdvantaged === 'function'
+                ? isDamageElementAdvantaged(actorElement, actorContext.enemyElement)
+                : actorContext.isAdvantage === true;
+        }
+
+        // 兼容旧调用：尚未提供敌方属性时，沿用调用方已经算出的本体克属状态。
+        return !actorContext.enemyElement && params.isAdv === true;
+    }
+
+    function buildCapOptionsForDamageElement(params, context) {
+        const source = params.capOptions || {};
+        const out = { ...source };
+        const totals = source.effectTotals;
+        if (!totals || typeof totals !== 'object') return out;
+
+        // All Effects 会把泛用克属增幅和六属性配对增幅合并进本体 na_dmg_amp。
+        // 属性追击可能与本体属性不同，因此先还原基础值，再分别按两套条件重建：
+        // - dmg_to_elemental_amp：本次伤害属性是否克制敌人；
+        // - element_pair_dmg_amp：角色属性是否克制敌人。
+        const cloned = { ...totals };
+        const allAmp = Number(totals.dmg_amp) || 0;
+        const elementalAmp = Number(totals.dmg_to_elemental_amp) || 0;
+        const elementPairAmp = Number(totals.element_pair_dmg_amp) || 0;
+        const actorPairApplicable = isActorPairAmpApplicable(params);
+        const originalBodyContext = getDamageElementContext(
+            params,
+            params.actorElement || params.fallbackElement || params.damageElement
+        );
+        // effectTotals 是否已经合并本体克属增幅，应优先服从生成该汇总时传入的
+        // isAdv；旧调用没有该字段时，才回退到元素上下文重新判断。
+        const originalBodyIsAdvantage = typeof params.isAdv === 'boolean'
+            ? params.isAdv
+            : !!(originalBodyContext && originalBodyContext.isAdvantage);
+        const originalIncludedElemental = originalBodyIsAdvantage ? elementalAmp : 0;
+        const originalIncludedPair = actorPairApplicable ? elementPairAmp : 0;
+        const naSpecific = (Number(totals.na_dmg_amp) || 0)
+            - allAmp
+            - originalIncludedElemental
+            - originalIncludedPair;
+        const damageElement = context && context.damageElement ? String(context.damageElement) : '';
+        const isNormalElementDamage = isNormalElement(damageElement);
+        const applicableElementalAmp = context.isAdvantage ? elementalAmp : 0;
+        const applicablePairAmp = actorPairApplicable && isNormalElementDamage ? elementPairAmp : 0;
+        cloned.na_dmg_amp = naSpecific + allAmp + applicableElementalAmp + applicablePairAmp;
+        out.effectTotals = cloned;
+        return out;
+    }
+
     function collectNaChaseSourcesFromStats(stats, fallbackElement) {
         const s = stats || {};
         const sources = [
@@ -185,8 +344,9 @@
     }
 
     /**
-     * 破坏属性追击：与 na_dmg_calc.calculateDamage 的 Step5～12（乘区合并 → 随机 → 除防）一致，
-     * 但乘区基准直接使用面板 ATK，不经过 ÷10、骑空艇、支援、×10。
+     * 破坏属性追击：与 na_dmg_calc.calculateDamage 的 Step5～12（乘区合并 → 随机 → 除防）一致。
+     * 基础值仍按「面板 ATK ÷10 向上取整 → 基础值手动修正 → ×10」处理，
+     * 但不经过骑空艇与支援加成。
      * 若主流程 calculateDamage 调整乘区顺序或公式，请同步此处。
      */
     function calculateNaRawPostDefFromPanelDirect(panelAtk, stats, hpPercent, options) {
@@ -200,10 +360,16 @@
             adversityCharSkill: 0,
             adversityWeapon: 0,
             adversityStrongBonus: 0,
+            indepZhanScale: 1,
             lbStaminaBonus: 0,
             charStrongBonus: 0,
+            charIndex: 0,
+            /** true：不读取静态伤害面板的基础值手动修正 */
+            ignoreBaseValueAdjustment: false,
             /** 若传入则替代 getTeshuStats()（破坏追击需去掉饰品区 element_atk） */
             teshuStatsOverride: null,
+            /** true：完全忽略 testbuff 面板；供回合模拟的战斗状态隔离使用 */
+            ignoreTestBuffSettings: false,
             /** true：属攻乘区不计 testbuff 面板的「属攻」修正 */
             ignoreTestbuffElement: false
         };
@@ -220,19 +386,36 @@
         const h_omega_mult = aggregateZoneValue('stamina_omega', stats, teshuStats);
         const en_mult = aggregateZoneValue('enmity', stats, teshuStats);
         const en_omega_mult = aggregateZoneValue('enmity_omega', stats, teshuStats);
-        const ele_mult = aggregateZoneValue('element_atk', stats, teshuStats);
+        const actorElement = opts.actorElement || opts.fallbackElement || null;
+        const mainElement = opts.mainElement || actorElement;
+        const elementResult = typeof resolveElementMultiplierForDamage === 'function'
+            ? resolveElementMultiplierForDamage(stats, teshuStats, {
+                actorElement,
+                damageElement: opts.damageElement || actorElement,
+                enemyElement: opts.enemyElement,
+                mainElement,
+                forceAdvantage: opts.forceAdvantage === true || opts.isAdvantage === true,
+                forceNeutral: opts.forceNeutral === true,
+                ignoreTestBuffSettings: opts.ignoreTestBuffSettings || opts.ignoreTestbuffElement
+            })
+            : {
+                elementAtk: aggregateZoneValue('element_atk', stats, teshuStats),
+                weaknessBonus: opts.isAdvantage ? 0.5 : 0
+            };
         const indep_cumulative = aggregateZoneValue('indep_cumulative_atk', stats, teshuStats);
         const indep_unjudged = aggregateZoneValue('indep_unjudged_atk', stats, teshuStats);
         const indep_special_enmity = aggregateZoneValue('indep_special_enmity_atk', stats, teshuStats);
         const indep_special = aggregateZoneValue('indep_special_atk', stats, teshuStats);
+        const indep_zhan = aggregateZoneValue('indep_zhan_atk', stats, teshuStats);
 
-        const buffs = (typeof window !== 'undefined' && window.buffSettings) ? window.buffSettings : {};
+        const buffs = !opts.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings
+            ? window.buffSettings
+            : {};
         const buffNormal = buffs.normal || 0;
         const buffStamina = buffs.stamina || 0;
         const buffEnmity = buffs.enmity || 0;
         const buffStrong = buffs.strong || 0;
         const buffAdversity = buffs.adversity || 0;
-        const buffElement = opts.ignoreTestbuffElement ? 0 : (buffs.element || 0);
         const buffMarriage = buffs.marriage || 0;
         const buffIndepCumulative = buffs.indepCumulative || 0;
         const buffIndepUnjudged = buffs.indepUnjudged || 0;
@@ -242,15 +425,24 @@
         const p_mult_total = new Decimal(p_mult).plus(buffNormal).toNumber();
         const stamina_total = new Decimal(h_mult).plus(buffStamina).toNumber();
         const enmity_total = new Decimal(en_mult).plus(buffEnmity).toNumber();
-        const ele_mult_total = new Decimal(ele_mult).plus(buffElement).toNumber();
+        const ele_mult_total = Number(elementResult.elementAtk) || 0;
         const marriage_mult_total = new Decimal(aggregateZoneValue('marriage_perpetuity_atk', stats, teshuStats)).plus(buffMarriage).toNumber();
         const indep_cumulative_mult_total = new Decimal(indep_cumulative).plus(buffIndepCumulative).toNumber();
         const indep_unjudged_mult_total = new Decimal(indep_unjudged).plus(buffIndepUnjudged).toNumber();
         const indep_special_enmity_mult_total = new Decimal(indep_special_enmity).plus(buffIndepSpecialEnmity).toNumber();
         const indep_special_mult_total = new Decimal(indep_special).plus(buffIndepSpecial).toNumber();
+        const indep_zhan_mult_total = new Decimal(indep_zhan)
+            .times(Math.max(0, Number(opts.indepZhanScale) || 0))
+            .toNumber();
 
-        const weaknessBonus = opts.isAdvantage ? 0.5 : 0;
-        const baseAfterStep4 = new Decimal(panelAtk || 0).toNumber();
+        const weaknessBonus = Number(elementResult.weaknessBonus) || 0;
+        let directBaseValue = new Decimal(panelAtk || 0).div(10).ceil().toNumber();
+        if (!opts.ignoreBaseValueAdjustment && typeof window !== 'undefined') {
+            const charIndex = Number.isInteger(Number(opts.charIndex)) ? Number(opts.charIndex) : 0;
+            const baseState = window.baseValues && window.baseValues[charIndex];
+            directBaseValue += Number(baseState && baseState.adjustment) || 0;
+        }
+        const baseAfterStep4 = new Decimal(directBaseValue).times(10).toNumber();
         let zoneMult = new Decimal(1);
 
         const applyZone = (add) => {
@@ -301,6 +493,7 @@
         if (indep_unjudged_mult_total !== 0) applyZone(indep_unjudged_mult_total);
         if (indep_special_enmity_mult_total !== 0) applyZone(indep_special_enmity_mult_total);
         if (indep_special_mult_total !== 0) applyZone(indep_special_mult_total);
+        if (indep_zhan_mult_total !== 0) applyZone(indep_zhan_mult_total);
 
         const randMult = new Decimal(opts.randomFactor || 1);
         zoneMult = zoneMult.times(randMult);
@@ -351,42 +544,58 @@
         const chaseInfo = resolveNaChaseEffects(params || {});
         const chasePct = chaseInfo.totalPct;
         if (chasePct <= 0) return { pct: 0, perHit: 0, effects: [] };
-        const rawIn = Number(params.rawCritPostDefUsed);
+        const rawIn = Number(params.rawPostDefUsed != null ? params.rawPostDefUsed : params.rawCritPostDefUsed);
         if (!Number.isFinite(rawIn) || rawIn <= 0) return { pct: chasePct, perHit: 0, effects: chaseInfo.effects };
         if (typeof sumNaFinalWithRanshu !== 'function') return { pct: chasePct, perHit: 0, effects: chaseInfo.effects };
 
-        const nn = sumNaFinalWithRanshu(
-            rawIn,
-            params.stats,
-            params.teshuStats,
-            params.extraAmpUsed,
-            params.capOptions,
-            params.totalSupp,
-            params.ranshuForUi
-        );
-        const supp = Number(params.totalSupp) || 0;
-        // 重构后 applyDamageCap 不再返回 finalDamage，此处手动重建
-        const worldCapMode2 = (params.capOptions && params.capOptions.worldCapMode) ? params.capOptions.worldCapMode : '660';
-        const capRaw = nn.firstCapResult;
-        const ampedAndTaken2 = new Decimal(capRaw.decayedDamage)
-            .times(new Decimal(1).plus(capRaw.ampCoef))
-            .times(new Decimal(1).plus(capRaw.takenDmgAmpCoef));
-        const worldCapped2 = typeof applyWorldCap === 'function'
-            ? applyWorldCap(ampedAndTaken2, 'na', params.stats, worldCapMode2)
-            : ampedAndTaken2;
-        const capAmt = worldCapped2.ceil().toNumber();
-        const xh = Math.max(1, Math.floor(Number(params.ranshuForUi) || 1));
-        const cappedBase = new Decimal(capAmt);
-        const segForChase = xh <= 1 ? cappedBase : cappedBase.div(xh);
+        const baseContext = getDamageElementContext(params, params.actorElement || params.fallbackElement);
+        const baseElementResult = getElementMultiplier(params, baseContext);
+        const baseElementMultiplier = Math.max(0.0000000001, Number(baseElementResult.multiplier) || 1);
         const effects = chaseInfo.effects.map((effect) => {
             const pct = toPositiveNumber(effect.pct);
-            const perHit = pct > 0 ? segForChase.times(pct).ceil().plus(supp).toNumber() : 0;
+            if (pct <= 0) return null;
+            const damageElement = resolveChaseDamageElement(effect, params, baseContext);
+            const effectContext = getDamageElementContext(params, damageElement);
+            const effectElementResult = getElementMultiplier(params, effectContext);
+            const effectElementMultiplier = Math.max(0, Number(effectElementResult.multiplier) || 0);
+
+            // 除属攻与克属补正外，追击沿用本体同一条平A税后基底。
+            // 因此只需按元素乘区比值换算，即可保留原公式与取整口径。
+            const effectRawPostDef = new Decimal(rawIn)
+                .times(effectElementMultiplier)
+                .div(baseElementMultiplier)
+                .toNumber();
+            const effectCapOptions = buildCapOptionsForDamageElement(params, effectContext);
+            const effectCritEligible = isContextCritEligible(effectContext);
+            const effectCritMult = effectCritEligible ? (Number(params.totalCritMult) || 1) : 1;
+            const effectExtraAmpBase = effectContext.isAdvantage
+                ? (params.extraAmpAdvantageBase != null ? params.extraAmpAdvantageBase : params.extraAmpAdvantage)
+                : (params.extraAmpNormalBase != null ? params.extraAmpNormalBase : params.extraAmpNormal);
+            const effectExtraAmp = new Decimal(Number(effectExtraAmpBase) || 0)
+                .plus(effectCritEligible ? (Number(params.critOnlyAmpPotential) || 0) : 0)
+                .toNumber();
+            const perHit = calcPerHitSingleRoundFromRaw(
+                effectRawPostDef,
+                pct,
+                {
+                    ...params,
+                    totalCritMult: effectCritMult,
+                    capOptions: effectCapOptions,
+                    extraAmpForCap: Number(effectExtraAmp) || 0
+                },
+                effectContext.isAdvantage,
+                params.stats
+            );
             return {
                 ...effect,
+                element: damageElement,
                 pct,
-                perHit
+                perHit,
+                elementAtk: Number(effectElementResult.elementAtk) || 0,
+                weaknessBonus: Number(effectElementResult.weaknessBonus) || 0,
+                critEligible: effectCritEligible
             };
-        }).filter((effect) => effect.pct > 0 && effect.perHit > 0);
+        }).filter((effect) => effect && effect.pct > 0 && effect.perHit > 0);
         const perHit = effects.reduce((sum, effect) => sum + (Number(effect.perHit) || 0), 0);
         return { pct: chasePct, perHit, effects };
     }
@@ -396,27 +605,41 @@
         const chasePct = toPositiveNumber(stats['weapon_bonus_na_destruction']);
         if (chasePct <= 0) return { pct: 0, perHit: 0 };
 
-        // 破坏属性追击：不吃盘/饰品等属攻，仅固定弱点 +0.5。
-        // cap 额外增幅：weapon_dmg_to_elemental_amp（武器盘对克属增幅）始终计入；饰品 dmg_to_elemental_amp（玲珑佩等）仅 UI 克属时计入。
+        // 破坏属性追击：不吃任何属攻，仅固定弱点 +0.5；因此对克制属性伤害增幅始终生效。
         const desStats = stripElementAtkZoneFromStats(stats);
         const calcOptions = params.calcOptions || {};
+        // 平A本体在回合模拟中会传入 ignoreTestBuffSettings；破坏追击使用独立的
+        // raw 计算路径，也必须继承同一隔离策略，不能再次读取静态 testbuff。
+        const ignoreTestBuffSettings = params.ignoreTestBuffSettings === true
+            || calcOptions.ignoreTestBuffSettings === true
+            || !!(params.capOptions && params.capOptions.ignoreTestBuffSettings === true);
         const rawTeshu = (params.teshuStats && typeof params.teshuStats === 'object')
             ? params.teshuStats
             : (typeof getTeshuStats === 'function' ? getTeshuStats() : {});
         const teshuForDes = { ...rawTeshu, element_atk: 0 };
-        const weaponDmgToEleAmp = Number(desStats.weapon_dmg_to_elemental_amp || 0);
-        const teshuDmgToEleAmp = Number(rawTeshu.dmg_to_elemental_amp || 0);
-        const uiAdv = !!params.isAdv;
-        const extraAmpDes = new Decimal(params.extraAmpNormal || 0)
-            .plus(weaponDmgToEleAmp)
-            .plus(uiAdv ? teshuDmgToEleAmp : 0)
+        const destructionContext = getDamageElementContext(params, 'destruction');
+        // 泛用“对克制属性增幅”适用于破坏属性；六属性配对增幅虽然按角色与敌方
+        // 的关系判断，但破坏属性不属于六属性伤害，因此仍不会进入。
+        const destructionCapOptions = buildCapOptionsForDamageElement(params, destructionContext);
+        let extraAmpDes = Number(params.extraAmpNormalBase != null ? params.extraAmpNormalBase : params.extraAmpNormal) || 0;
+        extraAmpDes = new Decimal(extraAmpDes)
+            .plus(Number(params.critOnlyAmpPotential) || 0)
             .toNumber();
+        if (!destructionCapOptions.effectTotals && typeof aggregateZoneValue === 'function') {
+            extraAmpDes = new Decimal(extraAmpDes)
+                .plus(aggregateZoneValue('dmg_to_elemental_amp', desStats, rawTeshu))
+                .toNumber();
+        }
         const rawPostDef = calculateNaRawPostDefFromPanelDirect(
             params.panelAtk,
             desStats,
             params.hpPercent,
             {
                 isAdvantage: true,
+                actorElement: params.actorElement || params.fallbackElement,
+                damageElement: 'destruction',
+                enemyElement: params.enemyElement,
+                mainElement: params.mainElement || params.actorElement || params.fallbackElement,
                 defense: params.defense,
                 defenseDown: params.defenseDown,
                 randomFactor: params.randomFactor,
@@ -427,17 +650,93 @@
                 adversityCharSkill: Number(calcOptions.adversityCharSkill) || 0,
                 adversityWeapon: Number(calcOptions.adversityWeapon) || 0,
                 adversityStrongBonus: Number(calcOptions.adversityStrongBonus) || 0,
+                charIndex: params.charIndex,
+                ignoreBaseValueAdjustment: params.ignoreBaseValueAdjustment === true
+                    || calcOptions.ignoreBaseValueAdjustment === true,
                 teshuStatsOverride: teshuForDes,
+                ignoreTestBuffSettings,
                 ignoreTestbuffElement: true
             }
         );
         const perHit = calcPerHitSingleRoundFromRaw(
             rawPostDef,
             chasePct,
-            { ...params, stats: desStats, extraAmpForCap: extraAmpDes },
+            {
+                ...params,
+                stats: desStats,
+                totalCritMult: Number(params.totalCritMult) || 1,
+                capOptions: destructionCapOptions,
+                extraAmpForCap: extraAmpDes
+            },
             false
         );
         return { pct: chasePct, perHit };
+    }
+
+    const SKILL_CHASE_ELEMENTS = ['fire', 'water', 'earth', 'wind', 'light', 'dark'];
+
+    function normalizeSkillChaseElement(element) {
+        const aliases = { '火': 'fire', '水': 'water', '土': 'earth', '风': 'wind', '光': 'light', '暗': 'dark' };
+        return aliases[element] || element;
+    }
+
+    function isElementalSkillDamage(damage) {
+        const spec = damage || {};
+        const type = spec.damage_type || spec.damageType || 'skill';
+        const element = normalizeSkillChaseElement(spec.element);
+        return type === 'skill' && (!element || element === 'own_element' || SKILL_CHASE_ELEMENTS.includes(element));
+    }
+
+    // 武器数值已经经过武器技能加护/上限汇总；只从 stats 取一次，不再读 effectTotals。
+    function resolveSkillChaseEffects(params) {
+        const opts = params || {};
+        const stats = opts.stats || {};
+        const actorElement = normalizeSkillChaseElement(opts.actorElement || opts.fallbackElement);
+        const sources = (opts.dynamicBuffEntries || []).slice();
+        SKILL_CHASE_ELEMENTS.concat('own_element').forEach((element) => {
+            const key = 'weapon_bonus_skill_' + element;
+            const value = Number(stats[key]);
+            if (Number.isFinite(value) && value > 0) sources.push({
+                prop: 'bonus_skill_' + element, zone: 'weapon_grid',
+                sourceId: key, value: Math.min(0.2, value)
+            });
+        });
+        const groups = new Map();
+        sources.forEach((source) => {
+            if (!source) return;
+            const subtype = getSubtypeFromBonusProp(source.prop, 'bonus_skill');
+            const element = subtype === 'own_element' ? actorElement : normalizeSkillChaseElement(subtype);
+            const zone = source.zone;
+            const pct = Number(source.value);
+            if (!SKILL_CHASE_ELEMENTS.includes(element) || !Number.isFinite(pct) || pct <= 0
+                || !['weapon_grid', 'chara_skill', 'independent'].includes(zone)) return;
+            const key = element + ':' + zone;
+            const previous = groups.get(key);
+            if (previous && zone === 'independent') {
+                // 同属性独立区相加后追加一次；各属性、各分区分别结算。
+                previous.pct = typeof Decimal === 'function'
+                    ? new Decimal(previous.pct).plus(pct).toNumber() : previous.pct + pct;
+                previous.sources.push(source.sourceId || source.prop);
+            } else if (!previous || pct > previous.pct) {
+                groups.set(key, { element, zone, pct, sources: [source.sourceId || source.prop] });
+            }
+        });
+        return Array.from(groups.values());
+    }
+
+    // 最终伤害的比例复制：不重算属性相性/衰减/予伤/增幅/世界上限，不产生递归追击。
+    function calcSkillChaseDamage(baseDamage, effects) {
+        const base = Number(baseDamage);
+        if (!Number.isFinite(base) || base <= 0) return [];
+        return (Array.isArray(effects) ? effects : []).filter((effect) => (
+            effect && Number.isFinite(effect.pct) && effect.pct > 0
+        )).map((effect) => Object.assign({}, effect, {
+            kind: 'skill_chase', damageType: 'skill', isSkillChase: true,
+            consumesHitDurations: false, hitCount: 1, baseDamage: base,
+            damage: typeof Decimal === 'function'
+                ? new Decimal(base).times(effect.pct).ceil().toNumber()
+                : Math.ceil(base * effect.pct)
+        }));
     }
 
     function calcNaBonusDamage(params) {
@@ -452,12 +751,15 @@
         };
     }
 
-    if (typeof window !== 'undefined') {
-        window.BonusDmgCalc = {
+    const api = {
             mergeChaseSources,
             resolveEChasePct,
             resolveNaChaseEffects,
+            isElementalSkillDamage,
+            resolveSkillChaseEffects,
+            calcSkillChaseDamage,
             calcNaBonusDamage
-        };
-    }
+    };
+    if (typeof window !== 'undefined') window.BonusDmgCalc = api;
+    if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

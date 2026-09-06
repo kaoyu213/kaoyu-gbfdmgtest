@@ -66,7 +66,15 @@
     function normalizeDefenseDownZone(zone) {
         const value = String(zone == null ? 'normal' : zone).trim().toLowerCase();
         if (value === 'unique' || value === 'independent_def_down') return 'independent';
-        return value === 'independent' ? 'independent' : 'normal';
+        if (value === 'independent') return 'independent';
+        if (value === 'both_sided' || value === 'double_sided' || value === 'double-sided' || value === '双面区') {
+            return 'both_sided';
+        }
+        if (value === 'cumulative' || value === 'stack' || value === 'stacking' || value === '累积区') {
+            return 'cumulative';
+        }
+        // 兼容旧 charabuff 的 normal / weapon_grid 写法，统一视为片面区。
+        return 'one_sided';
     }
 
     function getBuffRegistryConstructor() {
@@ -258,23 +266,47 @@
             });
             const detail = registry.getDetail('def_down');
             const noSubtype = detail['(无)'] || {};
-            const normal = noSubtype.normal ? Number(noSubtype.normal.zoneValue) || 0 : 0;
+            const oneSided = noSubtype.one_sided ? Number(noSubtype.one_sided.zoneValue) || 0 : 0;
+            const bothSided = noSubtype.both_sided ? Number(noSubtype.both_sided.zoneValue) || 0 : 0;
+            const cumulative = noSubtype.cumulative ? Number(noSubtype.cumulative.zoneValue) || 0 : 0;
             const independent = noSubtype.independent ? Number(noSubtype.independent.zoneValue) || 0 : 0;
+            const ordinaryRaw = oneSided + bothSided + cumulative;
+            const normal = Math.min(0.5, ordinaryRaw);
             return {
-                normal: Math.min(0.5, normal),
+                normal,
+                ordinaryRaw,
+                oneSided,
+                bothSided,
+                cumulative,
                 independent,
-                total: Math.min(0.99, registry.getTotal('def_down')),
+                total: Math.min(0.99, normal + independent),
                 detail
             };
         }
 
-        const normal = Math.min(0.5, normalized
-            .filter((item) => item.zone === 'normal')
-            .reduce((sum, item) => sum + item.value, 0));
+        const maxZone = (zone) => normalized
+            .filter((item) => item.zone === zone)
+            .reduce((max, item) => Math.max(max, item.value), 0);
+        const oneSided = maxZone('one_sided');
+        const bothSided = maxZone('both_sided');
+        const cumulative = normalized
+            .filter((item) => item.zone === 'cumulative')
+            .reduce((sum, item) => sum + item.value, 0);
+        const ordinaryRaw = oneSided + bothSided + cumulative;
+        const normal = Math.min(0.5, ordinaryRaw);
         const independent = normalized
             .filter((item) => item.zone === 'independent')
             .reduce((sum, item) => sum + item.value, 0);
-        return { normal, independent, total: Math.min(0.99, normal + independent), detail: {} };
+        return {
+            normal,
+            ordinaryRaw,
+            oneSided,
+            bothSided,
+            cumulative,
+            independent,
+            total: Math.min(0.99, normal + independent),
+            detail: {}
+        };
     }
 
     function getStaticEnemyDefenseDownBreakdown(rows, manualNormalValue) {

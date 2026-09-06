@@ -15,10 +15,13 @@ const BUFF_DIRECTORY = {
   stamina_omega:   { label: 'M浑身',              icon: '', hasSubtype: false },
   enmity:          { label: '背水',               icon: 'buff icon/stamina.png', hasSubtype: false },
   enmity_omega:    { label: 'M背水',              icon: '', hasSubtype: false },
-  element_atk:     { label: '属性攻击',           icon: 'buff icon/element_atk.png', hasSubtype: false },
-  perpetuity_atk:  { label: '独立攻刃【久远乘区】', icon: '', hasSubtype: false },
+  element_atk:     {
+    label: '属性攻击', icon: 'buff icon/element_atk.png', hasSubtype: true,
+    subtypes: ['all', 'own_element', 'fire', 'water', 'earth', 'wind', 'light', 'dark']
+  },
+  perpetuity_atk:  { label: '独立攻刃【久远乘区】', icon: 'buff icon/normal_atk.png', hasSubtype: false },
   indep_cumulative_atk: { label: '独立攻刃【累积】', icon: 'buff icon/indep_cumulative_atk.png', hasSubtype: false },
-  indep_zhan_atk: { label: '独立攻刃【斩】', icon: 'buff icon/zhan.png', hasSubtype: false },
+  indep_zhan_atk: { label: '攻击力大幅提高', optionLabel: '攻击力大幅提高', icon: 'buff icon/zhan.png', hasSubtype: false },
   indep_unjudged_atk: { label: '独立攻刃【未判定】', icon: '', hasSubtype: false },
   indep_special_enmity_atk: { label: '独立攻刃【特殊背水】', icon: '', hasSubtype: false },
 
@@ -40,6 +43,7 @@ const BUFF_DIRECTORY = {
     zoneLabels: { cumulative: '奥义伤害上升【累积】' }
   },
   dmg_to_elemental_amp: { label: '对克制伤害增幅', icon: '', hasSubtype: false },
+  element_pair_dmg_amp: { label: '六属性克属伤害增幅', icon: '', hasSubtype: false },
   anti_element_reduce: { label: '受克制伤害减轻', icon: '', hasSubtype: false },
 
   // ========== DA/TA ==========
@@ -58,8 +62,9 @@ const BUFF_DIRECTORY = {
     subtypes: ['fire', 'water', 'earth', 'wind', 'light', 'dark', 'destruction', 'own_element', 'advantage']
   },
   bonus_skill: {
-    label: '技能追伤',
+    label: '冴手（技能属性追击）',
     icon: 'buff icon/bonus_skill.png', hasSubtype: true,
+    definitionSubtypes: ['fire', 'water', 'earth', 'wind', 'light', 'dark'],
     subtypes: ['fire', 'water', 'earth', 'wind', 'light', 'dark', 'destruction', 'own_element', 'advantage']
   },
 
@@ -115,15 +120,44 @@ const BUFF_DIRECTORY = {
   critical_dmg_amp:{ label: '暴击时伤害增幅',     icon: '', hasSubtype: false },
   critical_dmg_cap:{ label: '暴击时上限',         icon: '', hasSubtype: false },
   normal_dmg_amp:  { label: '通常伤害增幅',       icon: '', hasSubtype: false },
-  taken_dmg_amp:   { label: '承受伤害增幅',       icon: '', hasSubtype: false },
-  na_ranshu:       { label: '平A乱击段数',        icon: 'buff icon/luanji.png', hasSubtype: false },
+  taken_dmg_amp:   {
+    label: '承受伤害增幅', icon: 'buff icon/status_7368_1.png', hasSubtype: false,
+    targets: ['enemy'],
+    zoneIcons: {
+      enemy_db: 'buff icon/status_7368_1.png',
+      independent: 'buff icon/status_7368_1.png'
+    }
+  },
+  taken_dmg_supp:  {
+    label: '承受伤害上升', icon: 'buff icon/status_7564_3.png', hasSubtype: false, format: 'fixed',
+    targets: ['enemy'],
+    zoneIcons: {
+      enemy_db: 'buff icon/status_7564_3.png',
+      enemy_sp: 'buff icon/status_7564_3.png',
+      cumulative: 'buff icon/status_7839.png',
+      independent: 'buff icon/status_7564_3.png'
+    },
+    zoneLabels: { cumulative: '承受伤害上升【累积】' }
+  },
+  na_ranshu:       { label: '乱击', optionLabel: '乱击', icon: 'buff icon/luanji.png', hasSubtype: false, defaultValue: 2 },
+  na_ranshu_bonus: { label: '猛乱击', optionLabel: '猛乱击', icon: 'buff icon/status_7651.png', hasSubtype: false, defaultValue: 1, fixedValue: 1 },
   dmg_to_non_elemental_amp: { label: '对无属性伤害增幅', icon: '', hasSubtype: false },
   skill_hit_rate:  { label: '技能命中率',         icon: '', hasSubtype: false },
   hp_cut:          { label: 'HP减少',             icon: '', hasSubtype: false },
   hp_dmg:          { label: '开局HP减少',         icon: '', hasSubtype: false },
   turn_dmg:        { label: '每回合HP减少',       icon: '', hasSubtype: false },
   heal_mod:        { label: '回复力',             icon: '', hasSubtype: false },
-  def_down:        { label: '防御下降',           icon: 'constants icon/04_icon_penetrate_def.png', hasSubtype: false },
+  def_down:        {
+    label: '防御力下降', icon: 'buff icon/status_1020.png', hasSubtype: false,
+    targets: ['enemy'],
+    zoneIcons: {
+      one_sided: 'buff icon/status_1020.png',
+      both_sided: 'buff icon/status_1020_13.png',
+      cumulative: 'buff icon/status_1427.png',
+      independent: 'buff icon/status_1430.png'
+    },
+    zoneLabels: { independent: '防御力下降【独立】' }
+  },
   element_reduce:  { label: '属性伤害减轻',       icon: 'buff icon/element_reduce.png', hasSubtype: false },
   dodge_all:       { label: '全回避发生率',       icon: '', hasSubtype: false },
   turn_dmg_reduce: { label: '回合类伤害减轻',     icon: '', hasSubtype: false },
@@ -200,6 +234,7 @@ function buildBuffProp(buffType, subtype) {
 
 function getBuffElementLabel(subtype) {
   const map = {
+    all: '全属性',
     fire: '火',
     water: '水',
     earth: '土',
@@ -251,7 +286,7 @@ function getBuffDisplayMeta(prop, zone, entry) {
   } else if (buffType === 'bonus_ca') {
     label = `${getBuffElementLabel(subtype)}奥义追击`;
   } else if (buffType === 'bonus_skill') {
-    label = `${getBuffElementLabel(subtype)}技能追击`;
+    label = `${getBuffElementLabel(subtype)}属性冴手`;
   } else {
     label = (dirCfg && dirCfg.label) || (zoneCfg && zoneCfg.label) || (statCfg && statCfg.label) || p;
   }

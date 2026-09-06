@@ -215,6 +215,9 @@ function switchUser(userId) {
     if (typeof currentUserId === 'undefined') return;
     if (userId === currentUserId) return;
     if (typeof saveToLocal === 'function') saveToLocal(true);
+    if (window.ManualBurstSimulator && typeof window.ManualBurstSimulator.saveTimeline === 'function') {
+        window.ManualBurstSimulator.saveTimeline();
+    }
     currentUserId = userId;
     if (typeof CURRENT_USER_STORAGE_KEY !== 'undefined') {
         localStorage.setItem(CURRENT_USER_STORAGE_KEY, currentUserId);
@@ -225,6 +228,9 @@ function switchUser(userId) {
     if (typeof loadFromLocal === 'function') loadFromLocal(true);
     if (typeof renderGlobalMastery === 'function') renderGlobalMastery();
     if (typeof recalculate === 'function') recalculate();
+    if (window.ManualBurstSimulator && typeof window.ManualBurstSimulator.reloadForCurrentUser === 'function') {
+        window.ManualBurstSimulator.reloadForCurrentUser();
+    }
 }
 
 // 左侧手风琴面板切换函数

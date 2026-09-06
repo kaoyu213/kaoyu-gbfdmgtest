@@ -19,10 +19,18 @@ if (typeof window !== 'undefined') {
         indepSpecialEnmity: 0, // 独立攻刃【特殊背水】 → step10.x
         indepSpecial: 0,       // 独立攻刃【特殊】 → step10.x
         dmgCap: 0,    // 伤害上限 → all cap
+        naCap: 0,
+        skillCap: 0,
         dmgAmp: 0,    // 伤害增幅 → dmg amp
+        naDmgAmp: 0,
+        skillDmgAmp: 0,
+        caDmgAmp: 0,
+        ranshu: 0,
+        criticalMultiplier: 0,
         caWeaponDmg: 0,
         caDmg: 0,
         caCap: 0,
+        skillDmg: 0,
         dmgSupp: 0,
         caDmgSupp: 0,
         takenDmgAmp: 0
@@ -52,7 +60,8 @@ function getCaCapDisplayBase(caMultiplier) {
     return 500000;
 }
 
-function getIndependentCritSources(charIndex, stats) {
+function getIndependentCritSources(charIndex, stats, options) {
+    const opts = options || {};
     const sources = [];
     const weaponCritRateRaw = Number(stats['weapon_critical_hit_rate'] || 0);
     if (weaponCritRateRaw > 0) {
@@ -142,6 +151,21 @@ function getIndependentCritSources(charIndex, stats) {
         }
     }
 
+    const testBuffCritBonus = !opts.ignoreTestBuffSettings
+        && typeof window !== 'undefined'
+        && window.buffSettings
+        ? Math.max(0, Number(window.buffSettings.criticalMultiplier) || 0)
+        : 0;
+    if (testBuffCritBonus > 0) {
+        sources.push({
+            source: 'testbuff_critical',
+            label: 'testbuff独立暴击',
+            rate: 1,
+            bonus: testBuffCritBonus,
+            zone: 'independent'
+        });
+    }
+
     return sources;
 }
 
@@ -218,6 +242,12 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
         backups: [0, 0, 0, 0, 0],  // 5个备用乘区
         strongCaps: [],           // 强壮乘区各独立技能的满血上限列表
         charIndex: 0,             // 角色槽位索引，用于基础值调整
+        actorElement: null,
+        damageElement: null,
+        enemyElement: null,
+        mainElement: null,
+        forceAdvantage: false,
+        forceNeutral: false,
         updateBaseValueDisplay: false,
         ignoreBaseValueAdjustment: false,
         ignoreTestBuffSettings: false,
@@ -228,7 +258,9 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
         // - 召唤提供的逆境暂不处理，预留在上层
         adversityCharSkill: 0,
         adversityWeapon: 0,
-        adversityStrongBonus: 0
+        adversityStrongBonus: 0,
+        // 奥义可覆盖为 2/3；平A和技伤默认使用斩的完整独立攻刃数值。
+        indepZhanScale: 1
     };
     const opts = { ...defaults, ...options };
     const charIndex = opts.charIndex || 0;
@@ -252,13 +284,35 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
     const h_omega_mult = aggregateZoneValue('stamina_omega', stats, teshuStats); // M浑身
     const en_mult = aggregateZoneValue('enmity', stats, teshuStats);      // 背水
     const en_omega_mult = aggregateZoneValue('enmity_omega', stats, teshuStats); // M背水
-    const ele_mult = aggregateZoneValue('element_atk', stats, teshuStats); // 属攻
+    const actorElement = opts.actorElement || (
+        typeof party !== 'undefined' && party[charIndex] ? party[charIndex].element : null
+    );
+    const mainElement = opts.mainElement || (
+        typeof party !== 'undefined' && party[0] ? party[0].element : actorElement
+    );
+    const elementResult = typeof resolveElementMultiplierForDamage === 'function'
+        ? resolveElementMultiplierForDamage(stats, teshuStats, {
+            actorElement,
+            damageElement: opts.damageElement || actorElement,
+            enemyElement: opts.enemyElement,
+            mainElement,
+            forceAdvantage: opts.forceAdvantage === true || opts.isAdvantage === true,
+            forceNeutral: opts.forceNeutral === true,
+            ignoreTestBuffSettings: opts.ignoreTestBuffSettings
+        })
+        : {
+            elementAtk: aggregateZoneValue('element_atk', stats, teshuStats),
+            weaknessBonus: opts.isAdvantage ? 0.5 : 0,
+            context: { isAdvantage: !!opts.isAdvantage }
+        };
+    const ele_mult = Number(elementResult.elementAtk) || 0;
     const dmg_amp = aggregateZoneValue('dmg_amp', stats, teshuStats);   // 伤害增幅
     // 4 个新的独立攻刃乘区，目前仅支持通过 testbuff 手动调整
     const indep_cumulative = aggregateZoneValue('indep_cumulative_atk', stats, teshuStats);
     const indep_unjudged = aggregateZoneValue('indep_unjudged_atk', stats, teshuStats);
     const indep_special_enmity = aggregateZoneValue('indep_special_enmity_atk', stats, teshuStats);
     const indep_special = aggregateZoneValue('indep_special_atk', stats, teshuStats);
+    const indep_zhan = aggregateZoneValue('indep_zhan_atk', stats, teshuStats);
 
     // 应用 testbuff 面板的乘区修正（在进入各 Step 之前统一汇总）
     const buffs = !opts.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings ? window.buffSettings : {};
@@ -267,7 +321,6 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
     const buffEnmity    = buffs.enmity    || 0;
     const buffStrong    = buffs.strong    || 0;
     const buffAdversity = buffs.adversity || 0;
-    const buffElement   = buffs.element   || 0;
     const buffMarriage  = buffs.marriage  || 0;
     const buffIndepCumulative    = buffs.indepCumulative    || 0;
     const buffIndepUnjudged      = buffs.indepUnjudged      || 0;
@@ -277,18 +330,21 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
     const p_mult_total       = new Decimal(p_mult).plus(buffNormal).toNumber();        // 普刃 (step5)
     const stamina_total      = new Decimal(h_mult).plus(buffStamina).toNumber();       // 浑身 (step7)
     const enmity_total       = new Decimal(en_mult).plus(buffEnmity).toNumber();       // 背水 (step7.1)
-    const ele_mult_total     = new Decimal(ele_mult).plus(buffElement).toNumber();     // 属攻 (step9) - 不含克属
+    const ele_mult_total     = ele_mult;                                                // 属攻 (step9) - 已按本次伤害属性筛选
     const marriage_mult_total= new Decimal(aggregateZoneValue('marriage_perpetuity_atk', stats, teshuStats)).plus(buffMarriage).toNumber(); // 久远乘区 (step10)
     const indep_cumulative_mult_total    = new Decimal(indep_cumulative).plus(buffIndepCumulative).toNumber();
     const indep_unjudged_mult_total      = new Decimal(indep_unjudged).plus(buffIndepUnjudged).toNumber();
     const indep_special_enmity_mult_total= new Decimal(indep_special_enmity).plus(buffIndepSpecialEnmity).toNumber();
     const indep_special_mult_total       = new Decimal(indep_special).plus(buffIndepSpecial).toNumber();
+    const indep_zhan_mult_total          = new Decimal(indep_zhan)
+        .times(Math.max(0, Number(opts.indepZhanScale) || 0))
+        .toNumber();
     
     // 弱点补正 (0.5)
-    const weaknessBonus = opts.isAdvantage ? 0.5 : 0;
+    const weaknessBonus = Number(elementResult.weaknessBonus) || 0;
     
     // ====== 调试输出 ======
-    const typeLabel = opts.isAdvantage ? "【对克属】" : "【无克属】";
+    const typeLabel = elementResult.context && elementResult.context.isAdvantage ? "【对克属】" : "【无克属】";
     console.groupCollapsed(`伤害计算调试 ${typeLabel}`);
     console.log("面板ATK:", panelAtk);
     console.log("防御:", opts.defense);
@@ -557,6 +613,15 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
         addLog("独立攻刃【特殊】", preview.toNumber(), `x${mult.toFixed(4)}`);
     }
 
+    // Step 10.5: 攻击力大幅提高（斩）是完全独立的新乘区。
+    if (indep_zhan_mult_total !== 0) {
+        const mult = new Decimal(1).plus(indep_zhan_mult_total);
+        zoneMult = zoneMult.times(mult);
+        const preview = new Decimal(baseAfterStep4).times(zoneMult);
+        console.log(`Step10.5 [攻击力大幅提高]: base=${baseAfterStep4} x${mult.toFixed(4)} → 累积系数 x${zoneMult.toFixed(10)} → 预览=${preview.toFixed(3)}`);
+        addLog("攻击力大幅提高", preview.toNumber(), `x${mult.toFixed(4)}`);
+    }
+
     // Step 11: 随机补正 - 也并入总系数
     // 重构目标：Step3 之后不再做任何中途取整，保留 Decimal 精度到最终增幅阶段统一 ceil
     const randMult = new Decimal(opts.randomFactor || 1);
@@ -576,7 +641,7 @@ function calculateDamage(panelAtk, stats, hpPercent, options) {
     console.groupEnd();
     addLog("防御后伤害", rawPostDef, `/${effectiveDefense.toFixed(2)}`, true);
     
-    return { damage: rawPostDef, logs: logSteps };
+    return { damage: rawPostDef, logs: logSteps, elementContext: elementResult.context || null };
 }
 
 // ==========================================
@@ -593,8 +658,9 @@ function calculateDamageFromUI(charIndex = 0) {
     
     const hpPercent = parseInt(document.getElementById('current-hp-slider')?.value) || 100;
     
-    const weaknessToggleId = charIndex === 0 ? 'weakness-toggle' : `weakness-toggle-${charIndex}`;
-    const isAdvantage = document.getElementById(weaknessToggleId)?.checked || false;
+    const isAdvantage = !!(window.damageViewStates
+        && window.damageViewStates[charIndex]
+        && window.damageViewStates[charIndex].isAdvantage);
     
     const defInputId = charIndex === 0 ? 'def-input' : `def-input-${charIndex}`;
     const defDownInputId = charIndex === 0 ? 'def-down-input' : `def-down-input-${charIndex}`;
@@ -617,6 +683,9 @@ function calculateDamageFromUI(charIndex = 0) {
         });
         if (party[charIndex].stats._charabuffZoneEffectTotals) {
             stats._charabuffZoneEffectTotals = Object.assign({}, party[charIndex].stats._charabuffZoneEffectTotals);
+        }
+        if (Array.isArray(party[charIndex].stats._elementAtkEntries)) {
+            stats._elementAtkEntries = party[charIndex].stats._elementAtkEntries.map((entry) => Object.assign({}, entry));
         }
         stats['element_atk'] = party[charIndex].stats['element_atk'] || 0;
     }
@@ -689,6 +758,10 @@ function calculateDamageFromUI(charIndex = 0) {
     
     const result = calculateDamage(panelAtk, stats, hpPercent, {
         isAdvantage: isAdvantage,
+        actorElement: typeof party !== 'undefined' && party[charIndex] ? party[charIndex].element : null,
+        damageElement: typeof party !== 'undefined' && party[charIndex] ? party[charIndex].element : null,
+        enemyElement: typeof window.getStaticEnemyElement === 'function' ? window.getStaticEnemyElement() : window.staticEnemyElement,
+        mainElement: typeof party !== 'undefined' && party[0] ? party[0].element : null,
         defense: defense,
         defenseDown: defenseDown,
         randomFactor: randomFactor,
@@ -861,6 +934,56 @@ function setSkillDamageDecayModeButton(charIndex, hasDamageSkill) {
     btn.title = '模糊：超过 cap 的部分按 0.01 斜率计算；精确：使用技能阈值表计算';
 }
 
+function renderSkillThresholdSelectOptions(charIndex) {
+    const select = document.getElementById('skill-threshold-select-' + charIndex);
+    if (!select || !window.ThresholdRegistry || typeof window.ThresholdRegistry.getAll !== 'function') return;
+
+    const selectedId = String(select.value || '');
+    const tables = window.ThresholdRegistry.getAll('skill');
+    const noDecayOption = document.createElement('option');
+    noDecayOption.value = '';
+    noDecayOption.textContent = '无衰减';
+    select.replaceChildren(noDecayOption);
+
+    tables.forEach((table) => {
+        if (!table || !table.tableId) return;
+        const option = document.createElement('option');
+        option.value = table.tableId;
+        option.textContent = `${table.label || table.tableId} [${table.tableId}]`;
+        select.appendChild(option);
+    });
+    if (tables.some((table) => table && table.tableId === selectedId)) select.value = selectedId;
+    select.disabled = false;
+    select.dataset.thresholdOptionsLoaded = 'true';
+    delete select.dataset.thresholdOptionsLoading;
+}
+
+function ensureSkillThresholdSelectOptions(charIndex) {
+    const select = document.getElementById('skill-threshold-select-' + charIndex);
+    if (!select || select.dataset.thresholdOptionsLoaded === 'true' || select.dataset.thresholdOptionsLoading === 'true') return;
+    if (!window.ThresholdRegistry) return;
+
+    if (typeof window.ThresholdRegistry.loadThresholdData !== 'function') {
+        renderSkillThresholdSelectOptions(charIndex);
+        return;
+    }
+    select.dataset.thresholdOptionsLoading = 'true';
+    select.disabled = true;
+    window.ThresholdRegistry.loadThresholdData()
+        .then(() => renderSkillThresholdSelectOptions(charIndex))
+        .catch((error) => {
+            console.error('[SkillPrediction] 技能衰减表加载失败', error);
+            select.disabled = true;
+            delete select.dataset.thresholdOptionsLoading;
+            if (select.options[0]) select.options[0].textContent = '衰减表加载失败（当前无衰减）';
+        });
+}
+
+function getSelectedSkillThresholdTableId(charIndex) {
+    const select = document.getElementById('skill-threshold-select-' + charIndex);
+    return select ? String(select.value || '').trim() : '';
+}
+
 function getSkillDamageCapCoefForFuzzy(charIndex, stats, capOptions) {
     const teshuStats = typeof getTeshuStats === 'function' ? getTeshuStats() : {};
     if (typeof calculateTotalCap === 'function') {
@@ -884,12 +1007,67 @@ function applyFuzzySkillCap(rawPerHit, capPerHit, capCoef, capRelaxation) {
     return cap + (raw - cap) * 0.01 * (1 + relaxation);
 }
 
+// 复用面板已算出的最终伤害，按完整技能分别计算冴手；主数值始终不含追击。
+function updateTheoreticalSkillOutput(charIndex, skillGroups, calcContext) {
+    const activeButton = document.querySelector('.char-slot-btn.active');
+    const activeSlot = activeButton ? (parseInt(activeButton.getAttribute('data-slot'), 10) || 0) : 0;
+    if (charIndex !== activeSlot) return;
+    const totalEl = document.getElementById('theoretical-skill-total');
+    const chaseEl = document.getElementById('theoretical-skill-chases');
+    if (!totalEl || !chaseEl) return;
+    chaseEl.replaceChildren();
+    chaseEl.hidden = true;
+    const groups = Array.isArray(skillGroups) ? skillGroups : [];
+    if (!groups.length) {
+        totalEl.textContent = '-';
+        totalEl.title = '填写技能倍率或勾选伤害技能后显示原技能总伤害，不含冴手';
+        return;
+    }
+    const context = calcContext || {};
+    const bonus = window.BonusDmgCalc;
+    const dynamicBuffEntries = typeof party !== 'undefined' && party[charIndex]
+        && Array.isArray(party[charIndex].dynamicBuffEntries) ? party[charIndex].dynamicBuffEntries : [];
+    const effects = bonus ? bonus.resolveSkillChaseEffects({
+        stats: context.stats || {}, actorElement: context.actorElement, dynamicBuffEntries
+    }) : [];
+    const chaseHits = bonus ? groups.flatMap((group) => bonus.calcSkillChaseDamage(group.chaseBaseDamage, effects)) : [];
+    const baseDamage = groups.reduce((sum, group) => sum + group.baseDamage, 0);
+    totalEl.textContent = baseDamage.toLocaleString();
+    totalEl.title = '当前技能各段伤害之和，不含冴手；使用上方伤害预测的倍率和衰减设置';
+    const elementNames = { fire: '火', water: '水', earth: '土', wind: '风', light: '光', dark: '暗' };
+    const fallbackColors = { fire: '#E74C3C', water: '#3980D9', earth: '#9C6040', wind: '#6FD840', light: '#FEEC59', dark: '#7F45C9' };
+    const zoneNames = { weapon_grid: '武器盘区', chara_skill: '角色buff区', independent: '独立区' };
+    const colors = typeof ELEMENT_COLORS !== 'undefined' && ELEMENT_COLORS ? ELEMENT_COLORS : {};
+    effects.forEach((effect) => {
+        const matchingHits = chaseHits.filter((hit) => hit.element === effect.element && hit.zone === effect.zone);
+        const damage = matchingHits.reduce((sum, hit) => sum + hit.damage, 0);
+        const row = document.createElement('div');
+        row.className = 'theoretical-total-dmg-row theoretical-skill-chase-row';
+        const label = document.createElement('span');
+        label.className = 'theoretical-total-dmg-label';
+        const value = document.createElement('span');
+        value.className = 'theoretical-total-dmg-value';
+        const elementName = elementNames[effect.element] || effect.element;
+        const color = colors[elementName] || colors[effect.element] || fallbackColors[effect.element];
+        label.textContent = `${elementName}属性冴手（${zoneNames[effect.zone] || effect.zone} ${(effect.pct * 100).toFixed(2)}%）`;
+        value.textContent = damage.toLocaleString();
+        label.style.color = color;
+        value.style.color = color;
+        row.title = `冴手伤害：${matchingHits.length} HIT，按各技能最终总伤害乘比例计算，不消耗次数 Buff／Debuff`;
+        row.appendChild(label);
+        row.appendChild(value);
+        chaseEl.appendChild(row);
+    });
+    chaseEl.hidden = effects.length === 0;
+}
+
 function renderCheckedSkillDamageRows(charIndex, skillDmgEl, calcContext) {
     const damageSteps = getCheckedDamageSkillSteps(charIndex);
     if (!damageSteps.length) return false;
     if (!window.SkillDmgCalc || typeof window.SkillDmgCalc.calculateSkillDamage !== 'function') return false;
 
     const rows = [];
+    const skillGroups = new Map();
     const decayMode = getSkillDamageDecayMode(charIndex);
     damageSteps.forEach((item) => {
         const damage = item.action.damage || {};
@@ -911,8 +1089,13 @@ function renderCheckedSkillDamageRows(charIndex, skillDmgEl, calcContext) {
                 defense: calcContext.defense,
                 defenseDown: calcContext.defenseDown,
                 charIndex: charIndex,
-                isAdvantage: calcContext.isAdv,
+                isAdvantage: calcContext.forceAdvantage === true,
+                actorElement: calcContext.actorElement,
+                damageElement: damage.element || calcContext.damageElement,
+                enemyElement: calcContext.enemyElement,
+                mainElement: calcContext.mainElement,
                 critMode: calcContext.critMode,
+                effectTotals: calcContext.capOptions && calcContext.capOptions.effectTotals,
                 naOptions: { randomFactor: calcContext.randomFactor },
                 strongCaps: calcContext.strongCaps,
                 lbStaminaBonus: calcContext.lbStaminaBonus,
@@ -936,6 +1119,11 @@ function renderCheckedSkillDamageRows(charIndex, skillDmgEl, calcContext) {
         const perHit = useExact
             ? rawPerHit
             : applyFuzzySkillCap(rawPerHit, capPerHit, fuzzyCapCoef, fuzzyCapRelaxation);
+        const group = skillGroups.get(item.skillId) || { baseDamage: 0, chaseBaseDamage: 0 };
+        const stepTotal = Math.round(perHit) * hits;
+        group.baseDamage += stepTotal;
+        if (window.BonusDmgCalc && window.BonusDmgCalc.isElementalSkillDamage(damage)) group.chaseBaseDamage += stepTotal;
+        skillGroups.set(item.skillId, group);
         const label = item.skill && item.skill.name ? item.skill.name : item.skillId;
         const capDetail = capPerHit > 0
             ? `，cap ${Math.round(new Decimal(capPerHit).times(fuzzyCapCoef)).toLocaleString()}`
@@ -958,10 +1146,12 @@ function renderCheckedSkillDamageRows(charIndex, skillDmgEl, calcContext) {
 
     if (!rows.length) return false;
     skillDmgEl.innerHTML = rows.join('');
+    updateTheoreticalSkillOutput(charIndex, Array.from(skillGroups.values()), calcContext);
     return true;
 }
 
 function updateDamageDisplay(charIndex = 0) {
+    updateTheoreticalSkillOutput(charIndex, null);
     function ensureDamageRangeRow(detailsId, rangeId) {
         const detailsEl = document.getElementById(detailsId);
         if (!detailsEl) return null;
@@ -988,6 +1178,9 @@ function updateDamageDisplay(charIndex = 0) {
         });
         if (party[charIndex].stats._charabuffZoneEffectTotals) {
             stats._charabuffZoneEffectTotals = Object.assign({}, party[charIndex].stats._charabuffZoneEffectTotals);
+        }
+        if (Array.isArray(party[charIndex].stats._elementAtkEntries)) {
+            stats._elementAtkEntries = party[charIndex].stats._elementAtkEntries.map((entry) => Object.assign({}, entry));
         }
         stats['element_atk'] = party[charIndex].stats['element_atk'] || 0;
         stats['summon_dmg_cap'] = party[charIndex].stats['summon_dmg_cap'] || 0;
@@ -1100,7 +1293,24 @@ function updateDamageDisplay(charIndex = 0) {
         adversityStrongBonus: adversityFromCharBonus
     };
 
+    const actorDamageElement = (typeof party !== 'undefined' && party[charIndex])
+        ? party[charIndex].element
+        : null;
+    const mainDamageElement = (typeof party !== 'undefined' && party[0])
+        ? party[0].element
+        : actorDamageElement;
+    const staticEnemyElement = typeof window.getStaticEnemyElement === 'function'
+        ? window.getStaticEnemyElement()
+        : (window.staticEnemyElement || null);
+    const elementCalculationOptions = {
+        actorElement: actorDamageElement,
+        damageElement: actorDamageElement,
+        enemyElement: staticEnemyElement,
+        mainElement: mainDamageElement
+    };
+
     const resultNormal = calculateDamage(panelAtk, stats, hpPercent, {
+        ...elementCalculationOptions,
         isAdvantage: false,
         charIndex: charIndex,
         defense: defense,
@@ -1112,6 +1322,7 @@ function updateDamageDisplay(charIndex = 0) {
     });
     
     const resultAdvantage = calculateDamage(panelAtk, stats, hpPercent, {
+        ...elementCalculationOptions,
         isAdvantage: true,
         charIndex: charIndex,
         defense: defense,
@@ -1122,6 +1333,7 @@ function updateDamageDisplay(charIndex = 0) {
     });
 
     const resultNormalMin = calculateDamage(panelAtk, stats, hpPercent, {
+        ...elementCalculationOptions,
         isAdvantage: false,
         charIndex: charIndex,
         defense: defense,
@@ -1131,6 +1343,7 @@ function updateDamageDisplay(charIndex = 0) {
         ...baseAdversityOptions
     });
     const resultNormalMax = calculateDamage(panelAtk, stats, hpPercent, {
+        ...elementCalculationOptions,
         isAdvantage: false,
         charIndex: charIndex,
         defense: defense,
@@ -1140,6 +1353,7 @@ function updateDamageDisplay(charIndex = 0) {
         ...baseAdversityOptions
     });
     const resultAdvantageMin = calculateDamage(panelAtk, stats, hpPercent, {
+        ...elementCalculationOptions,
         isAdvantage: true,
         charIndex: charIndex,
         defense: defense,
@@ -1149,6 +1363,7 @@ function updateDamageDisplay(charIndex = 0) {
         ...baseAdversityOptions
     });
     const resultAdvantageMax = calculateDamage(panelAtk, stats, hpPercent, {
+        ...elementCalculationOptions,
         isAdvantage: true,
         charIndex: charIndex,
         defense: defense,
@@ -1171,12 +1386,23 @@ function updateDamageDisplay(charIndex = 0) {
     
     const dmg_amp = aggregateZoneValue('dmg_amp', stats, teshuStats);
 
-    let isAdv = false;
+    let forceAdvantage = false;
     let currentCritMode = 'expected';
     if (window.damageViewStates && window.damageViewStates[charIndex]) {
-        isAdv = window.damageViewStates[charIndex].isAdvantage;
+        forceAdvantage = window.damageViewStates[charIndex].isAdvantage === true;
         currentCritMode = window.damageViewStates[charIndex].critMode || 'expected';
     }
+    const selectedElementContext = (forceAdvantage ? resultAdvantage : resultNormal).elementContext
+        || (typeof resolveDamageElementContext === 'function'
+            ? resolveDamageElementContext({
+                ...elementCalculationOptions,
+                forceAdvantage
+            })
+            : { isAdvantage: forceAdvantage, critEligible: forceAdvantage });
+    const isAdv = selectedElementContext.isAdvantage === true;
+    const bodyCritEligible = typeof isCritEligibleForDamage === 'function'
+        ? isCritEligibleForDamage(selectedElementContext)
+        : true;
     
     // 判断是否为主角 (charIndex === 0) 且应用对应的职业特性
     let isClass5 = false;
@@ -1217,17 +1443,21 @@ function updateDamageDisplay(charIndex = 0) {
     const critState = (window.damageViewStates && window.damageViewStates[charIndex]) ? window.damageViewStates[charIndex] : {};
     const critMode = critState.critMode || 'expected';
     const critSources = getIndependentCritSources(charIndex, stats);
-    const totalCritMult = getCritMultiplierByMode(critMode, critSources);
-    const critFlag = getCritFlagByMode(critMode, critSources);
-    const critAmpRate = getCritAmpRateByMode(critMode, critSources);
+    const potentialCritMult = getCritMultiplierByMode(critMode, critSources);
+    const potentialCritFlag = getCritFlagByMode(critMode, critSources);
+    const potentialCritAmpRate = getCritAmpRateByMode(critMode, critSources);
+    const totalCritMult = bodyCritEligible ? potentialCritMult : 1;
+    const critFlag = bodyCritEligible ? potentialCritFlag : false;
+    const critAmpRate = bodyCritEligible ? potentialCritAmpRate : 0;
 
     // 暴击时生效的伤害增幅（如：属性角色暴击时，伤害增幅（大））
     const critOnlyAmp = (Number(stats['weapon_critical_hit_amp'] || 0)) * critAmpRate;
     
     const allEffectsAmpReady = typeof getAllEffectsTotalForSlot === 'function' && typeof getAllEffectsTotalForSlot(charIndex, 'na_dmg_amp', null) === 'number';
-    const extraAmpNormal = allEffectsAmpReady
-        ? new Decimal(char_buff_amp).plus(critOnlyAmp).toNumber()
-        : new Decimal(char_buff_amp).plus(normal_dmg_amp).plus(critOnlyAmp).toNumber();
+    const extraAmpNormalBase = allEffectsAmpReady
+        ? Number(char_buff_amp) || 0
+        : new Decimal(char_buff_amp).plus(normal_dmg_amp).toNumber();
+    const extraAmpNormal = new Decimal(extraAmpNormalBase).plus(critOnlyAmp).toNumber();
     const extraAmpAdvantage = extraAmpNormal;
 
     console.groupCollapsed(`[Debug Amp Composition]`);
@@ -1244,8 +1474,24 @@ function updateDamageDisplay(charIndex = 0) {
     const rawPostDefAdv = resultAdvantage.damage;
 
     const worldCapMode = (window.damageViewStates && window.damageViewStates[charIndex]) ? (window.damageViewStates[charIndex].worldCapMode || '660') : '660';
-    const capOptions = { isClass5: isClass5, worldCapMode: worldCapMode, charIndex: charIndex };
-    const ranshuFromStats = Math.max(1, Math.floor(Number(stats['weapon_na_ranshu'] || 1)));
+    const formulaEffectTotals = typeof buildAllEffectsForSlot === 'function'
+        ? buildAllEffectsForSlot(charIndex, {
+            isAdvantage: isAdv,
+            persist: false
+        }).totals
+        : null;
+    const capOptions = {
+        isClass5: isClass5,
+        worldCapMode: worldCapMode,
+        charIndex: charIndex,
+        effectTotals: formulaEffectTotals
+    };
+    const ranshuEffectTotal = typeof getAllEffectsTotalForSlot === 'function'
+        ? getAllEffectsTotalForSlot(charIndex, 'na_ranshu', null)
+        : null;
+    const ranshuFromStats = typeof resolveNaRanshuHits === 'function'
+        ? resolveNaRanshuHits(stats, typeof ranshuEffectTotal === 'number' ? { na_ranshu: ranshuEffectTotal } : null)
+        : Math.max(1, Math.floor(Number(stats['weapon_na_ranshu'] || 1)));
     const hideRanshuDisplay = !!(window.damageViewStates && window.damageViewStates[charIndex] && window.damageViewStates[charIndex].hideRanshuDisplay);
     const ranshuHits = hideRanshuDisplay ? 1 : ranshuFromStats;
 
@@ -1300,14 +1546,6 @@ function updateDamageDisplay(charIndex = 0) {
     const baseDmgEl = document.getElementById(`base-dmg-display-${charIndex}`);
     const naDmgEl = document.getElementById(`na-dmg-display-${charIndex}`);
     
-    // 获取当前面板的拨片状态
-    isAdv = false;
-    currentCritMode = 'expected';
-    if (window.damageViewStates && window.damageViewStates[charIndex]) {
-        isAdv = window.damageViewStates[charIndex].isAdvantage;
-        currentCritMode = window.damageViewStates[charIndex].critMode || 'expected';
-    }
-
     /** 平A预测：显示每段乱击伤害；乱击1 时等同整次 */
     const finalNa = isAdv ? critSegAdv : critSegNormal;
     // 最终显示口径：平A预测值在输出前统一向上取整，避免出现小数
@@ -1325,8 +1563,10 @@ function updateDamageDisplay(charIndex = 0) {
         const weaponCritRate = Number(stats['weapon_critical_hit_rate'] || 0);
         const displayRate = (weaponCritRate * 100).toFixed(1);
         const modeLabel = modeLabelMap[currentCritMode] || modeLabelMap.expected;
-        critBtn.textContent = `${modeLabel}(${displayRate}%)`;
-        if (currentCritMode === 'non_crit') critBtn.classList.remove('active');
+        critBtn.textContent = bodyCritEligible
+            ? `${modeLabel}(${displayRate}%)`
+            : `不可暴击(${displayRate}%)`;
+        if (currentCritMode === 'non_crit' || !bodyCritEligible) critBtn.classList.remove('active');
         else critBtn.classList.add('active');
     }
 
@@ -1410,9 +1650,14 @@ function updateDamageDisplay(charIndex = 0) {
                     defense: defense,
                     defenseDown: defenseDown,
                     charIndex: charIndex,
-                    isAdvantage: isAdv,
+                    isAdvantage: forceAdvantage,
+                    actorElement: actorDamageElement,
+                    damageElement: actorDamageElement,
+                    enemyElement: staticEnemyElement,
+                    mainElement: mainDamageElement,
                     applyCap: true,
                     critMode: currentCritMode,
+                    effectTotals: formulaEffectTotals,
                     naOptions: { randomFactor: rangeRandomFactor },
                     capOptions: caCapOptions,
                     strongCaps: strongCaps,
@@ -1567,9 +1812,10 @@ function updateDamageDisplay(charIndex = 0) {
         }
 
         // 平A追击/破坏追击：统一由 BonusDmgCalc 计算
-        const fallbackElement = (typeof party !== 'undefined' && Array.isArray(party) && party[charIndex])
-            ? (party[charIndex].element || 'unknown')
+        const fallbackElement = actorDamageElement
+            ? actorDamageElement
             : 'unknown';
+        const mainElement = mainDamageElement || fallbackElement;
         const bonusCalcResult = (window.BonusDmgCalc && typeof window.BonusDmgCalc.calcNaBonusDamage === 'function')
             ? window.BonusDmgCalc.calcNaBonusDamage({
                 panelAtk,
@@ -1578,8 +1824,13 @@ function updateDamageDisplay(charIndex = 0) {
                 charIndex,
                 teshuStats,
                 isAdv,
-                // 与平A预测同一条「暴击税后基底」：preDef×暴击倍率÷防，再与 sumNaFinalWithRanshu 一致
-                rawCritPostDefUsed: isAdv ? rawCritPostDefAdv : rawCritPostDefNormal,
+                forceAdvantage,
+                actorElement: fallbackElement,
+                damageElement: fallbackElement,
+                enemyElement: staticEnemyElement,
+                mainElement,
+                // 追击需要从未暴击基底出发，再按各自伤害属性独立判断暴击资格。
+                rawPostDefUsed: isAdv ? rawPostDefAdv : rawPostDefNormal,
                 extraAmpUsed: isAdv ? extraAmpAdvantage : extraAmpNormal,
                 defense,
                 defenseDown,
@@ -1595,7 +1846,10 @@ function updateDamageDisplay(charIndex = 0) {
                 capCritResultNormal,
                 preDefAdvVal,
                 preDefNormalVal,
-                totalCritMult,
+                totalCritMult: potentialCritMult,
+                critOnlyAmpPotential: (Number(stats['weapon_critical_hit_amp'] || 0)) * potentialCritAmpRate,
+                extraAmpNormalBase,
+                extraAmpAdvantageBase: extraAmpNormalBase,
                 effectiveDefense,
                 extraAmpAdvantage,
                 extraAmpNormal,
@@ -1669,6 +1923,11 @@ function updateDamageDisplay(charIndex = 0) {
         defense: defense,
         defenseDown: defenseDown,
         isAdvantage: isAdv,
+        forceAdvantage: forceAdvantage,
+        actorElement: actorDamageElement,
+        damageElement: actorDamageElement,
+        enemyElement: staticEnemyElement,
+        mainElement: mainDamageElement,
         critMode: critMode,
         randomFactor: randomFactor,
         capOptions: Object.assign({}, capOptions || {}),
@@ -1679,6 +1938,8 @@ function updateDamageDisplay(charIndex = 0) {
     if (skillDmgEl && window.SkillDmgCalc && typeof window.SkillDmgCalc.calculateSkillDamage === 'function') {
         window.skillDamageInferenceSnapshots = window.skillDamageInferenceSnapshots || {};
         const skillMultInput = document.getElementById('skill-mult-input-' + charIndex);
+        const skillThresholdControl = document.getElementById('skill-threshold-control-' + charIndex);
+        ensureSkillThresholdSelectOptions(charIndex);
         const skillLabelWrap = skillMultInput ? skillMultInput.closest('.dmg-skill-label-input') : null;
         const skillLabel = skillLabelWrap ? skillLabelWrap.querySelector('.dmg-label') : null;
         const hasCheckedDamageSkill = getCheckedDamageSkillSteps(charIndex).length > 0;
@@ -1690,6 +1951,11 @@ function updateDamageDisplay(charIndex = 0) {
             defense,
             defenseDown,
             isAdv,
+            forceAdvantage,
+            actorElement: actorDamageElement,
+            damageElement: actorDamageElement,
+            enemyElement: staticEnemyElement,
+            mainElement: mainDamageElement,
             critMode,
             randomFactor,
             capOptions,
@@ -1698,6 +1964,7 @@ function updateDamageDisplay(charIndex = 0) {
         if (renderedCheckedSkills) {
             delete window.skillDamageInferenceSnapshots[charIndex];
             if (skillMultInput) skillMultInput.style.display = 'none';
+            if (skillThresholdControl) skillThresholdControl.hidden = true;
             if (skillLabel) skillLabel.textContent = '技能伤害';
             if (totalCritMult > 1.0000001) skillDmgEl.classList.add('is-crit');
             else skillDmgEl.classList.remove('is-crit');
@@ -1705,6 +1972,7 @@ function updateDamageDisplay(charIndex = 0) {
         }
 
         if (skillMultInput) skillMultInput.style.display = '';
+        if (skillThresholdControl) skillThresholdControl.hidden = false;
         if (skillLabel) skillLabel.textContent = '技能预测伤害';
         setSkillDamageDecayModeButton(charIndex, false);
         const skillMult = window.SkillDmgCalc.readSkillMultFromUI(charIndex);
@@ -1724,19 +1992,28 @@ function updateDamageDisplay(charIndex = 0) {
                     else updateDamageDisplay(charIndex);
                 });
             }
+            const thresholdTableId = getSelectedSkillThresholdTableId(charIndex);
+            const applySelectedThreshold = thresholdTableId !== '';
             const skillResult = window.SkillDmgCalc.calculateSkillDamage(panelAtk, stats, hpPercent, {
                 defense: defense,
                 defenseDown: defenseDown,
                 charIndex: charIndex,
-                isAdvantage: isAdv,
+                isAdvantage: forceAdvantage,
+                actorElement: actorDamageElement,
+                damageElement: actorDamageElement,
+                enemyElement: staticEnemyElement,
+                mainElement: mainDamageElement,
                 critMode: critMode,
+                effectTotals: formulaEffectTotals,
                 naOptions: { randomFactor: randomFactor },
                 ...baseAdversityOptions,
-                applyCap: true,
-                capOptions: Object.assign({}, capOptions || {}, { thresholdTableId: 'skill_test' }),
+                applyCap: applySelectedThreshold,
+                capOptions: Object.assign({}, capOptions || {}, applySelectedThreshold ? { thresholdTableId } : {}),
                 skillBaseMult: skillMult
             });
-            const skillVal = skillResult && skillResult.value != null ? skillResult.value : null;
+            const skillVal = skillResult
+                ? (applySelectedThreshold ? skillResult.value : skillResult.undecayedValue)
+                : null;
             const capResult = skillResult && skillResult.capResult ? skillResult.capResult : null;
             const skillSteps = skillResult && skillResult.steps ? skillResult.steps : null;
             if (capResult && skillSteps && Number.isFinite(Number(skillSteps.afterMultCrit))) {
@@ -1763,6 +2040,15 @@ function updateDamageDisplay(charIndex = 0) {
                 delete window.skillDamageInferenceSnapshots[charIndex];
             }
             skillDmgEl.textContent = skillVal != null ? skillVal.toLocaleString() : '-';
+            if (skillVal != null && Number.isFinite(skillVal)) {
+                updateTheoreticalSkillOutput(charIndex, [{ baseDamage: skillVal, chaseBaseDamage: skillVal }], {
+                    stats, actorElement: actorDamageElement
+                });
+            }
+            const thresholdSelect = document.getElementById('skill-threshold-select-' + charIndex);
+            skillDmgEl.title = applySelectedThreshold && thresholdSelect && thresholdSelect.selectedOptions[0]
+                ? `应用衰减表：${thresholdSelect.selectedOptions[0].textContent}`
+                : '无衰减伤害';
             if (totalCritMult > 1.0000001) skillDmgEl.classList.add('is-crit');
             else skillDmgEl.classList.remove('is-crit');
         }
@@ -1799,7 +2085,11 @@ function getSkillDamageInferenceSnapshot(charIndex, skillMultiplier) {
             defense: context.defense,
             defenseDown: context.defenseDown,
             charIndex: charIndex,
-            isAdvantage: context.isAdvantage,
+            isAdvantage: context.forceAdvantage === true,
+            actorElement: context.actorElement,
+            damageElement: context.damageElement,
+            enemyElement: context.enemyElement,
+            mainElement: context.mainElement,
             critMode: context.critMode,
             naOptions: { randomFactor: randomFactor },
             ...context.baseAdversityOptions,
@@ -1921,6 +2211,10 @@ if (typeof module !== 'undefined' && module.exports) {
         calculateDamageFromUI,
         updateDamageDisplay,
         toggleCritTheory,
-        calculateCriticalDamage
+        calculateCriticalDamage,
+        getIndependentCritSources,
+        getCritMultiplierByMode,
+        getCritFlagByMode,
+        getCritAmpRateByMode
     };
 }

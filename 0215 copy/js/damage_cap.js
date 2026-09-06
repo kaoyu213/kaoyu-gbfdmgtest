@@ -131,11 +131,17 @@ function calculateTotalCap(stats, capType, teshuStats, options = {}) {
         if (teshuStats && teshuStats['na_dmg_cap']) {
             specificCap = specificCap.plus(teshuStats['na_dmg_cap']);
         }
+        if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings) {
+            specificCap = specificCap.plus(window.buffSettings.naCap || 0);
+        }
     } else if (capType === 'skill') {
         specificCap = new Decimal(stats['weapon_skill_dmg_cap'] || 0)
             .plus(stats['mc_skill_dmg_cap_passive'] || 0)
             .plus(stats['weapon_special_skill_dmg_cap'] || 0)
             .plus(stats['weapon_ax_skill_dmg_cap'] || 0);
+        if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings) {
+            specificCap = specificCap.plus(window.buffSettings.skillCap || 0);
+        }
     } else if (capType === 'ca') {
         specificCap = new Decimal(stats['weapon_ca_dmg_cap'] || 0)
             .plus(stats['weapon_ax_ca_dmg_cap'] || 0)
@@ -224,8 +230,13 @@ function calculateAmp(stats, ampType, teshuStats) {
         amp = amp.plus(stats['weapon_cb_dmg_amp'] || 0);
     }
 
-    if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings && window.buffSettings.dmgAmp) {
-        amp = amp.plus(window.buffSettings.dmgAmp);
+    if (!options.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings) {
+        var testBuffAmpKey = ampType === 'na' ? 'naDmgAmp'
+            : ampType === 'skill' ? 'skillDmgAmp'
+            : ampType === 'ca' ? 'caDmgAmp'
+            : null;
+        amp = amp.plus(window.buffSettings.dmgAmp || 0);
+        if (testBuffAmpKey) amp = amp.plus(window.buffSettings[testBuffAmpKey] || 0);
     }
 
     return amp.toNumber();
@@ -292,6 +303,27 @@ function applyWorldCap(ampedDamage, type, stats, worldCapMode) {
 }
 
 /**
+ * 攻击力大幅提高（斩）的伤害类型专属上限规则。
+ * 平A切换专用衰减表；奥义各有限阈值增加50万；技伤不改变上限。
+ */
+function resolveZhanCapRule(type, explicitTableId, stats, teshuStats) {
+    let zhanAtk = 0;
+    if (typeof aggregateZoneValue === 'function') {
+        zhanAtk = Number(aggregateZoneValue('indep_zhan_atk', stats || {}, teshuStats || {})) || 0;
+    } else if (stats && stats._charabuffZoneEffectTotals) {
+        zhanAtk = Number(stats._charabuffZoneEffectTotals.indep_zhan_atk) || 0;
+    }
+    const active = zhanAtk > 0;
+    return {
+        active,
+        thresholdTableId: active && type === 'na' && !explicitTableId
+            ? 'na_zhan_116'
+            : (explicitTableId || null),
+        thresholdLimitOffset: active && type === 'ca' ? 500000 : 0
+    };
+}
+
+/**
  * 应用伤害上限逻辑 (主入口)
  * 只负责计算衰减后的伤害和各项系数，不做增幅乘算/世界衰减/取整。
  * 最终伤害的拼装由各伤害类型调用方自行完成（平A/技伤/奥义公式不同）。
@@ -316,7 +348,8 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
     let thresholdStages;
     let usedTableId = null;
     
-    const tableId = options.thresholdTableId;
+    const zhanCapRule = resolveZhanCapRule(type, options.thresholdTableId, stats, teshuStats);
+    const tableId = zhanCapRule.thresholdTableId;
     
     if (typeof ThresholdRegistry !== 'undefined' && typeof ThresholdRegistry.resolve === 'function') {
         // 优先用 tableId 精确匹配；无 tableId 时用 type 默认表
@@ -329,6 +362,14 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
     
     if (!thresholdStages || thresholdStages.length === 0) {
         throw new Error('[DamageCap] 未能从 js/threshold_tables.json 解析衰减表，type=' + type);
+    }
+    if (zhanCapRule.thresholdLimitOffset > 0) {
+        thresholdStages = thresholdStages.map((stage) => ({
+            limit: Number.isFinite(stage.limit)
+                ? stage.limit + zhanCapRule.thresholdLimitOffset
+                : stage.limit,
+            slope: stage.slope
+        }));
     }
     
     // 3. 执行衰减 (Func_Decay)
@@ -349,7 +390,8 @@ function applyDamageCap(rawDamage, stats, type, teshuStats, extraAmp = 0, option
         capRelaxation: capRelaxation,
         ampCoef: totalAmp,
         takenDmgAmpCoef: takenDmgAmp,
-        thresholdTableId: usedTableId
+        thresholdTableId: usedTableId,
+        thresholdLimitOffset: zhanCapRule.thresholdLimitOffset
     };
 }
 
@@ -362,6 +404,7 @@ if (typeof module !== 'undefined' && module.exports) {
         calculateAmp,
         calculateTakenDamageAmp,
         applyWorldCap,
+        resolveZhanCapRule,
         applyDamageCap
     };
 }

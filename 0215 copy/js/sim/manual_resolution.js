@@ -5,6 +5,9 @@
 (function (global) {
     'use strict';
 
+    const nodeBonusApi = typeof module !== 'undefined' && module.exports ? require('../bonus_dmg.js') : null;
+    const nodeStatusApi = typeof module !== 'undefined' && module.exports ? require('./status_resolver.js') : null;
+
     const FRONTLINE_SLOTS = Object.freeze([0, 1, 2, 3]);
     const DURATION_TYPE_ALIASES = Object.freeze({
         turn: 'turns',
@@ -220,12 +223,18 @@
         return applied;
     }
 
-    function consumeDuration(statuses, durationType, amount) {
+    function consumeDuration(statuses, durationType, amount, eligibleStatusIds) {
         const type = canonicalDurationType(durationType);
+        const eligible = eligibleStatusIds == null
+            ? null
+            : eligibleStatusIds instanceof Set
+                ? eligibleStatusIds
+                : new Set(Array.isArray(eligibleStatusIds) ? eligibleStatusIds : []);
         const consumed = [];
         const expired = [];
         const next = (Array.isArray(statuses) ? statuses : []).filter((status) => {
             if (!status || !status.duration || canonicalDurationType(status.duration.type) !== type) return true;
+            if (eligible && !eligible.has(status.status_id)) return true;
             const before = getStatusRemaining(status);
             if (before == null) return true;
             const after = Math.max(0, before - Math.max(1, Number(amount) || 1));
@@ -247,11 +256,12 @@
         return { actor: actorResult, enemy: enemyResult };
     }
 
-    function finishAction(state, actorSlot) {
+    function finishAction(state, actorSlot, eligibility) {
+        const limits = eligibility || {};
         const actor = getActor(state, actorSlot);
-        const actorResult = consumeDuration(actor && actor.statuses, 'action', 1);
+        const actorResult = consumeDuration(actor && actor.statuses, 'action', 1, limits.actorStatusIds);
         if (actor) actor.statuses = actorResult.statuses;
-        const enemyResult = consumeDuration(state.enemy.statuses, 'action', 1);
+        const enemyResult = consumeDuration(state.enemy.statuses, 'action', 1, limits.enemyStatusIds);
         state.enemy.statuses = enemyResult.statuses;
         state.actionSequence += 1;
         return { actor: actorResult, enemy: enemyResult };
@@ -287,12 +297,19 @@
         return Math.max(0, Number(calculated) || 0);
     }
 
+    function normalizeResolvedHitCount(calculated) {
+        if (!calculated || typeof calculated !== 'object') return 1;
+        const value = calculated.hitCount != null ? calculated.hitCount : calculated.hits;
+        return Math.max(1, toPositiveInteger(value, 1));
+    }
+
     function resolveDamageHits(state, hits, options) {
         const opts = options || {};
         const calculator = typeof opts.calculateHit === 'function'
             ? opts.calculateHit
             : (hit) => Number(hit.damage) || 0;
         const resolved = [];
+        let hitCount = 0;
         let totalDamage = 0;
 
         (Array.isArray(hits) ? hits : []).forEach((definition, index) => {
@@ -315,20 +332,24 @@
             context.enemy = state.enemy;
             context.actorStatuses = snapshot.actorStatuses;
             context.enemyStatuses = snapshot.enemyStatuses;
-            const damage = normalizeDamageValue(calculator(hit, context));
+            const calculated = calculator(hit, context);
+            const damage = normalizeDamageValue(calculated);
+            const resolvedHitCount = normalizeResolvedHitCount(calculated);
             if (typeof opts.afterHit === 'function') opts.afterHit(hit, damage, context);
             const durationChanges = consumeHitDurations(state, hit.actorSlot);
             resolved.push({
                 hit,
                 damage,
+                hitCount: resolvedHitCount,
                 actorStatusIds: snapshot.actorStatuses.map((status) => status.status_id),
                 enemyStatusIds: snapshot.enemyStatuses.map((status) => status.status_id),
                 durationChanges
             });
+            hitCount += resolvedHitCount;
             totalDamage += damage;
         });
 
-        return { hits: resolved, hitCount: resolved.length, totalDamage };
+        return { hits: resolved, hitCount, totalDamage };
     }
 
     function isBonusNormalEffect(effect) {
@@ -365,6 +386,7 @@
 
     function resolveNormalAttack(state, action, options) {
         const spec = action || {};
+        const opts = options || {};
         const mode = String(spec.mode || spec.actionMode || 'sa').toLowerCase();
         const baseHitCount = mode === 'ta' ? 3 : mode === 'da' ? 2 : 1;
         const actorSlot = Number(spec.actorSlot == null ? 0 : spec.actorSlot);
@@ -378,11 +400,16 @@
                 kind: 'base',
                 baseHitIndex: baseIndex,
                 multiplier: 1
-            }], Object.assign({}, options, { actorSlot })));
+            }], Object.assign({}, opts, { actorSlot })));
 
             const bonusSources = Array.isArray(spec.bonusHits)
                 ? cloneJson(spec.bonusHits)
-                : collectBonusHitSources(state, actorSlot);
+                : typeof opts.getBonusHits === 'function'
+                    ? cloneJson(opts.getBonusHits(state, actorSlot, {
+                        action: spec,
+                        baseHitIndex: baseIndex
+                    }) || [])
+                    : collectBonusHitSources(state, actorSlot);
             bonusSources.forEach((source, bonusIndex) => {
                 if (source.sourceStatusId) {
                     const actor = getActor(state, actorSlot);
@@ -400,7 +427,7 @@
                     bonusIndex: bonusIndex + 1,
                     multiplier: Number(source.value != null ? source.value : source.multiplier) || 0,
                     bonusSource: cloneJson(source)
-                }], Object.assign({}, options, { actorSlot })));
+                }], Object.assign({}, opts, { actorSlot })));
             });
         }
 
@@ -411,32 +438,207 @@
     function createStatusFromBuffStep(step, context, index) {
         const source = step || {};
         const skillId = context && context.skillId ? context.skillId : 'manual_skill';
+        const conditions = cloneJson(source.conditions != null ? source.conditions : source.condition);
         const effects = source.prop && source.zone
             ? [{
-                prop: String(source.prop),
-                zone: String(source.zone),
-                value: Number(source.value) || 0,
-                format: source.format,
-                conditions: cloneJson(source.conditions != null ? source.conditions : source.condition)
+                effect_type: source.effect_type || 'stat_mod',
+                conditions,
+                formula: {
+                    prop: String(source.prop),
+                    zone: String(source.zone),
+                    value: Number(source.value) || 0,
+                    format: source.format
+                }
             }]
             : cloneJson(Array.isArray(source.effects) ? source.effects : []);
+        const iconMeta = source.prop && source.zone && typeof getBuffIconMeta === 'function'
+            ? getBuffIconMeta(source.prop, source.zone)
+            : null;
         return {
             status_id: source.id || `${skillId}_status_${index}`,
+            kind: source.unique ? 'unique' : 'generic',
             name: source.name || source.id || `${skillId}效果`,
-            icon: source.icon || '',
+            icon: source.icon || iconMeta && iconMeta.icon || '',
+            source_display: source.source_display || (context && context.skillName) || '',
+            status_display: cloneJson(source.status_display || null),
+            display_detail: source.display_detail ? String(source.display_detail) : '',
             duration: normalizeDuration(source),
             effects,
             stacking: cloneJson(source.stacking || null),
             stacks: source.stacks == null ? null : Math.max(1, Number(source.stacks) || 1),
-            conditions: cloneJson(source.conditions != null ? source.conditions : source.condition),
+            conditions,
             flags: source.dispel_immune == null ? {} : { dispel_immune: source.dispel_immune === true }
         };
+    }
+
+    function trimDisplayNumber(value) {
+        const number = Number(value) || 0;
+        return String(Number(number.toFixed(2)));
+    }
+
+    function formatFormulaValue(value, format) {
+        const number = Number(value) || 0;
+        const prefix = number >= 0 ? '+' : '';
+        if (format === 'fixed') return `${prefix}${Math.round(number).toLocaleString('zh-CN')}点`;
+        return `${prefix}${trimDisplayNumber(number * 100)}%`;
+    }
+
+    function getStatusDurationText(status) {
+        if (!status || !status.duration) return '';
+        const type = canonicalDurationType(status.duration.type);
+        if (type === 'permanent') return '永久';
+        const remaining = getStatusRemaining(status);
+        if (remaining == null) return '';
+        const unit = type === 'action' ? '次行动' : type === 'hit' ? '次命中' : '回合';
+        return `剩余${remaining}${unit}`;
+    }
+
+    function getStatusEffectDetails(status) {
+        if (!status) return [];
+        if (status.display_detail) return [String(status.display_detail)];
+        const stackMultiplier = status.stacking && status.stacking.scale_effects === true
+            ? Math.max(1, Number(status.stacks) || 1)
+            : 1;
+        return (Array.isArray(status.effects) ? status.effects : []).map((effect) => {
+            if (!effect) return '';
+            const formula = effect.formula && typeof effect.formula === 'object'
+                ? effect.formula
+                : effect.prop && effect.zone ? effect : null;
+            if (formula && formula.prop) {
+                const meta = typeof getBuffDisplayMeta === 'function'
+                    ? getBuffDisplayMeta(formula.prop, formula.zone, {
+                        label: effect.label || formula.label,
+                        format: formula.format || effect.format
+                    })
+                    : null;
+                const label = meta && meta.label || effect.label || formula.label || formula.prop;
+                const format = meta && meta.format || formula.format || effect.format || 'percent';
+                return `${label} ${formatFormulaValue(Number(formula.value) * stackMultiplier, format)}`;
+            }
+            if (effect.effect_type === 'bonus_damage') {
+                return `追击 ${formatFormulaValue(Number(effect.value) * stackMultiplier, 'percent')}`;
+            }
+            if (effect.effect_type === 'extra_attack') return '再攻击';
+            if (effect.effect_type === 'multiattack') return String(effect.mode || '连击率提升');
+            return effect.label || effect.effect_type || '';
+        }).filter(Boolean);
+    }
+
+    function normalizeTooltipLine(value) {
+        const text = String(value || '');
+        const normalized = typeof text.normalize === 'function' ? text.normalize('NFKC') : text;
+        return normalized.replace(/\s+/g, '');
+    }
+
+    function appendUniqueTooltipLine(lines, value) {
+        const line = String(value || '').trim();
+        if (!line) return;
+        const key = normalizeTooltipLine(line);
+        if (lines.some((existing) => normalizeTooltipLine(existing) === key)) return;
+        lines.push(line);
+    }
+
+    function projectStatusBuffs(statuses) {
+        const result = [];
+        const largeGroups = new Map();
+        (Array.isArray(statuses) ? statuses : []).forEach((status) => {
+            if (!status) return;
+            const display = status.status_display && typeof status.status_display === 'object'
+                ? status.status_display
+                : null;
+            const duration = getStatusDurationText(status);
+            const details = getStatusEffectDetails(status);
+            if (display && display.mode === 'large') {
+                const groupId = String(display.group_id || status.status_id || 'large_buff');
+                let entry = largeGroups.get(groupId);
+                if (!entry) {
+                    const label = String(display.label || status.source_display || status.name || '专属Buff');
+                    entry = {
+                        statusId: groupId,
+                        name: label,
+                        icon: '',
+                        initial: String(display.initial || Array.from(label)[0] || '强'),
+                        displayMode: 'large',
+                        detailLines: []
+                    };
+                    largeGroups.set(groupId, entry);
+                    result.push(entry);
+                }
+                (details.length ? details : [status.name || '效果']).forEach((detail) => {
+                    const line = duration ? `${detail}（${duration}）` : detail;
+                    appendUniqueTooltipLine(entry.detailLines, line);
+                });
+                return;
+            }
+
+            const name = status.name || status.status_id || 'Buff';
+            const tooltipLines = [name];
+            details.forEach((detail) => appendUniqueTooltipLine(tooltipLines, detail));
+            appendUniqueTooltipLine(tooltipLines, duration);
+            result.push({
+                statusId: status.status_id,
+                name,
+                icon: status.icon || '',
+                displayMode: 'small',
+                tooltip: tooltipLines.join('\n')
+            });
+        });
+        result.forEach((entry) => {
+            if (entry.displayMode === 'large') {
+                entry.tooltip = [entry.name].concat(entry.detailLines || []).join('\n');
+                delete entry.detailLines;
+            }
+        });
+        return result;
+    }
+
+    function getSkillChaseEffects(state, actorSlot, options) {
+        const opts = options || {};
+        if (typeof opts.getSkillChaseEffects === 'function') return opts.getSkillChaseEffects(state, actorSlot) || [];
+        const bonus = global.BonusDmgCalc || nodeBonusApi;
+        const statuses = global.StatusResolver || nodeStatusApi;
+        const actor = getActor(state, actorSlot);
+        if (!bonus || !statuses || !actor) return [];
+        return bonus.resolveSkillChaseEffects({
+            stats: actor.stats || {},
+            actorElement: actor.element,
+            dynamicBuffEntries: statuses.collectZoneEntriesFromStatuses(actor.statuses, {
+                actor, owner: actor, state, hpPercent: actor.hpPercent
+            })
+        });
+    }
+
+    function appendSkillChase(state, result, effects) {
+        const bonus = global.BonusDmgCalc || nodeBonusApi;
+        const chaseHits = bonus ? bonus.calcSkillChaseDamage(result.baseSkillDamage, effects) : [];
+        result.skillChaseHits = chaseHits;
+        result.skillChaseDamage = 0;
+        chaseHits.forEach((chase) => {
+            const snapshot = getStatusSnapshot(state, result.actorSlot);
+            // 冴手只追加结算记录，不经过 calculateHit / afterHit / consumeHitDurations。
+            state.hitSequence = (Number(state.hitSequence) || 0) + 1;
+            result.hits.push({
+                hit: Object.assign({}, chase, { actorSlot: result.actorSlot, sequence: state.hitSequence }),
+                damage: chase.damage, hitCount: 1,
+                actorStatusIds: snapshot.actorStatuses.map((status) => status.status_id),
+                enemyStatusIds: snapshot.enemyStatuses.map((status) => status.status_id),
+                durationChanges: null
+            });
+            result.hitCount += 1;
+            result.totalDamage += chase.damage;
+            result.skillChaseDamage += chase.damage;
+        });
+        return result;
     }
 
     function resolveSkillDamage(state, action, options) {
         const spec = action || {};
         const damage = spec.damage && typeof spec.damage === 'object' ? spec.damage : spec;
         const actorSlot = Number(spec.actorSlot == null ? 0 : spec.actorSlot);
+        const opts = options || {};
+        const bonus = global.BonusDmgCalc || nodeBonusApi;
+        const eligible = bonus && bonus.isElementalSkillDamage(damage);
+        const chaseEffects = eligible ? getSkillChaseEffects(state, actorSlot, opts) : [];
         const count = Math.max(1, toPositiveInteger(damage.hits, 1));
         const hits = Array.from({ length: count }, (_, index) => ({
             actorSlot,
@@ -452,7 +654,10 @@
         const result = resolveDamageHits(state, hits, Object.assign({}, options, { actorSlot }));
         result.type = 'skill_damage';
         result.actorSlot = actorSlot;
-        return result;
+        result.baseSkillDamage = eligible ? result.totalDamage : 0;
+        result.skillChaseEligible = !!eligible;
+        result.skillChaseEffects = chaseEffects;
+        return opts.deferSkillChase ? result : appendSkillChase(state, result, chaseEffects);
     }
 
     function resolveChargeAttack(state, action, options) {
@@ -479,6 +684,16 @@
         const spec = action || {};
         const mode = String(spec.mode || spec.actionMode || '').toLowerCase();
         const type = String(spec.type || spec.damageType || spec.damage_type || '').toLowerCase();
+        if (mode === 'none') {
+            return {
+                type: 'no_action',
+                mode,
+                actorSlot: Number(spec.actorSlot == null ? 0 : spec.actorSlot),
+                hits: [],
+                hitCount: 0,
+                totalDamage: 0
+            };
+        }
         if (mode === 'ca' || type === 'ca' || type === 'charge_attack') {
             return resolveChargeAttack(state, spec, options);
         }
@@ -503,6 +718,8 @@
             totalDamage: 0,
             appliedStatuses: []
         };
+        let chaseEffects = null;
+        result.baseSkillDamage = 0;
 
         (Array.isArray(source.steps) ? source.steps : []).forEach((step, index) => {
             if (!step || !step.do) return;
@@ -512,7 +729,8 @@
                     target: step.target || 'self',
                     target_slots: step.target_slots,
                     status: createStatusFromBuffStep(step, {
-                        skillId: source.id || runtime.skillId || 'manual_skill'
+                        skillId: source.id || runtime.skillId || 'manual_skill',
+                        skillName: source.name || runtime.skillName || ''
                     }, index)
                 });
                 result.appliedStatuses.push(...applied);
@@ -525,7 +743,9 @@
                 partial = resolveSkillDamage(state, Object.assign({
                     id: `${source.id || 'manual_skill'}_${index}`,
                     actorSlot
-                }, step), options);
+                }, step), Object.assign({}, options, { deferSkillChase: true }));
+                result.baseSkillDamage += partial.baseSkillDamage;
+                if (chaseEffects === null && partial.skillChaseEligible) chaseEffects = partial.skillChaseEffects;
             } else if (step.do === 'na') {
                 partial = resolveNormalAttack(state, {
                     id: `${source.id || 'manual_skill'}_${index}`,
@@ -543,7 +763,134 @@
             result.steps.push({ do: step.do, result: partial });
             appendResolution(result, partial);
         });
-        return result;
+        return appendSkillChase(state, result, chaseEffects || []);
+    }
+
+    /**
+     * 依据手动时间轴顺序生成每个角色行动开始时的 Buff 图标快照。
+     * 这是 UI 投影：状态仍由标准 skill.steps 创建，持续回合/行动/hit 由本模块推进，
+     * 不把任何特定技能或图标硬编码进行动块。
+     */
+    function resolveTimeline(turns, options) {
+        const opts = options || {};
+        const getSkillById = typeof opts.getSkillById === 'function' ? opts.getSkillById : null;
+        const runtimeState = createState({ actorCount: Math.max(4, Number(opts.actorCount) || 4) });
+        const buffsByBlockId = {};
+        const damageByBlockId = {};
+        const hitCountByBlockId = {};
+        const byCharacter = {};
+        let enemyBuffs = [];
+        let totalDamage = 0;
+        const calculateHit = typeof opts.calculateHit === 'function' ? opts.calculateHit : () => 0;
+        const resolutionOptions = {
+            calculateHit,
+            getBonusHits: typeof opts.getBonusHits === 'function' ? opts.getBonusHits : null,
+            getSkillChaseEffects: typeof opts.getSkillChaseEffects === 'function' ? opts.getSkillChaseEffects : null
+        };
+
+        function recordDamage(blockId, actorSlot, value, hitCount) {
+            const damage = Math.max(0, Number(value) || 0);
+            damageByBlockId[blockId] = damage;
+            hitCountByBlockId[blockId] = Math.max(0, Math.floor(Number(hitCount) || 0));
+            if (!byCharacter[actorSlot]) byCharacter[actorSlot] = 0;
+            byCharacter[actorSlot] += damage;
+            totalDamage += damage;
+        }
+
+        (Array.isArray(turns) ? turns : []).forEach((turn) => {
+            (turn && Array.isArray(turn.blocks) ? turn.blocks : []).forEach((block) => {
+                if (!block || !block.id) return;
+                const actorSlot = Number(block.actorSlot == null ? 0 : block.actorSlot);
+                const isActorAction = block.type === 'actor_action' || block.type === 'extra_action';
+
+                if (isActorAction) {
+                    const actor = getActor(runtimeState, actorSlot);
+                    buffsByBlockId[block.id] = projectStatusBuffs(cloneJson((actor && actor.statuses) || []));
+                    const actionResult = resolveAction(runtimeState, {
+                        id: block.id,
+                        actorSlot,
+                        mode: block.actionMode || block.mode || 'ta',
+                        type: block.type
+                    }, resolutionOptions);
+                    recordDamage(block.id, actorSlot, actionResult.totalDamage, actionResult.hitCount);
+                    enemyBuffs = projectStatusBuffs(cloneJson(runtimeState.enemy.statuses || []));
+                    return;
+                }
+
+                // 技能方块以 skillId 为权威引用。旧存档中的 steps 只作为技能已不存在时的兜底，
+                // 避免用户编辑本地技能后仍按放置时的旧快照结算。
+                const currentSkill = getSkillById && block.skillId
+                    ? getSkillById(block.skillId)
+                    : null;
+                const currentSteps = currentSkill && Array.isArray(currentSkill.steps)
+                    ? currentSkill.steps
+                    : block.steps;
+                if (!Array.isArray(currentSteps) || currentSteps.length === 0) {
+                    if (block.type === 'damage') recordDamage(block.id, actorSlot, 0, 0);
+                    return;
+                }
+                const actorBeforeSkill = getActor(runtimeState, actorSlot);
+                const actorStatusIdsBeforeSkill = new Set((actorBeforeSkill && actorBeforeSkill.statuses || [])
+                    .map((status) => status && status.status_id).filter(Boolean));
+                const enemyStatusIdsBeforeSkill = new Set((runtimeState.enemy.statuses || [])
+                    .map((status) => status && status.status_id).filter(Boolean));
+                const result = resolveSkill(runtimeState, {
+                    id: block.skillId || block.id,
+                    steps: currentSteps
+                }, { ownerSlot: actorSlot }, resolutionOptions);
+                if (result.hitCount > 0 || block.type === 'damage') {
+                    recordDamage(block.id, actorSlot, result.totalDamage, result.hitCount);
+                }
+
+                // 纯 do=damage 技能是一次完整伤害行动；resolveSkill 内的 do=na/do=ca
+                // 已由各自结算器推进，因此这里只补直接技伤的行动结束时点。
+                const hasDirectDamage = currentSteps.some((step) => step && step.do === 'damage');
+                const hasNestedAttack = currentSteps.some((step) => step && (step.do === 'na' || step.do === 'ca'));
+                if (result.hitCount > 0 && hasDirectDamage && !hasNestedAttack) {
+                    // 只扣除直接伤害发生时已经存在的行动持续状态。伤害后才获得的Buff
+                    // 不应被本次已经完成的伤害行动立即消耗；同ID刷新也按新状态处理。
+                    const lastDamageIndex = result.steps.reduce((latest, step, index) => (
+                        step && step.do === 'damage' ? index : latest
+                    ), -1);
+                    result.steps.slice(0, lastDamageIndex + 1).forEach((step) => {
+                        if (!step || step.do !== 'buff' || !Array.isArray(step.applied)) return;
+                        step.applied.forEach((status) => {
+                            if (!status || !status.status_id) return;
+                            if (status.target === 'enemy') enemyStatusIdsBeforeSkill.add(status.status_id);
+                            if (Number(status.target_slot) === actorSlot) actorStatusIdsBeforeSkill.add(status.status_id);
+                        });
+                    });
+                    result.steps.slice(lastDamageIndex + 1).forEach((step) => {
+                        if (!step || step.do !== 'buff' || !Array.isArray(step.applied)) return;
+                        step.applied.forEach((status) => {
+                            if (!status || !status.status_id) return;
+                            if (status.target === 'enemy') enemyStatusIdsBeforeSkill.delete(status.status_id);
+                            if (Number(status.target_slot) === actorSlot) actorStatusIdsBeforeSkill.delete(status.status_id);
+                        });
+                    });
+                    finishAction(runtimeState, actorSlot, {
+                        actorStatusIds: actorStatusIdsBeforeSkill,
+                        enemyStatusIds: enemyStatusIdsBeforeSkill
+                    });
+                }
+                enemyBuffs = projectStatusBuffs(cloneJson(runtimeState.enemy.statuses || []));
+            });
+            finishTurn(runtimeState);
+        });
+
+        return {
+            buffsByBlockId,
+            damageByBlockId,
+            hitCountByBlockId,
+            totalDamage,
+            byCharacter,
+            enemyBuffs,
+            state: runtimeState
+        };
+    }
+
+    function projectTimelineBuffs(turns, options) {
+        return resolveTimeline(turns, options).buffsByBlockId;
     }
 
     const api = {
@@ -561,7 +908,10 @@
         resolveSkillDamage,
         resolveChargeAttack,
         resolveAction,
-        resolveSkill
+        resolveSkill,
+        resolveTimeline,
+        projectTimelineBuffs,
+        projectStatusBuffs
     };
 
     global.ManualBattleResolution = api;

@@ -116,7 +116,10 @@
                 sourceId: `summon:${summon.id || slotIndex}:${role}:${statKey}:${index}`,
                 summonId: summon.id || null,
                 summonSlot: Number(slotIndex),
-                role
+                role,
+                elementScope: definition.element_scope || definition.elementScope
+                    || levelData.element_atk_scope || summon.element_atk_scope || null,
+                element: summon.element || null
             };
         }).filter(Boolean);
     }

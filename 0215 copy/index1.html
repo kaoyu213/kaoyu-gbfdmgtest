@@ -50,6 +50,15 @@
             padding: 2px 4px;
         }
 
+        .testbuff-row select {
+            width: 92px;
+            padding: 2px 4px;
+            color: #ddd;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 3px;
+        }
+
         .testbuff-unit {
             color: #666;
         }
@@ -58,6 +67,55 @@
             margin-top: 10px;
             font-size: 0.9em;
             color: #555;
+        }
+
+        .testbuff-presets {
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid #555;
+        }
+
+        .testbuff-presets h4 {
+            margin-bottom: 8px;
+        }
+
+        .testbuff-preset-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .testbuff-preset-row input,
+        .testbuff-preset-row select {
+            min-width: 0;
+            flex: 1;
+            padding: 7px 8px;
+            color: #e0e0e0;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+
+        .testbuff-preset-row button {
+            flex: 0 0 auto;
+            padding: 7px 12px;
+        }
+
+        .testbuff-preset-delete {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .testbuff-preset-status {
+            min-height: 1.4em;
+            margin-top: 8px;
+            color: #aaa;
+            font-size: 0.82em;
+        }
+
+        .testbuff-preset-row button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+            transform: none;
         }
 
         /* 用户切换选项卡 */
@@ -400,6 +458,15 @@
                             <label>属攻 (step9)</label>
                             <input type="number" data-buff-key="element" value="0" step="1" min="-100" max="100">
                             <span class="testbuff-unit">%</span>
+                            <select id="testbuff-element-scope" aria-label="testbuff属攻属性">
+                                <option value="all" selected>全属性</option>
+                                <option value="fire">火</option>
+                                <option value="water">水</option>
+                                <option value="earth">土</option>
+                                <option value="wind">风</option>
+                                <option value="light">光</option>
+                                <option value="dark">暗</option>
+                            </select>
                         </div>
                         <div class="testbuff-row">
                             <label>独立攻刃【久远】 (step10)</label>
@@ -432,9 +499,49 @@
                             <span class="testbuff-unit">%</span>
                         </div>
                         <div class="testbuff-row">
+                            <label>平A上限</label>
+                            <input type="number" data-buff-key="naCap" value="0" step="1" min="-100" max="1000">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>技伤上限</label>
+                            <input type="number" data-buff-key="skillCap" value="0" step="1" min="-100" max="1000">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>奥义上限</label>
+                            <input type="number" data-buff-key="caCap" value="0" step="1" min="-100" max="1000">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
                             <label>伤害增幅 (dmg amp)</label>
                             <input type="number" data-buff-key="dmgAmp" value="0" step="1" min="-100" max="100">
                             <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>平A伤害增幅</label>
+                            <input type="number" data-buff-key="naDmgAmp" value="0" step="1" min="-100" max="1000">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>技伤伤害增幅</label>
+                            <input type="number" data-buff-key="skillDmgAmp" value="0" step="1" min="-100" max="1000">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>奥义伤害增幅</label>
+                            <input type="number" data-buff-key="caDmgAmp" value="0" step="1" min="-100" max="1000">
+                            <span class="testbuff-unit">%</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>乱击</label>
+                            <input type="number" data-buff-key="ranshu" value="0" step="1" min="0" max="99">
+                            <span class="testbuff-unit">段（填2即乱击2段）</span>
+                        </div>
+                        <div class="testbuff-row">
+                            <label>独立暴击倍率</label>
+                            <input type="number" data-buff-key="criticalMultiplier" value="0" step="1" min="0" max="1000">
+                            <span class="testbuff-unit">%（发动率100%）</span>
                         </div>
                         <div class="testbuff-row">
                             <label>武器盘奥义伤害加成</label>
@@ -447,8 +554,8 @@
                             <span class="testbuff-unit">%</span>
                         </div>
                         <div class="testbuff-row">
-                            <label>奥义上限加成</label>
-                            <input type="number" data-buff-key="caCap" value="0" step="1" min="-100" max="100">
+                            <label>技能伤害</label>
+                            <input type="number" data-buff-key="skillDmg" value="0" step="1" min="-100" max="1000">
                             <span class="testbuff-unit">%</span>
                         </div>
                         <div class="testbuff-row">
@@ -469,6 +576,19 @@
                     </div>
                     <div id="testbuff-summary" class="testbuff-summary">
                         当前所有 buff 为 0%（未额外修正）
+                    </div>
+                    <div class="testbuff-presets">
+                        <h4>预设</h4>
+                        <div class="testbuff-preset-row">
+                            <input id="testbuff-preset-name" type="text" maxlength="40" autocomplete="off" placeholder="输入预设名称">
+                            <button id="testbuff-preset-save" type="button" class="btn-save">保存当前</button>
+                        </div>
+                        <div class="testbuff-preset-row">
+                            <select id="testbuff-preset-select" aria-label="已保存的 testbuff 预设"></select>
+                            <button id="testbuff-preset-load" type="button" class="btn-load">加载</button>
+                            <button id="testbuff-preset-delete" type="button" class="testbuff-preset-delete">删除</button>
+                        </div>
+                        <div id="testbuff-preset-status" class="testbuff-preset-status" aria-live="polite"></div>
                     </div>
                 </div>
             </div> <!-- end #tab-testbuff -->
@@ -703,6 +823,36 @@
                     </div>
                 </div>
 
+                <div class="decay-infer-card decay-infer-constraints-card">
+                    <div class="decay-infer-section-head">
+                        <div>
+                            <h3>已确认分段与搜索约束（可选）</h3>
+                            <p class="decay-infer-help">只填写你已通过实测确认的部分。阈值可填精确值（如 500000）或范围（如 450000-550000）；留空则继续穷举。新斜率模板需填满5段。</p>
+                        </div>
+                        <button type="button" class="decay-infer-secondary" id="decay-infer-clear-constraints">清空锁定</button>
+                    </div>
+                    <div class="decay-infer-constraint-group">
+                        <strong>阈值</strong>
+                        <div class="decay-infer-constraint-grid is-threshold-grid">
+                            <label>第1阈值（第1段终点）<input type="text" inputmode="numeric" id="decay-infer-threshold-constraint-1" placeholder="精确值或范围"></label>
+                            <label>第2阈值（第2段终点）<input type="text" inputmode="numeric" id="decay-infer-threshold-constraint-2" placeholder="精确值或范围"></label>
+                            <label>第3阈值（第3段终点）<input type="text" inputmode="numeric" id="decay-infer-threshold-constraint-3" placeholder="精确值或范围"></label>
+                            <label>第4阈值（第4段终点）<input type="text" inputmode="numeric" id="decay-infer-threshold-constraint-4" placeholder="精确值或范围"></label>
+                        </div>
+                    </div>
+                    <div class="decay-infer-constraint-group">
+                        <strong>余量斜率（%）</strong>
+                        <div class="decay-infer-constraint-grid is-slope-grid">
+                            <label>第1段<input type="number" id="decay-infer-slope-constraint-1" min="100" max="100" step="0.01" placeholder="留空（固定100）"></label>
+                            <label>第2段<input type="number" id="decay-infer-slope-constraint-2" min="0.01" max="100" step="0.01" placeholder="留空"></label>
+                            <label>第3段<input type="number" id="decay-infer-slope-constraint-3" min="0.01" max="100" step="0.01" placeholder="留空"></label>
+                            <label>第4段<input type="number" id="decay-infer-slope-constraint-4" min="0.01" max="100" step="0.01" placeholder="留空"></label>
+                            <label>第5段<input type="number" id="decay-infer-slope-constraint-5" min="0.01" max="100" step="0.01" placeholder="留空"></label>
+                        </div>
+                    </div>
+                    <div class="decay-infer-constraint-state" id="decay-infer-constraint-state">当前没有锁定项。</div>
+                </div>
+
                 <div class="decay-infer-guidance" id="decay-infer-guidance"></div>
 
                 <div class="decay-infer-card decay-infer-samples-card">
@@ -749,6 +899,21 @@
         <div id="right-data-container" class="right-panel" style="border:none; height:100%; overflow-y:auto; background:transparent;">
             
             <h3 style="color:#f39c12; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom:10px;">📊 数据监控中心</h3>
+
+            <div class="static-enemy-element-control">
+                <label for="static-enemy-element">敌方属性</label>
+                <select id="static-enemy-element" onchange="onStaticEnemyElementChange(this)">
+                    <option value="">未指定（中性）</option>
+                    <option value="fire">火</option>
+                    <option value="water">水</option>
+                    <option value="earth">土</option>
+                    <option value="wind">风</option>
+                    <option value="light">光</option>
+                    <option value="dark">暗</option>
+                    <option value="non_elemental">无属性</option>
+                </select>
+                <span>有利 ×1.5 / 不利 ×0.75 / 其他 ×1</span>
+            </div>
 
             <div class="char-data-slot active" id="data-slot-0">
                 <div class="char-panel-stats" id="char-panel-0">
@@ -818,7 +983,7 @@
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 0)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 0)">理论值</button>
-                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 0)">非克属</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 0)">按敌方属性</button>
                                     <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 0)">非暴击</button>
                                     <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 0)">显示乱击</button>
                                 </div>
@@ -863,6 +1028,12 @@
                                         <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-0" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
                                     </div>
                                     <span class="dmg-value" id="skill-dmg-display-0">-</span>
+                                </div>
+                                <div class="dmg-skill-threshold-control" id="skill-threshold-control-0">
+                                    <label for="skill-threshold-select-0">技能衰减表</label>
+                                    <select id="skill-threshold-select-0" onchange="recalculate()" title="不选择时显示无衰减伤害">
+                                        <option value="">无衰减</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -914,7 +1085,7 @@
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 1)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 1)">理论值</button>
-                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 1)">非克属</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 1)">按敌方属性</button>
                                     <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 1)">非暴击</button>
                                     <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 1)">显示乱击</button>
                                 </div>
@@ -940,6 +1111,12 @@
                                         <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-1" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
                                     </div>
                                     <span class="dmg-value" id="skill-dmg-display-1">-</span>
+                                </div>
+                                <div class="dmg-skill-threshold-control" id="skill-threshold-control-1">
+                                    <label for="skill-threshold-select-1">技能衰减表</label>
+                                    <select id="skill-threshold-select-1" onchange="recalculate()" title="不选择时显示无衰减伤害">
+                                        <option value="">无衰减</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -990,7 +1167,7 @@
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 2)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 2)">理论值</button>
-                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 2)">非克属</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 2)">按敌方属性</button>
                                     <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 2)">非暴击</button>
                                     <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 2)">显示乱击</button>
                                 </div>
@@ -1016,6 +1193,12 @@
                                         <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-2" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
                                     </div>
                                     <span class="dmg-value" id="skill-dmg-display-2">-</span>
+                                </div>
+                                <div class="dmg-skill-threshold-control" id="skill-threshold-control-2">
+                                    <label for="skill-threshold-select-2">技能衰减表</label>
+                                    <select id="skill-threshold-select-2" onchange="recalculate()" title="不选择时显示无衰减伤害">
+                                        <option value="">无衰减</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -1066,7 +1249,7 @@
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 3)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 3)">理论值</button>
-                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 3)">非克属</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 3)">按敌方属性</button>
                                     <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 3)">非暴击</button>
                                     <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 3)">显示乱击</button>
                                 </div>
@@ -1092,6 +1275,12 @@
                                         <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-3" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
                                     </div>
                                     <span class="dmg-value" id="skill-dmg-display-3">-</span>
+                                </div>
+                                <div class="dmg-skill-threshold-control" id="skill-threshold-control-3">
+                                    <label for="skill-threshold-select-3">技能衰减表</label>
+                                    <select id="skill-threshold-select-3" onchange="recalculate()" title="不选择时显示无衰减伤害">
+                                        <option value="">无衰减</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -1142,7 +1331,7 @@
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 4)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 4)">理论值</button>
-                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 4)">非克属</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 4)">按敌方属性</button>
                                     <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 4)">非暴击</button>
                                     <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 4)">显示乱击</button>
                                 </div>
@@ -1168,6 +1357,12 @@
                                         <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-4" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
                                     </div>
                                     <span class="dmg-value" id="skill-dmg-display-4">-</span>
+                                </div>
+                                <div class="dmg-skill-threshold-control" id="skill-threshold-control-4">
+                                    <label for="skill-threshold-select-4">技能衰减表</label>
+                                    <select id="skill-threshold-select-4" onchange="recalculate()" title="不选择时显示无衰减伤害">
+                                        <option value="">无衰减</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -1218,7 +1413,7 @@
                                 <button type="button" class="world-cap-btn" onclick="toggleWorldCap(this, 5)">660万</button>
                                 <div class="dmg-btn-group">
                                     <button type="button" class="toggle-btn min-val-btn" onclick="toggleRandomFactor(this, 5)">理论值</button>
-                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 5)">非克属</button>
+                                    <button type="button" class="toggle-btn adv-btn" onclick="toggleAdvantage(this, 5)">按敌方属性</button>
                                     <button type="button" class="toggle-btn crit-btn" onclick="toggleCrit(this, 5)">非暴击</button>
                                     <button type="button" class="toggle-btn ranshu-display-btn active" onclick="toggleRanshuDisplay(this, 5)">显示乱击</button>
                                 </div>
@@ -1244,6 +1439,12 @@
                                         <input type="number" class="dmg-skill-mult-input" id="skill-mult-input-5" value="" min="0" step="0.1" placeholder="倍率" title="技能基础倍率，如 3 表示 300%" oninput="recalculate()" onchange="recalculate()">
                                     </div>
                                     <span class="dmg-value" id="skill-dmg-display-5">-</span>
+                                </div>
+                                <div class="dmg-skill-threshold-control" id="skill-threshold-control-5">
+                                    <label for="skill-threshold-select-5">技能衰减表</label>
+                                    <select id="skill-threshold-select-5" onchange="recalculate()" title="不选择时显示无衰减伤害">
+                                        <option value="">无衰减</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -1284,6 +1485,13 @@
                     <div class="theoretical-total-dmg-row">
                         <span class="theoretical-total-dmg-label">理论奥义输出</span>
                         <span class="theoretical-total-dmg-value" id="theoretical-ca-total">-</span>
+                    </div>
+                    <div class="theoretical-skill-output">
+                        <div class="theoretical-total-dmg-row">
+                            <span class="theoretical-total-dmg-label">理论技能输出</span>
+                            <span class="theoretical-total-dmg-value" id="theoretical-skill-total" title="原技能总伤害，不含冴手">-</span>
+                        </div>
+                        <div class="theoretical-skill-chases" id="theoretical-skill-chases" hidden></div>
                     </div>
                 </div>
             </div>
@@ -2369,6 +2577,28 @@
             4: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' },
             5: { randomMode: 'theory', isAdvantage: false, critMode: 'non_crit', hideRanshuDisplay: false, worldCapMode: '660' }
         };
+        window.staticEnemyElement = window.staticEnemyElement || '';
+
+        function getStaticEnemyElement() {
+            const select = document.getElementById('static-enemy-element');
+            return select ? String(select.value || '') : String(window.staticEnemyElement || '');
+        }
+        window.getStaticEnemyElement = getStaticEnemyElement;
+
+        function refreshStaticEnemyElementControl() {
+            const select = document.getElementById('static-enemy-element');
+            if (select) select.value = String(window.staticEnemyElement || '');
+        }
+        window.refreshStaticEnemyElementControl = refreshStaticEnemyElementControl;
+
+        function onStaticEnemyElementChange(select) {
+            window.staticEnemyElement = select ? String(select.value || '') : '';
+            recalculate();
+            if (typeof autoSaveEnabled !== 'undefined' && autoSaveEnabled && typeof saveToLocal === 'function') {
+                setTimeout(() => saveToLocal(true), 100);
+            }
+        }
+        window.onStaticEnemyElementChange = onStaticEnemyElementChange;
 
         function syncDamageViewStateToAll(sourceState) {
             if (!sourceState || !window.damageViewStates) return;
@@ -2399,7 +2629,7 @@
 
                 const advBtn = document.querySelector(`#data-slot-${i} .adv-btn`);
                 if (advBtn) {
-                    advBtn.textContent = state.isAdvantage ? '\u5bf9\u514b\u5c5e' : '\u975e\u514b\u5c5e';
+                    advBtn.textContent = state.isAdvantage ? '\u5bf9\u514b\u5c5e' : '\u6309\u654c\u65b9\u5c5e\u6027';
                     advBtn.classList.toggle('active', state.isAdvantage === true);
                 }
 
@@ -2526,28 +2756,43 @@
     <!-- testbuff 面板逻辑 -->
     <script>
         (function () {
+            const TESTBUFF_PRESET_STORAGE_KEY = 'gbf_testbuff_presets_v1';
+            const FIXED_VALUE_KEYS = new Set(['dmgSupp', 'caDmgSupp']);
+            const DIRECT_VALUE_KEYS = new Set([...FIXED_VALUE_KEYS, 'ranshu']);
+
             // 全局测试用 buff 状态（百分比形式的小数，如 0.1 表示 +10%）
-            window.buffSettings = Object.assign({
+            const DEFAULT_BUFF_SETTINGS = {
                 normal: 0,    // 普刃 → step5
                 stamina: 0,   // 浑身 → step7
                 enmity: 0,    // 背水 → step7.1
                 strong: 0,    // 强壮 → step7.3
                 adversity: 0, // 逆境 → step7.4
                 element: 0,   // 属攻 → step9
+                elementScope: 'all', // 属攻适用属性，默认全属性
                 marriage: 0,  // 独立攻刃【久远】 → step10
                 indepCumulative: 0,    // 独立攻刃【累积】 → step10.x
                 indepUnjudged: 0,      // 独立攻刃【未判定】 → step10.x
                 indepSpecialEnmity: 0, // 独立攻刃【特殊背水】 → step10.x
                 indepSpecial: 0,       // 独立攻刃【特殊】 → step10.x
                 dmgCap: 0,    // 伤害上限 → all cap
+                naCap: 0,     // 平A上限
+                skillCap: 0,  // 技伤上限
                 dmgAmp: 0,    // 伤害增幅 → dmg amp
+                naDmgAmp: 0,  // 平A伤害增幅
+                skillDmgAmp: 0, // 技伤伤害增幅
+                caDmgAmp: 0,  // 奥义伤害增幅
+                ranshu: 0,    // 乱击最终段数（0 表示不追加 testbuff 来源）
+                criticalMultiplier: 0, // 100%发动的独立暴击伤害倍率
                 caWeaponDmg: 0, // 武器盘奥义伤害加成
                 caDmg: 0,       // 奥义伤害加成
                 caCap: 0,       // 奥义上限加成
+                skillDmg: 0,    // 技能伤害
                 dmgSupp: 0,     // 伤害上升（固定值）
                 caDmgSupp: 0,   // 奥义伤害上升效果（固定值）
                 takenDmgAmp: 0  // 承受伤害增幅
-            }, window.buffSettings || {});
+            };
+            const TESTBUFF_KEYS = Object.keys(DEFAULT_BUFF_SETTINGS);
+            window.buffSettings = Object.assign({}, DEFAULT_BUFF_SETTINGS, window.buffSettings || {});
 
             const LABEL_MAP = {
                 normal: '普刃',
@@ -2562,10 +2807,18 @@
                 indepSpecialEnmity: '独立攻刃【特殊背水】',
                 indepSpecial: '独立攻刃【特殊】',
                 dmgCap: '伤害上限',
+                naCap: '平A上限',
+                skillCap: '技伤上限',
                 dmgAmp: '伤害增幅',
+                naDmgAmp: '平A伤害增幅',
+                skillDmgAmp: '技伤伤害增幅',
+                caDmgAmp: '奥义伤害增幅',
+                ranshu: '乱击',
+                criticalMultiplier: '独立暴击倍率（100%发动）',
                 caWeaponDmg: '武器盘奥义伤害加成',
                 caDmg: '奥义伤害加成',
-                caCap: '奥义上限加成',
+                caCap: '奥义上限',
+                skillDmg: '技能伤害',
                 dmgSupp: '伤害上升',
                 caDmgSupp: '奥义伤害上升效果',
                 takenDmgAmp: '承受伤害增幅'
@@ -2587,7 +2840,16 @@
                 Object.keys(LABEL_MAP).forEach(key => {
                     const v = window.buffSettings[key] || 0;
                     if (v !== 0) {
-                        parts.push(LABEL_MAP[key] + (key === 'dmgSupp' || key === 'caDmgSupp' ? (v > 0 ? '+' : '') + v : formatPercent(v)));
+                        const formatted = key === 'ranshu'
+                            ? Math.max(1, Math.floor(v)) + '段'
+                            : FIXED_VALUE_KEYS.has(key)
+                                ? (v > 0 ? '+' : '') + v
+                                : formatPercent(v);
+                        const scopeLabels = { all: '全属性', fire: '火', water: '水', earth: '土', wind: '风', light: '光', dark: '暗' };
+                        const label = key === 'element'
+                            ? (scopeLabels[window.buffSettings.elementScope] || '全属性') + LABEL_MAP[key]
+                            : LABEL_MAP[key];
+                        parts.push(label + formatted);
                     }
                 });
 
@@ -2596,6 +2858,207 @@
                 } else {
                     summaryEl.textContent = '当前生效 buff：' + parts.join(' / ');
                 }
+            }
+
+            function setPresetStatus(message) {
+                const statusEl = document.getElementById('testbuff-preset-status');
+                if (statusEl) statusEl.textContent = message || '';
+            }
+
+            function notifyPreset(message, type) {
+                setPresetStatus(message);
+                if (typeof showNotification === 'function') {
+                    showNotification(message, type || 'success');
+                }
+            }
+
+            function sanitizePresetValues(values) {
+                const source = values && typeof values === 'object' ? values : {};
+                const sanitized = {};
+                TESTBUFF_KEYS.forEach(key => {
+                    if (key === 'elementScope') {
+                        const allowed = new Set(['all', 'fire', 'water', 'earth', 'wind', 'light', 'dark']);
+                        sanitized[key] = allowed.has(String(source[key] || '')) ? String(source[key]) : 'all';
+                        return;
+                    }
+                    const value = Number(source[key]);
+                    sanitized[key] = Number.isFinite(value)
+                        ? (key === 'ranshu' ? Math.max(0, Math.floor(value)) : value)
+                        : DEFAULT_BUFF_SETTINGS[key];
+                });
+                return sanitized;
+            }
+
+            function readTestBuffPresets() {
+                try {
+                    const raw = localStorage.getItem(TESTBUFF_PRESET_STORAGE_KEY);
+                    if (!raw) return [];
+                    const parsed = JSON.parse(raw);
+                    if (!Array.isArray(parsed)) return [];
+                    return parsed.filter(preset => preset && typeof preset.name === 'string' && preset.values)
+                        .map(preset => ({
+                            id: String(preset.id || ''),
+                            name: preset.name.trim().slice(0, 40),
+                            values: sanitizePresetValues(preset.values),
+                            updatedAt: preset.updatedAt || ''
+                        }))
+                        .filter(preset => preset.id && preset.name);
+                } catch (error) {
+                    console.warn('[testbuff] 读取预设失败：', error);
+                    setPresetStatus('读取预设失败，请检查浏览器本地存储。');
+                    return [];
+                }
+            }
+
+            function writeTestBuffPresets(presets) {
+                try {
+                    localStorage.setItem(TESTBUFF_PRESET_STORAGE_KEY, JSON.stringify(presets));
+                    return true;
+                } catch (error) {
+                    console.error('[testbuff] 保存预设失败：', error);
+                    notifyPreset('预设保存失败：' + error.message, 'error');
+                    return false;
+                }
+            }
+
+            function refreshTestBuffPresetList(selectedId) {
+                const select = document.getElementById('testbuff-preset-select');
+                const loadButton = document.getElementById('testbuff-preset-load');
+                const deleteButton = document.getElementById('testbuff-preset-delete');
+                if (!select) return;
+
+                const previousId = selectedId || select.value;
+                const presets = readTestBuffPresets();
+                select.replaceChildren();
+
+                if (presets.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '暂无已保存预设';
+                    select.appendChild(option);
+                } else {
+                    presets.forEach(preset => {
+                        const option = document.createElement('option');
+                        option.value = preset.id;
+                        option.textContent = preset.name;
+                        select.appendChild(option);
+                    });
+                    if (presets.some(preset => preset.id === previousId)) {
+                        select.value = previousId;
+                    }
+                }
+
+                const hasPreset = presets.length > 0;
+                if (loadButton) loadButton.disabled = !hasPreset;
+                if (deleteButton) deleteButton.disabled = !hasPreset;
+            }
+
+            function syncTestBuffInputs() {
+                const panel = document.getElementById('tab-testbuff');
+                if (!panel) return;
+                panel.querySelectorAll('[data-buff-key]').forEach(input => {
+                    const key = input.getAttribute('data-buff-key');
+                    const value = Number(window.buffSettings[key]) || 0;
+                    input.value = DIRECT_VALUE_KEYS.has(key) ? String(value) : String(value * 100);
+                });
+                const scopeSelect = document.getElementById('testbuff-element-scope');
+                if (scopeSelect) scopeSelect.value = window.buffSettings.elementScope || 'all';
+            }
+
+            function activateGuaranteedTestBuffCritMode() {
+                if (!(Number(window.buffSettings.criticalMultiplier) > 0) || !window.damageViewStates) return;
+                Object.keys(window.damageViewStates).forEach(slot => {
+                    const viewState = window.damageViewStates[slot];
+                    if (viewState && viewState.critMode === 'non_crit') viewState.critMode = 'expected';
+                });
+                if (typeof window.refreshDamageViewButtons === 'function') window.refreshDamageViewButtons();
+            }
+
+            function saveCurrentTestBuffPreset() {
+                const nameInput = document.getElementById('testbuff-preset-name');
+                const name = nameInput ? nameInput.value.trim() : '';
+                if (!name) {
+                    notifyPreset('请先输入预设名称。', 'warning');
+                    if (nameInput) nameInput.focus();
+                    return;
+                }
+
+                const presets = readTestBuffPresets();
+                const existing = presets.find(preset => preset.name === name);
+                const preset = {
+                    id: existing ? existing.id : 'tb_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+                    name,
+                    values: sanitizePresetValues(window.buffSettings),
+                    updatedAt: new Date().toISOString()
+                };
+
+                if (existing) {
+                    presets[presets.indexOf(existing)] = preset;
+                } else {
+                    presets.push(preset);
+                }
+                if (!writeTestBuffPresets(presets)) return;
+
+                refreshTestBuffPresetList(preset.id);
+                notifyPreset(existing ? '已更新预设“' + name + '”。' : '已保存预设“' + name + '”。');
+            }
+
+            function loadSelectedTestBuffPreset() {
+                const select = document.getElementById('testbuff-preset-select');
+                const preset = readTestBuffPresets().find(item => select && item.id === select.value);
+                if (!preset) {
+                    notifyPreset('请先选择要加载的预设。', 'warning');
+                    return;
+                }
+
+                window.buffSettings = Object.assign({}, DEFAULT_BUFF_SETTINGS, preset.values);
+                syncTestBuffInputs();
+                activateGuaranteedTestBuffCritMode();
+                updateTestBuffSummary();
+                const nameInput = document.getElementById('testbuff-preset-name');
+                if (nameInput) nameInput.value = preset.name;
+                if (typeof recalculate === 'function') recalculate();
+                notifyPreset('已加载预设“' + preset.name + '”。');
+                console.log('[testbuff] 已加载预设：', preset.name, window.buffSettings);
+            }
+
+            function deleteSelectedTestBuffPreset() {
+                const select = document.getElementById('testbuff-preset-select');
+                const presets = readTestBuffPresets();
+                const preset = presets.find(item => select && item.id === select.value);
+                if (!preset) {
+                    notifyPreset('请先选择要删除的预设。', 'warning');
+                    return;
+                }
+                if (!confirm('确定删除 testbuff 预设“' + preset.name + '”吗？')) return;
+
+                if (!writeTestBuffPresets(presets.filter(item => item.id !== preset.id))) return;
+                refreshTestBuffPresetList();
+                const nameInput = document.getElementById('testbuff-preset-name');
+                if (nameInput && nameInput.value.trim() === preset.name) nameInput.value = '';
+                notifyPreset('已删除预设“' + preset.name + '”。');
+            }
+
+            function bindTestBuffPresetControls() {
+                const saveButton = document.getElementById('testbuff-preset-save');
+                const loadButton = document.getElementById('testbuff-preset-load');
+                const deleteButton = document.getElementById('testbuff-preset-delete');
+                const select = document.getElementById('testbuff-preset-select');
+                const nameInput = document.getElementById('testbuff-preset-name');
+                if (!saveButton || saveButton.dataset.bound === 'true') return;
+
+                saveButton.dataset.bound = 'true';
+                saveButton.addEventListener('click', saveCurrentTestBuffPreset);
+                loadButton.addEventListener('click', loadSelectedTestBuffPreset);
+                deleteButton.addEventListener('click', deleteSelectedTestBuffPreset);
+                select.addEventListener('change', function () {
+                    const preset = readTestBuffPresets().find(item => item.id === this.value);
+                    if (preset && nameInput) nameInput.value = preset.name;
+                });
+                nameInput.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') saveCurrentTestBuffPreset();
+                });
+                refreshTestBuffPresetList();
             }
 
             window.initTestBuffPanel = function () {
@@ -2608,17 +3071,24 @@
                     if (!key) return;
 
                     const cur = window.buffSettings[key] || 0;
-                    input.value = key === 'dmgSupp'|| key === 'caDmgSupp' ? cur.toString() : (cur * 100).toString();
+                    input.value = DIRECT_VALUE_KEYS.has(key) ? cur.toString() : (cur * 100).toString();
+
+                    if (input.dataset.bound === 'true') return;
+                    input.dataset.bound = 'true';
 
                     input.addEventListener('input', function () {
                         const raw = parseFloat(this.value);
                         if (isNaN(raw)) {
                             window.buffSettings[key] = 0;
-                        } else if (key === 'dmgSupp'|| key === 'caDmgSupp') {
+                        } else if (key === 'ranshu') {
+                            window.buffSettings[key] = Math.max(0, Math.floor(raw));
+                            this.value = window.buffSettings[key].toString();
+                        } else if (FIXED_VALUE_KEYS.has(key)) {
                             window.buffSettings[key] = raw;
                         } else {
                             window.buffSettings[key] = raw / 100;
                         }
+                        if (key === 'criticalMultiplier') activateGuaranteedTestBuffCritMode();
                         updateTestBuffSummary();
 
                         if (typeof recalculate === 'function') {
@@ -2629,8 +3099,24 @@
                     });
                 });
 
+                const elementScopeSelect = document.getElementById('testbuff-element-scope');
+                if (elementScopeSelect) {
+                    elementScopeSelect.value = window.buffSettings.elementScope || 'all';
+                    if (elementScopeSelect.dataset.bound !== 'true') {
+                        elementScopeSelect.dataset.bound = 'true';
+                        elementScopeSelect.addEventListener('change', function () {
+                            window.buffSettings.elementScope = this.value || 'all';
+                            updateTestBuffSummary();
+                            if (typeof recalculate === 'function') recalculate();
+                        });
+                    }
+                }
+
                 updateTestBuffSummary();
+                bindTestBuffPresetControls();
             };
+
+            window.refreshTestBuffPresetList = refreshTestBuffPresetList;
 
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', window.initTestBuffPanel);

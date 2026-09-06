@@ -72,6 +72,305 @@ const DAMAGE_ZONES = {
     ]
 };
 
+const NORMAL_DAMAGE_ELEMENTS = Object.freeze(['fire', 'water', 'earth', 'wind', 'light', 'dark']);
+const ELEMENT_ADVANTAGE_TARGET = Object.freeze({
+    fire: 'wind',
+    water: 'fire',
+    earth: 'water',
+    wind: 'earth',
+    light: 'dark',
+    dark: 'light'
+});
+const ELEMENT_ALIASES = Object.freeze({
+    fire: 'fire', '火': 'fire',
+    water: 'water', '水': 'water',
+    earth: 'earth', '土': 'earth',
+    wind: 'wind', '风': 'wind', '風': 'wind',
+    light: 'light', '光': 'light',
+    dark: 'dark', '暗': 'dark',
+    destruction: 'destruction', '破坏': 'destruction', '破壞': 'destruction',
+    non_elemental: 'non_elemental', none: 'non_elemental', '无属性': 'non_elemental', '無属性': 'non_elemental'
+});
+
+function normalizeElementKey(value) {
+    if (value == null) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    return ELEMENT_ALIASES[raw] || ELEMENT_ALIASES[raw.toLowerCase()] || raw.toLowerCase();
+}
+
+function normalizeElementAtkScope(value) {
+    if (value == null || value === '') return 'own_element';
+    const raw = String(value).trim().toLowerCase();
+    if (raw === 'all' || raw === 'all_elements' || raw === '全' || raw === '全属性') return 'all';
+    if (raw === 'own' || raw === 'self' || raw === 'own_element' || raw === '自属性') return 'own_element';
+    if (raw === 'main' || raw === 'mc' || raw === 'main_element' || raw === '主角属性') return 'main_element';
+    if (raw === 'summon' || raw === 'summon_element') return 'summon_element';
+    return normalizeElementKey(value) || 'own_element';
+}
+
+function inferEnemyElementFromActor(actorElement) {
+    const actor = normalizeElementKey(actorElement);
+    return actor ? ELEMENT_ADVANTAGE_TARGET[actor] || null : null;
+}
+
+function isDamageElementAdvantaged(damageElement, enemyElement) {
+    const damage = normalizeElementKey(damageElement);
+    const enemy = normalizeElementKey(enemyElement);
+    return !!(damage && enemy && ELEMENT_ADVANTAGE_TARGET[damage] === enemy);
+}
+
+function isDamageElementDisadvantaged(damageElement, enemyElement) {
+    const damage = normalizeElementKey(damageElement);
+    const enemy = normalizeElementKey(enemyElement);
+    if (!damage || !enemy || isDamageElementAdvantaged(damage, enemy)) return false;
+    return ELEMENT_ADVANTAGE_TARGET[enemy] === damage;
+}
+
+function resolveDamageElementContext(options) {
+    const opts = options || {};
+    const actorElement = normalizeElementKey(opts.actorElement || opts.fallbackElement || opts.damageElement);
+    const damageElement = normalizeElementKey(opts.damageElement || actorElement);
+    const mainElement = normalizeElementKey(opts.mainElement || actorElement);
+    const forceAdvantage = opts.forceAdvantage === true || opts.isAdvantage === true;
+    const forceNeutral = opts.forceNeutral === true;
+    const enemyElement = normalizeElementKey(opts.enemyElement)
+        || (forceAdvantage ? inferEnemyElementFromActor(damageElement || actorElement) : null);
+    const isDestruction = damageElement === 'destruction';
+    const isNonElemental = damageElement === 'non_elemental';
+    const naturalAdvantage = !isNonElemental && isDamageElementAdvantaged(damageElement, enemyElement);
+    const naturalDisadvantage = !isNonElemental && isDamageElementDisadvantaged(damageElement, enemyElement);
+    const isAdvantage = isDestruction || (!forceNeutral && (forceAdvantage || naturalAdvantage));
+    const isDisadvantage = !isDestruction && !isNonElemental && !forceNeutral && !isAdvantage && naturalDisadvantage;
+    const elementalCorrection = isAdvantage ? 0.5 : (isDisadvantage ? -0.25 : 0);
+    const critEligible = isDestruction || (
+        !isNonElemental
+        && NORMAL_DAMAGE_ELEMENTS.includes(damageElement)
+        && (enemyElement === 'non_elemental' || isAdvantage)
+    );
+    return {
+        actorElement,
+        damageElement,
+        mainElement,
+        enemyElement,
+        forceAdvantage,
+        forceNeutral,
+        isAdvantage,
+        isDisadvantage,
+        isDestruction,
+        isNonElemental,
+        elementalCorrection,
+        critEligible
+    };
+}
+
+function isCritEligibleForDamage(optionsOrContext) {
+    const source = optionsOrContext || {};
+    const context = Object.prototype.hasOwnProperty.call(source, 'critEligible')
+        ? source
+        : resolveDamageElementContext(source);
+    return context.critEligible === true;
+}
+
+function addElementAtkEntry(stats, entry) {
+    if (!stats || !entry) return null;
+    const value = Number(entry.value);
+    if (!Number.isFinite(value) || value === 0) return null;
+    if (!Array.isArray(stats._elementAtkEntries)) stats._elementAtkEntries = [];
+    const normalized = {
+        sourceId: String(entry.sourceId || entry.statKey || 'element_atk'),
+        statKey: entry.statKey ? String(entry.statKey) : null,
+        scope: normalizeElementAtkScope(entry.scope != null ? entry.scope : entry.subtype),
+        element: normalizeElementKey(entry.element),
+        zone: String(entry.zone || 'independent'),
+        value
+    };
+    stats._elementAtkEntries.push(normalized);
+    return normalized;
+}
+
+/**
+ * 将已经封顶的属攻 stat 同步回按属性保存的明细。
+ *
+ * 伤害计算会优先读取 _elementAtkEntries，以保留全属性/指定属性等适用范围；
+ * 因此只修改 stats[statKey] 会造成面板已封顶、实际伤害仍读取封顶前数值。
+ * 这里按原贡献比例缩放同一 statKey 的明细，既保持适用范围，也让所有消费方
+ * 看到与封顶字段一致的合计值。
+ */
+function syncCappedElementAtkEntries(stats, statKey) {
+    if (!stats || !statKey || !Array.isArray(stats._elementAtkEntries)) return;
+    const target = Number(stats[statKey]);
+    if (!Number.isFinite(target) || target < 0) return;
+
+    const indexes = [];
+    let rawTotal = 0;
+    stats._elementAtkEntries.forEach((entry, index) => {
+        if (!entry || entry.statKey !== statKey) return;
+        const value = Number(entry.value);
+        if (!Number.isFinite(value)) return;
+        indexes.push(index);
+        rawTotal += value;
+    });
+    if (indexes.length === 0 || rawTotal <= target || rawTotal <= 0) return;
+
+    const round10 = (value) => Math.round(value * 1e10) / 1e10;
+    const ratio = target / rawTotal;
+    let assigned = 0;
+    indexes.forEach((index, position) => {
+        const entry = stats._elementAtkEntries[index];
+        const isLast = position === indexes.length - 1;
+        const nextValue = isLast
+            ? round10(target - assigned)
+            : round10((Number(entry.value) || 0) * ratio);
+        entry.value = nextValue;
+        assigned = round10(assigned + nextValue);
+    });
+}
+
+/** 武器字段封顶，并同步需要保留属性适用范围的属攻明细。 */
+function applyWeaponStatCaps(stats, statConfig) {
+    if (!stats || !Array.isArray(statConfig)) return;
+    statConfig.forEach((cfg) => {
+        if (!cfg || cfg.category !== 'weapon') return;
+        if (cfg.cap === null || cfg.cap === undefined) return;
+        const key = cfg.key;
+        // 暴击率允许溢出用于“过量技能·暴击”换算，因此不在此处截断。
+        if (key === 'weapon_critical_hit_rate') return;
+        const current = stats[key];
+        if (typeof current !== 'number' || current <= cfg.cap) return;
+        stats[key] = cfg.cap;
+        if (cfg.prop === 'element_atk') syncCappedElementAtkEntries(stats, key);
+    });
+}
+
+function isElementAtkEntryApplicable(entry, context) {
+    if (!entry || !context || context.isDestruction || context.isNonElemental) return false;
+    const scope = normalizeElementAtkScope(entry.scope != null ? entry.scope : entry.subtype);
+    if (scope === 'all') return NORMAL_DAMAGE_ELEMENTS.includes(context.damageElement);
+    if (scope === 'own_element') return !!context.actorElement && context.damageElement === context.actorElement;
+    if (scope === 'main_element') return !!context.mainElement && context.damageElement === context.mainElement;
+    if (scope === 'summon_element') {
+        const summonElement = normalizeElementKey(entry.element) || context.mainElement;
+        return !!summonElement && context.damageElement === summonElement;
+    }
+    return context.damageElement === normalizeElementKey(scope);
+}
+
+function aggregateElementAtkEntries(entries, context) {
+    const applicable = (Array.isArray(entries) ? entries : []).filter((entry) => isElementAtkEntryApplicable(entry, context));
+    if (applicable.length === 0) return 0;
+    const byZone = new Map();
+    applicable.forEach((entry) => {
+        const zone = String(entry.zone || 'independent');
+        if (!byZone.has(zone)) byZone.set(zone, []);
+        byZone.get(zone).push(entry);
+    });
+    let total = new Decimal(0);
+    byZone.forEach((zoneEntries, zone) => {
+        const rule = typeof getZoneRule === 'function' ? getZoneRule('element_atk', zone) : 'sum';
+        let value = 0;
+        if (rule === 'max') value = Math.max(...zoneEntries.map((entry) => Number(entry.value) || 0));
+        else if (rule === 'override') value = Number(zoneEntries[zoneEntries.length - 1].value) || 0;
+        else value = zoneEntries.reduce((sum, entry) => sum + (Number(entry.value) || 0), 0);
+        const cap = typeof getZoneCap === 'function' ? getZoneCap('element_atk', zone) : null;
+        if (cap !== null && value > cap) value = cap;
+        total = total.plus(value);
+    });
+    return total.toDecimalPlaces(10).toNumber();
+}
+
+function collectElementAtkEntries(stats, teshuStats, options) {
+    const sourceStats = stats || {};
+    const opts = options || {};
+    const entries = Array.isArray(sourceStats._elementAtkEntries)
+        ? sourceStats._elementAtkEntries.map((entry) => ({ ...entry }))
+        : [];
+    const representedKeys = new Set(entries.map((entry) => entry && entry.statKey).filter(Boolean));
+    const addLegacy = (statKey, scope, zone, element) => {
+        if (representedKeys.has(statKey)) return;
+        const value = Number(sourceStats[statKey]) || 0;
+        if (value === 0) return;
+        entries.push({ sourceId: `legacy:${statKey}`, statKey, scope, zone, element, value });
+    };
+
+    // 面板输入保持现状：内部视为全属性；其余旧字段按已确认语义兼容。
+    addLegacy('element_atk', 'all', 'independent');
+    addLegacy('weapon_ax_element_atk', 'all', 'weapon_grid');
+    addLegacy('weapon_element_atk', 'own_element', 'weapon_grid');
+    addLegacy('weapon_progression_element_atk', 'own_element', 'weapon_grid');
+    addLegacy('weapon_awaken_element_atk', 'own_element', 'weapon_grid');
+    addLegacy('summon_element_atk', 'main_element', 'summon');
+    addLegacy('chara_earring_element_atk', 'own_element', 'charabonus');
+    addLegacy('chara_artifacts_element_atk', 'own_element', 'charabonus');
+    addLegacy('chara_lb_element_atk', 'own_element', 'charabonus');
+
+    const legacyStatusTotal = sourceStats._charabuffZoneEffectTotals
+        ? Number(sourceStats._charabuffZoneEffectTotals.element_atk) || 0
+        : 0;
+    const hasTypedStatus = entries.some((entry) => String(entry.sourceId || '').indexOf('status:') === 0);
+    if (legacyStatusTotal !== 0 && !hasTypedStatus) {
+        entries.push({ sourceId: 'legacy:status:element_atk', scope: 'own_element', zone: 'chara_skill', value: legacyStatusTotal });
+    }
+
+    const typedSpecialElementEntries = teshuStats && Array.isArray(teshuStats._elementAtkEntries)
+        ? teshuStats._elementAtkEntries
+        : [];
+    if (typedSpecialElementEntries.length > 0) {
+        typedSpecialElementEntries.forEach((entry) => {
+            const value = Number(entry && entry.value);
+            if (!entry || !Number.isFinite(value) || value === 0) return;
+            entries.push({
+                sourceId: entry.sourceId || 'special:element_atk',
+                statKey: entry.statKey || 'special_element_atk',
+                scope: entry.scope || 'all',
+                element: entry.element,
+                zone: entry.zone || 'independent',
+                value
+            });
+        });
+    } else {
+        const specialElementAtk = teshuStats ? Number(teshuStats.element_atk) || 0 : 0;
+        if (specialElementAtk !== 0) {
+            // 旧调用只传合计值时无法判断具体来源，保持历史兼容，默认视为全属性。
+            // 正常页面由 getTeshuStats 提供逐来源 _elementAtkEntries。
+            entries.push({ sourceId: 'legacy:special:element_atk', scope: 'all', zone: 'independent', value: specialElementAtk });
+        }
+    }
+    if (!opts.ignoreTestBuffSettings && typeof window !== 'undefined' && window.buffSettings) {
+        const testValue = Number(window.buffSettings.element) || 0;
+        if (testValue !== 0) {
+            entries.push({
+                sourceId: 'testbuff:element_atk',
+                scope: window.buffSettings.elementScope || 'all',
+                zone: 'testbuff',
+                value: testValue
+            });
+        }
+    }
+    return entries;
+}
+
+function resolveElementAtkForDamage(stats, teshuStats, options) {
+    const context = resolveDamageElementContext(options || {});
+    if (context.isDestruction || context.isNonElemental || !context.damageElement) return 0;
+    return aggregateElementAtkEntries(collectElementAtkEntries(stats, teshuStats, options), context);
+}
+
+function resolveElementMultiplierForDamage(stats, teshuStats, options) {
+    const context = resolveDamageElementContext(options || {});
+    const elementAtk = resolveElementAtkForDamage(stats, teshuStats, options);
+    // 保留 weaknessBonus 旧字段名以兼容现有调用；现在其值同时承载不利属性的 -0.25 修正。
+    const elementalCorrection = Number(context.elementalCorrection) || 0;
+    const weaknessBonus = elementalCorrection;
+    return {
+        context,
+        elementAtk,
+        weaknessBonus,
+        elementalCorrection,
+        multiplier: new Decimal(1).plus(elementAtk).plus(elementalCorrection).toDecimalPlaces(10).toNumber()
+    };
+}
+
 // 备用乘区配置 (预留5个)
 const BACKUP_ZONE_COUNT = 5;
 
@@ -497,8 +796,9 @@ function getAxStaminaStrongBonus(hpPercent01, baseAtFull) {
 // 数据聚合函数 - 从stats和饰品数据中汇总值 (使用 Decimal.js，保留10位小数)
 // ==========================================
 function aggregateZoneValue(zoneName, stats, teshuStats) {
-    const sources = DAMAGE_ZONES[zoneName];
-    if (!sources) return 0;
+    // 新 Buff 类型可能只存在于 BuffRegistry / 战斗状态中，没有旧式 stats 字段。
+    // 仍需继续读取 _charabuffZoneEffectTotals（例如 indep_zhan_atk）。
+    const sources = DAMAGE_ZONES[zoneName] || [];
     
     let sum = new Decimal(0);
     sources.forEach(key => {
@@ -540,17 +840,34 @@ function getAllEffectsTotalForSlot(charIndex, buffType, fallbackValue) {
 }
 
 /**
- * 耳饰属攻在 currentParty，不在 party.stats；写入 stats 供 aggregateZoneValue('element_atk') 汇总
+ * 解析平A乱击最终段数。All Effects 已按 BuffRegistry 的全来源取高规则汇总；
+ * 无动态汇总时回退到武器盘旧字段，默认1段。
  */
-function overlayCharaEarringElementAtkFromParty(stats, charIndex) {
-    if (!stats || typeof currentParty === 'undefined' || !currentParty[charIndex]) return;
-    const v = Number(currentParty[charIndex].chara_earring_element_atk);
-    if (v > 0) stats['chara_earring_element_atk'] = v;
+function resolveNaRanshuHits(stats, effectTotals) {
+    const fallback = Math.max(1, Math.floor(Number(stats && stats.weapon_na_ranshu) || 1));
+    const total = effectTotals && Number(effectTotals.na_ranshu);
+    const baseHits = Number.isFinite(total) && total > 0
+        ? Math.max(1, Math.floor(total))
+        : fallback;
+    const bonus = effectTotals && Number(effectTotals.na_ranshu_bonus);
+    const bonusHits = Number.isFinite(bonus) && bonus > 0 ? Math.floor(bonus) : 0;
+    return baseHits + bonusHits;
 }
 
 /**
- * 非主角 LB 属攻在 currentParty，不在 party.stats；写入 stats 供 aggregateZoneValue('element_atk') 汇总。
- * 主角槽位 0 的 LB 属攻已由 calc.js 计入 party[0].stats.element_atk，此处跳过避免重复。
+ * 耳饰与神器自属性属攻保存在 currentParty；写入公式临时 stats。
+ */
+function overlayCharaEarringElementAtkFromParty(stats, charIndex) {
+    if (!stats || typeof currentParty === 'undefined' || !currentParty[charIndex]) return;
+    const earring = Number(currentParty[charIndex].chara_earring_element_atk);
+    const artifact = Number(currentParty[charIndex].chara_artifacts_element_atk);
+    if (earring > 0) stats['chara_earring_element_atk'] = earring;
+    if (artifact > 0) stats['chara_artifacts_element_atk'] = artifact;
+}
+
+/**
+ * 非主角 LB 属攻在 currentParty，不在 party.stats；写入临时 stats，按角色自属性参与新属攻解析。
+ * 主角槽位 0 的六属性/全属性 LB 已由 calc.js 写入类型化属攻来源，此处跳过避免重复。
  */
 function overlayCharaLbElementAtkFromParty(stats, charIndex) {
     if (!stats || charIndex <= 0) return;
@@ -717,6 +1034,7 @@ function getActualHp(panelHp, stats, teshuStats) {
 // ==========================================
 function getTeshuStats() {
     const teshuStats = {};
+    const specialElementAtkEntries = [];
     
     if (typeof activeSpecialBuffs !== 'undefined' && activeSpecialBuffs) {
         activeSpecialBuffs.forEach(id => {
@@ -737,6 +1055,15 @@ function getTeshuStats() {
                             ? customMap[key]
                             : rawVal;
                         teshuStats[key] = (teshuStats[key] || 0) + val;
+                        if (key === 'element_atk' && Number.isFinite(Number(val)) && Number(val) !== 0) {
+                            specialElementAtkEntries.push({
+                                sourceId: `special:${teshuItem.id}:element_atk`,
+                                statKey: 'special_element_atk',
+                                scope: item.scope || teshuItem.element_atk_scope || 'all',
+                                zone: 'independent',
+                                value: Number(val)
+                            });
+                        }
                     });
                 });
             }
@@ -748,9 +1075,22 @@ function getTeshuStats() {
                         ? customMap[key]
                         : rawVal;
                     teshuStats[key] = (teshuStats[key] || 0) + val;
+                    if (key === 'element_atk' && Number.isFinite(Number(val)) && Number(val) !== 0) {
+                        specialElementAtkEntries.push({
+                            sourceId: `special:${teshuItem.id}:element_atk`,
+                            statKey: 'special_element_atk',
+                            scope: teshuItem.element_atk_scope || 'all',
+                            zone: 'independent',
+                            value: Number(val)
+                        });
+                    }
                 });
             }
         });
+    }
+
+    if (specialElementAtkEntries.length > 0) {
+        teshuStats._elementAtkEntries = specialElementAtkEntries;
     }
     
     return teshuStats;
@@ -766,8 +1106,9 @@ function getDamageParamsSummary(charIndex = 0) {
     
     const hpPercent = parseInt(document.getElementById('current-hp-slider')?.value) || 100;
     
-    const weaknessToggleId = charIndex === 0 ? 'weakness-toggle' : `weakness-toggle-${charIndex}`;
-    const isAdvantage = document.getElementById(weaknessToggleId)?.checked || false;
+    const forceAdvantage = !!(window.damageViewStates
+        && window.damageViewStates[charIndex]
+        && window.damageViewStates[charIndex].isAdvantage);
     
     const defInputId = charIndex === 0 ? 'def-input' : `def-input-${charIndex}`;
     const defDownInputId = charIndex === 0 ? 'def-down-input' : `def-down-input-${charIndex}`;
@@ -789,6 +1130,9 @@ function getDamageParamsSummary(charIndex = 0) {
         STAT_CONFIG.forEach(cfg => {
             stats[cfg.key] = party[charIndex].stats[cfg.key] || 0;
         });
+        if (Array.isArray(party[charIndex].stats._elementAtkEntries)) {
+            stats._elementAtkEntries = party[charIndex].stats._elementAtkEntries.map((entry) => Object.assign({}, entry));
+        }
     }
     if (typeof overlayCharaEarringElementAtkFromParty === 'function') {
         overlayCharaEarringElementAtkFromParty(stats, charIndex);
@@ -799,17 +1143,32 @@ function getDamageParamsSummary(charIndex = 0) {
     
     const teshuStats = getTeshuStats();
     
+    const actorElement = typeof party !== 'undefined' && party[charIndex] ? party[charIndex].element : null;
+    const mainElement = typeof party !== 'undefined' && party[0] ? party[0].element : actorElement;
+    const enemyElement = typeof window.getStaticEnemyElement === 'function'
+        ? window.getStaticEnemyElement()
+        : window.staticEnemyElement;
+    const elementResult = resolveElementMultiplierForDamage(stats, teshuStats, {
+        actorElement,
+        damageElement: actorElement,
+        enemyElement,
+        mainElement,
+        forceAdvantage
+    });
     return {
         panelAtk,
         hpPercent,
-        isAdvantage,
+        isAdvantage: elementResult.context.isAdvantage,
+        isDisadvantage: elementResult.context.isDisadvantage,
+        critEligible: elementResult.context.critEligible,
+        enemyElement,
         defense,
         defenseDown,
         randomFactor,
         p_mult: aggregateZoneValue('normal_atk', stats, teshuStats),
         e_mult: aggregateZoneValue('ex_atk', stats, teshuStats),
         h_mult: aggregateZoneValue('stamina', stats, teshuStats),
-        ele_mult: aggregateZoneValue('element_atk', stats, teshuStats) + (isAdvantage ? 0.5 : 0),
+        ele_mult: elementResult.elementAtk + elementResult.weaknessBonus,
         dmg_amp: aggregateZoneValue('dmg_amp', stats, teshuStats)
     };
 }
@@ -826,6 +1185,22 @@ if (typeof module !== 'undefined' && module.exports) {
         ceilFixed,
         calculateStamina,
         aggregateZoneValue,
+        NORMAL_DAMAGE_ELEMENTS,
+        normalizeElementKey,
+        normalizeElementAtkScope,
+        inferEnemyElementFromActor,
+        isDamageElementAdvantaged,
+        isDamageElementDisadvantaged,
+        resolveDamageElementContext,
+        isCritEligibleForDamage,
+        addElementAtkEntry,
+        syncCappedElementAtkEntries,
+        applyWeaponStatCaps,
+        isElementAtkEntryApplicable,
+        aggregateElementAtkEntries,
+        collectElementAtkEntries,
+        resolveElementAtkForDamage,
+        resolveElementMultiplierForDamage,
         overlayCharaEarringElementAtkFromParty,
         overlayCharaLbElementAtkFromParty,
         overlayCharaLbCaDmgFromParty,
@@ -834,6 +1209,7 @@ if (typeof module !== 'undefined' && module.exports) {
         getEarringDmgSuppFromEffect,
         getDmgSuppZonesForNa,
         getAllEffectsTotalForSlot,
+        resolveNaRanshuHits,
         getTeshuStats,
         getDamageParamsSummary,
         getHpBonusForChar,
