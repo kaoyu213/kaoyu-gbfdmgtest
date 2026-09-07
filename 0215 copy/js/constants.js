@@ -171,8 +171,22 @@ const DEFAULT_MASTERY2 = {
 };
 
 /** 按当前用户返回对应的默认职业加成（用户1 → DEFAULT_MASTERY1，用户2 → DEFAULT_MASTERY2） */
-function getDefaultMastery() {
+function getMasteryDefaults() {
     return currentUserId === 'user2' ? DEFAULT_MASTERY2 : DEFAULT_MASTERY1;
+}
+
+// 每个用户单独保留覆盖值；缺失字段回退默认，显式 0 仍生效。
+const masteryOverridesByUser = {};
+function setMasteryOverrides(values) {
+    const clean = {};
+    Object.keys(getMasteryDefaults()).forEach(key => {
+        const value = values && values[key];
+        if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 10) clean[key] = value;
+    });
+    masteryOverridesByUser[currentUserId] = clean;
+}
+function getDefaultMastery() {
+    return { ...getMasteryDefaults(), ...masteryOverridesByUser[currentUserId] };
 }
 
 // 属性颜色映射
@@ -474,6 +488,12 @@ const STAT_CONFIG = [
 
 
     // 主角加成类
+    { "key": "mc_debuff_resistance_passive", "label": "主角弱体耐性", "cap": null, "format": "percent", "category": "job", "prop": "debuff_resist", "zone": "chara_skill" },
+    { "key": "mc_skill_hit_rate_passive", "label": "主角技能命中", "cap": null, "format": "percent", "category": "job", "prop": "special", "zone": "chara_skill" },
+    { "key": "mc_def_passive_max_hp", "label": "主角HP最大时防御力", "cap": null, "format": "percent", "category": "job", "prop": "def_mod", "zone": "chara_skill" },
+    { "key": "mc_def_passive_non_c5", "label": "非C5主角防御", "cap": null, "format": "percent", "category": "job", "prop": "def_mod", "zone": "chara_skill" },
+    { "key": "mc_heal_cap_passive_non_c5", "label": "非C5主角回复上限", "cap": null, "format": "percent", "category": "job", "prop": "heal_cap", "zone": "chara_skill" },
+    { "key": "mc_debuff_success_passive_non_c5", "label": "非C5主角弱体成功率", "cap": null, "format": "percent", "category": "job", "prop": "debuff_success", "zone": "chara_skill" },
     { "key": "mc_atk_passive", "label": "主角基础攻击加成", "cap": null, "format": "percent", "category": "job", "prop": "special", "zone": "chara_skill" },
     { "key": "mc_def_passive", "label": "主角防御力加成", "cap": null, "format": "percent", "category": "job", "prop": "def_mod", "zone": "chara_skill" },
     { "key": "mc_hp_passive", "label": "主角生命值加成", "cap": null, "format": "percent", "category": "job", "prop": "special", "zone": "chara_skill" },

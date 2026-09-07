@@ -56,6 +56,10 @@
         customEditorType: 'buff',
         customEditingSkillId: '',
         customOwnerSlot: 0,
+        expandedOwnedSkillSlot: null,
+        settingsMode: 'basic',
+        hpDefaults: {},
+        hpTurnScope: 'all',
         calculation: createDefaultCalculationSettings(),
         loadedStorageKey: '',
         initialized: false
@@ -289,11 +293,40 @@
         return !!(block && Array.isArray(block.steps) && block.steps.some((step) => step && step.do === 'damage'));
     }
 
+    function isStackSkillBlock(block) {
+        if (!block || block.fixed || !['buff', 'damage', 'debuff'].includes(block.type)) return false;
+        const skill = getSkillById(block.skillId);
+        const steps = skill && Array.isArray(skill.steps) ? skill.steps : block.steps;
+        return Array.isArray(steps) && steps.some((step) => (
+            step && step.do === 'buff' && step.stacking && step.stacking.mode === 'add'
+        ));
+    }
+
+    function renderStackShortcut(block, content) {
+        if (!isStackSkillBlock(block)) return content;
+        const label = `再次使用“${block.name || '叠层技能'}”增加层数`;
+        return `<div class="manual-timeline-stack-row">${content}
+            <button type="button" class="manual-timeline-stack-add" data-manual-repeat-stack="${escapeHtml(block.id)}"
+                aria-label="${escapeHtml(label)}" title="在后方插入一次同技能，保留使用者和效果对象；附加伤害也会再次结算。">＋叠层</button>
+        </div>`;
+    }
+
     function getSkillTargetLabel(skill) {
         const targets = Array.from(new Set((skill && Array.isArray(skill.steps) ? skill.steps : [])
             .map((step) => step && MANUAL_TARGET_LABELS[step.target])
             .filter(Boolean)));
         return targets.length === 1 ? targets[0] : (targets.length > 1 ? '复合目标' : '待设置目标');
+    }
+
+    function getSkillDescription(skill) {
+        return String(skill && (skill.desc || skill.description
+            || skill.manual_definition && skill.manual_definition.desc) || '').trim();
+    }
+
+    function renderBlockDescription(block) {
+        const skill = getSkillById(block.skillId);
+        const description = skill ? getSkillDescription(skill) : String(block.skillDescription || '').trim();
+        return description ? `<span class="manual-timeline-skill-description">${escapeHtml(description)}</span>` : '';
     }
 
     function createSkillBlock(skillId, ownerSlot) {
@@ -304,6 +337,7 @@
             actorSlot: Number.isInteger(slot) && slot >= 0 ? slot : 0,
             skillId: String(skill.id || skillId),
             name: skill.name || String(skillId),
+            skillDescription: getSkillDescription(skill),
             target: getSkillTargetLabel(skill),
             skillIcon: skill.icon || '',
             buffDisplayMode: skill.buff_display_mode
@@ -317,6 +351,7 @@
         if (!block || block.fixed || !skill) return false;
         block.type = getSkillBlockType(skill);
         block.name = skill.name || block.skillId || block.name;
+        block.skillDescription = getSkillDescription(skill);
         block.target = getSkillTargetLabel(skill);
         block.skillIcon = skill.icon || '';
         block.buffDisplayMode = skill.buff_display_mode
@@ -416,8 +451,10 @@
             savedAt: new Date().toISOString(),
             nextBlockId: state.nextBlockId,
             calculation: normalizeCalculationSettings(state.calculation),
+            hpDefaults: normalizeHpSettings(state.hpDefaults),
             turns: state.turns.map((turn) => ({
                 number: turn.number,
+                hpByActor: normalizeHpSettings(turn.hpByActor),
                 blocks: turn.blocks.map((block) => {
                     const savedBlock = cloneJson(block) || {};
                     // 这两项由每次重算生成，不写入存档，避免恢复过期的显示结果。
@@ -517,12 +554,13 @@
             FRONTLINE_SLOTS.forEach((slot) => {
                 if (!fixedSlots.has(slot)) blocks.push(createFixedAction(turnNumber, slot, []));
             });
-            return { number: turnNumber, blocks };
+            return { number: turnNumber, blocks, hpByActor: normalizeHpSettings(sourceTurn && sourceTurn.hpByActor) };
         });
 
         return {
             turns,
             nextBlockId,
+            hpDefaults: normalizeHpSettings(payload.hpDefaults),
             calculation: normalizeCalculationSettings(payload.calculation)
         };
     }
@@ -537,6 +575,7 @@
             state.turns = restored.turns;
             state.nextBlockId = restored.nextBlockId;
             state.calculation = restored.calculation;
+            state.hpDefaults = restored.hpDefaults;
             return true;
         } catch (error) {
             console.error('[ManualBurstSimulator] 手动时间轴本地存档读取失败', error);
@@ -562,6 +601,10 @@
         state.nextBlockId = 1;
         state.selectedPayload = null;
         state.damageSummary = { totalDamage: 0, byCharacter: {} };
+        state.expandedOwnedSkillSlot = null;
+        state.settingsMode = 'basic';
+        state.hpDefaults = {};
+        state.hpTurnScope = 'all';
         state.calculation = createDefaultCalculationSettings();
         state.loadedStorageKey = storageKey;
         if (!loadTimelineFromLocal(storageKey)) {
@@ -570,28 +613,89 @@
         state.initialized = true;
     }
 
-    function captureOwnedSkillSources(root) {
-        return Array.from(root.querySelectorAll('[data-toggle-actor-skill]')).map((element) => ({
-            element,
-            skillId: element.getAttribute('data-toggle-actor-skill') || '',
-            ownerSlot: Number(element.getAttribute('data-owner-slot'))
-        })).filter((source) => source.skillId);
+    function captureOwnedSkillLists(root) {
+        return Array.from(root.querySelectorAll('[data-select-actor]')).map((selector) => {
+            const row = selector.closest('.burst-actor-row');
+            return { selector, row, element: row && row.querySelector('.burst-actor-actions'),
+                ownerSlot: Number(selector.getAttribute('data-select-actor')) };
+        }).filter((entry) => entry.element && FRONTLINE_SLOTS.includes(entry.ownerSlot));
     }
 
-    function restoreOwnedSkillSources(sources) {
-        sources.forEach((source) => {
-            const skill = getSkillById(source.skillId);
-            const ownerSlot = Number.isInteger(source.ownerSlot) ? source.ownerSlot : 0;
-            source.element.setAttribute('data-manual-skill-id', source.skillId);
-            source.element.setAttribute('data-manual-owner-slot', String(ownerSlot));
-            source.element.removeAttribute('draggable');
-            source.element.setAttribute('aria-label', `${skill && skill.name ? skill.name : source.skillId}，可插入手动回合轴`);
-            source.element.title = `${skill && (skill.desc || skill.description) ? skill.desc || skill.description : '角色技能'}；拖到时间轴，或点击后选择“＋”位置`;
-            source.element.removeAttribute('disabled');
-            source.element.removeAttribute('aria-disabled');
-            source.element.classList.remove('queued', 'cooling-down', 'timeline-conflict');
-            source.element.setAttribute('aria-pressed', 'false');
+    function getManualOwnedSkills(ownerSlot) {
+        const registry = global.SkillRegistry;
+        const mc = typeof currentMC !== 'undefined' ? currentMC : null;
+        const actor = typeof currentParty !== 'undefined' && currentParty ? currentParty[ownerSlot] : null;
+        const job = ownerSlot === 0 && mc && Array.isArray(typeof allClasses !== 'undefined' ? allClasses : null)
+            ? allClasses.find((entry) => entry && entry.id === mc.jobId) : null;
+        const owners = ownerSlot === 0
+            ? [['main_character', 'mc'], ...(mc && mc.jobId ? [['job', mc.jobId]] : [])]
+            : actor && actor.ID != null ? [['character', String(actor.ID)]] : [];
+        const found = new Map();
+        const add = (skill) => {
+            if (!skill || skill.id == null || String(skill.kind || 'active').toLowerCase() !== 'active') return;
+            found.set(String(skill.id), skill);
+        };
+        const refs = ownerSlot === 0
+            ? [...(mc && Array.isArray(mc.skillIds) ? mc.skillIds : []),
+                ...(job && job.skill_refs && Array.isArray(job.skill_refs.active) ? job.skill_refs.active : [])]
+            : actor && actor.skill_refs && Array.isArray(actor.skill_refs.active) ? actor.skill_refs.active : [];
+        refs.forEach((id) => add(getSkillById(id)));
+        owners.forEach(([type, id]) => {
+            if (registry && typeof registry.getByOwner === 'function') registry.getByOwner(type, id, { kind: 'active' }).forEach(add);
         });
+        // 旧格式character_id与新格式owner_type/owner_id统一归属，不依赖技能槽位数量。
+        const legacy = typeof globalCharaSkillMap !== 'undefined' && globalCharaSkillMap ? Object.values(globalCharaSkillMap) : [];
+        const local = global.ManualCustomSkills && typeof global.ManualCustomSkills.list === 'function' ? global.ManualCustomSkills.list() : [];
+        legacy.concat(local).forEach((skill) => {
+            if (!skill) return;
+            const type = skill.owner_type || (skill.character_id != null ? 'character' : '');
+            const id = skill.owner_id != null ? skill.owner_id : skill.character_id;
+            if (owners.some(([ownerType, ownerId]) => type === ownerType && String(id) === String(ownerId))) add(skill);
+        });
+        return Array.from(found.values());
+    }
+
+    function renderOwnedSkillList(ownerSlot) {
+        const skills = getManualOwnedSkills(ownerSlot);
+        if (!skills.length) return '<span class="manual-owned-skills-empty">暂无可用技能</span>';
+        return skills.map((skill) => {
+            const description = getSkillDescription(skill);
+            const isLarge = skill.buff_display_mode === 'large' || skill.manual_definition && skill.manual_definition.displayMode === 'large';
+            const icon = isLarge ? '' : buildImageSrc(skill.icon);
+            return `<button type="button" class="manual-owned-skill-source" data-manual-skill-id="${escapeHtml(skill.id)}"
+                data-manual-owner-slot="${ownerSlot}" aria-pressed="false"
+                title="${escapeHtml(skill.name || skill.id)}；点击后选择时间轴的＋位置，或直接拖入">
+                <span class="manual-owned-skill-icon">${icon ? `<img src="${escapeHtml(icon)}" alt="">` : escapeHtml(Array.from(String(skill.name || '技'))[0])}</span>
+                <span class="manual-owned-skill-copy"><strong>${escapeHtml(skill.name || skill.id)}</strong>
+                    ${description ? `<small>${escapeHtml(description)}</small>` : ''}
+                </span>
+            </button>`;
+        }).join('');
+    }
+
+    function restoreOwnedSkillLists(lists) {
+        const updateVisibility = () => {
+            lists.forEach(({ element, selector, row, ownerSlot }) => {
+                const expanded = state.expandedOwnedSkillSlot === ownerSlot;
+                element.hidden = !expanded;
+                selector.setAttribute('aria-expanded', String(expanded));
+                selector.setAttribute('aria-pressed', String(expanded));
+                row.classList.toggle('selected', expanded);
+            });
+        };
+        lists.forEach(({ element, selector, ownerSlot }) => {
+            element.classList.add('manual-owned-skill-list');
+            element.id = `manual-owned-skills-${ownerSlot}`;
+            element.setAttribute('aria-label', `${getActorName(ownerSlot)}的技能列表`);
+            element.innerHTML = renderOwnedSkillList(ownerSlot);
+            selector.setAttribute('aria-controls', element.id);
+            selector.addEventListener('click', (event) => {
+                event.stopPropagation();
+                state.expandedOwnedSkillSlot = state.expandedOwnedSkillSlot === ownerSlot ? null : ownerSlot;
+                updateVisibility();
+            });
+        });
+        updateVisibility();
     }
 
     function isolateCopiedDom(root) {
@@ -621,6 +725,146 @@
         });
     }
 
+    function normalizeHpSettings(settings) {
+        const result = {};
+        FRONTLINE_SLOTS.forEach((slot) => {
+            const raw = settings && settings[slot];
+            if (raw == null || raw === '' || !Number.isFinite(Number(raw))) return;
+            result[slot] = Math.max(0, Math.min(100, Number(raw)));
+        });
+        return result;
+    }
+
+    function getManualHpPercent(turn, slot) {
+        const override = normalizeHpSettings(turn && turn.hpByActor)[slot];
+        const baseline = normalizeHpSettings(state.hpDefaults)[slot];
+        return override == null ? (baseline == null ? 100 : baseline) : override;
+    }
+
+    function setManualHpPercent(slot, value) {
+        if (!FRONTLINE_SLOTS.includes(slot) || !Number.isFinite(Number(value))) return;
+        const hp = Math.max(0, Math.min(100, Number(value)));
+        if (state.hpTurnScope === 'all') {
+            state.hpDefaults[slot] = hp;
+            state.turns.forEach((turn) => { if (turn.hpByActor) delete turn.hpByActor[slot]; });
+        } else {
+            const turn = state.turns.find((item) => String(item.number) === state.hpTurnScope);
+            if (!turn) return;
+            if (!turn.hpByActor) turn.hpByActor = {};
+            turn.hpByActor[slot] = hp;
+        }
+    }
+
+    function readManualActorHp(slot) {
+        const readValue = (id) => {
+            const element = typeof document.getElementById === 'function' ? document.getElementById(id) : null;
+            const text = String(element && element.textContent || '').replace(/[\s,，]/g, '');
+            if (!/^\d+(?:\.\d+)?$/.test(text)) return null;
+            const value = Number(text);
+            return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
+        };
+        const maxHp = readValue(`char-actual-hp-${slot}`);
+        if (maxHp == null || maxHp <= 0) return null;
+        const turn = state.turns.find((item) => String(item.number) === state.hpTurnScope);
+        const percent = getManualHpPercent(turn, slot);
+        return { currentHp: Math.ceil(maxHp * percent / 100), maxHp, percent };
+    }
+
+    function renderManualActorHp(slot) {
+        const hp = readManualActorHp(slot);
+        const value = hp ? `${hp.currentHp.toLocaleString('zh-CN')} / ${hp.maxHp.toLocaleString('zh-CN')}` : '— / —';
+        const turn = state.turns.find((item) => String(item.number) === state.hpTurnScope);
+        const percent = getManualHpPercent(turn, slot);
+        const mixed = state.hpTurnScope === 'all' && state.turns.some((item) => getManualHpPercent(item, slot) !== percent);
+        return `<div class="manual-actor-hp-head"><span>当前生命值 ${percent}%${mixed ? '（各回合不同）' : ''}</span><strong>${value}</strong></div>
+            ${hp ? `<div class="manual-actor-hp-track" role="meter" aria-label="${escapeHtml(getActorName(slot))}当前生命值"
+                aria-valuemin="0" aria-valuemax="${hp.maxHp}" aria-valuenow="${hp.currentHp}"
+                aria-valuetext="${hp.currentHp} / ${hp.maxHp}">
+                <span class="manual-actor-hp-fill${hp.percent <= 25 ? ' is-low' : ''}" style="width:${hp.percent}%"></span>
+            </div>` : '<div class="manual-actor-hp-track is-unavailable" title="暂无生命值计算结果"></div>'}
+            <input class="manual-actor-hp-slider" data-manual-hp-slider="${slot}" type="range" min="0" max="100" step="1"
+                value="${percent}" aria-label="${escapeHtml(getActorName(slot))}手动模拟当前生命值百分比">
+            <span class="manual-actor-hp-note">${state.hpTurnScope === 'all' ? '调整后统一所有回合（含后续新增回合）' : `仅设置第${escapeHtml(state.hpTurnScope)}回合`}</span>`;
+    }
+
+    function updateManualActorHp(board) {
+        if (!board) return;
+        const scope = board.querySelector && board.querySelector('[data-manual-hp-turn]');
+        if (scope) {
+            const options = '<option value="all">全部</option>' + state.turns.map((turn) =>
+                `<option value="${turn.number}">第${turn.number}回合</option>`).join('');
+            if (scope.innerHTML !== options) scope.innerHTML = options;
+            scope.value = state.hpTurnScope;
+        }
+        board.querySelectorAll('[data-manual-actor-hp]').forEach((element) => {
+            const slot = Number(element.getAttribute('data-manual-actor-hp'));
+            const slider = element.querySelector && element.querySelector('[data-manual-hp-slider]');
+            if (!slider) {
+                element.innerHTML = renderManualActorHp(slot);
+                return;
+            }
+            // 保留range节点：拖动中重算不能替换它，否则会丢失指针捕获和键盘焦点。
+            const draft = document.createElement('div');
+            draft.innerHTML = renderManualActorHp(slot);
+            ['.manual-actor-hp-head', '.manual-actor-hp-track', '.manual-actor-hp-note'].forEach((selector) => {
+                element.querySelector(selector).replaceWith(draft.querySelector(selector));
+            });
+            slider.value = draft.querySelector('[data-manual-hp-slider]').value;
+        });
+    }
+
+    function setManualSettingsMode(board, mode) {
+        if (!['basic', 'advanced'].includes(mode)) return;
+        state.settingsMode = mode;
+        const advanced = mode === 'advanced';
+        board.querySelectorAll('[data-manual-hp-scope-control]').forEach((element) => { element.hidden = !advanced; });
+        board.querySelectorAll('[data-manual-settings-mode]').forEach((button) => {
+            const active = button.getAttribute('data-manual-settings-mode') === mode;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
+        board.querySelectorAll('[data-manual-actor-hp]').forEach((element) => {
+            element.hidden = !advanced;
+            element.closest('.burst-actor-row').classList.toggle('is-manual-advanced', advanced);
+        });
+        if (advanced) updateManualActorHp(board);
+    }
+
+    function prepareManualActorSettings(board, lists, modeButtons) {
+        // 不沿用自动模拟的奥义槽、计算覆盖与后备详情面板。
+        board.querySelectorAll('.burst-charge-ui, .burst-actor-detail, .burst-sub-row').forEach((element) => element.remove());
+        const column = board.querySelector('.burst-party-column');
+        const scope = document.createElement('label');
+        scope.className = 'manual-hp-scope-control';
+        scope.setAttribute('data-manual-hp-scope-control', '');
+        scope.innerHTML = '血量设置回合 <select data-manual-hp-turn aria-label="血量设置回合"></select>';
+        if (column) column.before(scope);
+        scope.querySelector('select').addEventListener('change', (event) => {
+            state.hpTurnScope = event.target.value;
+            updateManualActorHp(board);
+        });
+        lists.forEach(({ row, ownerSlot }) => {
+            row.classList.remove('with-charge');
+            const hp = document.createElement('div');
+            hp.className = 'manual-actor-hp';
+            hp.setAttribute('data-manual-actor-hp', String(ownerSlot));
+            hp.hidden = true;
+            hp.addEventListener('input', (event) => {
+                if (!event.target.matches('[data-manual-hp-slider]')) return;
+                setManualHpPercent(ownerSlot, event.target.value);
+                updateManualActorHp(board);
+                renderTimeline(board);
+                setMutationDetail(board, '已更新手动模拟血量并重算伤害。');
+            });
+            row.appendChild(hp);
+        });
+        modeButtons.forEach(({ element, mode }) => {
+            element.setAttribute('data-manual-settings-mode', mode);
+            element.addEventListener('click', () => setManualSettingsMode(board, mode));
+        });
+        setManualSettingsMode(board, state.settingsMode);
+    }
+
     function renderActorAvatar(slot, compact) {
         const name = getActorName(slot);
         const path = getActorAvatar(slot);
@@ -644,7 +888,7 @@
             return `<span class="manual-timeline-buff-icon${isLarge ? ' is-large' : ''}" tabindex="0"
                 aria-label="${escapeHtml(buff.name || 'Buff')}" data-manual-buff-tooltip="${escapeHtml(tooltip)}">${src
                 ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(buff.name || 'Buff')}">`
-                : escapeHtml(initial)}</span>`;
+                : escapeHtml(initial)}${buff.stacks != null ? `<span class="manual-timeline-buff-stack">${escapeHtml(buff.stacks)}</span>` : ''}</span>`;
         }).join('');
         return `<span class="manual-timeline-buff-strip">${icons}</span>`;
     }
@@ -718,7 +962,7 @@
 
         if (block.type === 'buff' || block.type === 'damage') {
             const hasDamage = blockHasDamage(block);
-            return `
+            return renderStackShortcut(block, `
                 <button type="button" class="manual-timeline-block manual-timeline-compact is-${escapeHtml(block.type)} is-source${hasDamage ? ' has-damage' : ''}"
                     data-manual-block-id="${escapeHtml(block.id)}">
                     ${renderActorAvatar(block.actorSlot == null ? 0 : block.actorSlot, true)}
@@ -726,18 +970,20 @@
                     <span class="manual-timeline-block-name">${escapeHtml(block.name)}</span>
                     <span class="manual-timeline-block-target">${escapeHtml(block.target)}</span>
                     ${hasDamage ? renderBlockDamage(block, '该技能附加伤害的hit数与伤害') : ''}
+                    ${renderBlockDescription(block)}
                 </button>
-            `;
+            `);
         }
 
-        return `
+        return renderStackShortcut(block, `
             <button type="button" class="manual-timeline-block manual-timeline-compact is-debuff"
                 data-manual-block-id="${escapeHtml(block.id)}">
                 <span class="manual-timeline-block-kind">Debuff</span>
                 <span class="manual-timeline-block-name">${escapeHtml(block.name)}</span>
                 <span class="manual-timeline-block-target">${escapeHtml(block.target)}</span>
+                ${renderBlockDescription(block)}
             </button>
-        `;
+        `);
     }
 
     function renderDropzone(turnNumber, index) {
@@ -769,6 +1015,7 @@
                 }
                 timelineResult = resolver(state.turns, {
                     actorCount: 4,
+                    getActorHpPercent: getManualHpPercent,
                     getSkillById,
                     calculateHit: calculator && typeof calculator.calculateManualHitDamage === 'function'
                         ? (hit, context) => calculator.calculateManualHitDamage(hit, context.state, state.calculation)
@@ -936,7 +1183,7 @@
                 <legend>效果 <span data-manual-effect-number>${index + 1}</span></legend>
                 <button type="button" class="manual-custom-effect-remove" data-manual-remove-effect aria-label="删除该效果">删除</button>
                 <div class="manual-custom-form-grid">
-                    <label>效果对象
+                    <label data-manual-effect-target-field>效果对象
                         <select data-manual-effect-target>
                             ${Object.entries(MANUAL_TARGET_LABELS).filter(([key]) => ['self', 'ally_party', 'ally_all', 'ally_slots', 'enemy'].includes(key))
                                 .map(([key, label]) => renderOption(key, label, target)).join('')}
@@ -958,16 +1205,19 @@
                         </select>
                         <small data-manual-zone-rule>${escapeHtml(getZoneRuleText(zoneMeta))}</small>
                     </label>
-                    <label>加成数值
+                    <label><span data-manual-effect-value-label>加成数值</span>
                         <span class="manual-custom-value-input"><input type="number" step="any" value="${escapeHtml(value)}" data-manual-effect-value${entry.fixedValue != null ? ' readonly' : ''} required><span data-manual-effect-unit>${escapeHtml(unit)}</span></span>
                     </label>
-                    <label>持续时间
+                    <label data-manual-effect-duration-field>持续时间
                         <select data-manual-effect-duration-type>
                             ${Object.entries(MANUAL_DURATION_LABELS).map(([key, label]) => renderOption(key, label, durationType)).join('')}
                         </select>
                     </label>
                     <label data-manual-effect-duration-value-field${durationType === 'permanent' ? ' hidden' : ''}>持续数值
                         <input type="number" min="1" step="1" value="${escapeHtml(durationValue)}" data-manual-effect-duration-value>
+                    </label>
+                    <label data-manual-effect-unlock-field hidden>解锁层数
+                        <input type="number" min="1" step="1" value="${escapeHtml(seed.unlockStacks == null ? index + 1 : seed.unlockStacks)}" data-manual-effect-unlock>
                     </label>
                 </div>
                 <div class="manual-custom-target-slots" data-manual-effect-target-slots${target === 'ally_slots' ? '' : ' hidden'}>
@@ -1023,6 +1273,83 @@
         if (zoneHint) zoneHint.textContent = getZoneRuleText(entry.zones.find((item) => item.id === zone));
     }
 
+    function renderStackSettings(definition) {
+        const seed = definition.stacking || {};
+        const first = (definition.effects || [])[0] || {};
+        const target = seed.target || first.target || 'self';
+        const duration = seed.durationType || 'permanent';
+        return `<section class="manual-custom-stack-settings">
+            <label>强化方式<select data-manual-stack-mode>
+                ${renderOption('none', '普通强化（不叠层）', seed.mode || 'none')}
+                ${renderOption('scale', '叠层强化（每层效果 × 层数）', seed.mode || 'none')}
+                ${renderOption('tier', '依序强化（累计解锁 A、A+B、A+B+C）', seed.mode || 'none')}
+            </select></label>
+            <div data-manual-stack-options hidden>
+                <p class="manual-custom-stack-hint">同一技能每次插入增加层数，每个受益对象独立计层。全部效果共用持续时间，到期整组移除；图标使用技能名首字。</p>
+                <div class="manual-custom-form-grid">
+                    <label>层数上限<input type="number" min="1" step="1" value="${escapeHtml(seed.max == null ? 5 : seed.max)}" data-manual-stack-max></label>
+                    <label>每次增加层数<input type="number" min="1" step="1" value="${escapeHtml(seed.add == null ? 1 : seed.add)}" data-manual-stack-add></label>
+                    <label>效果对象<select data-manual-stack-target>
+                        ${['self', 'ally_party', 'ally_all', 'ally_slots', 'enemy'].map((key) => renderOption(key, MANUAL_TARGET_LABELS[key], target)).join('')}
+                    </select></label>
+                    <label>整组持续时间<select data-manual-stack-duration-type>
+                        ${Object.entries(MANUAL_DURATION_LABELS).map(([key, label]) => renderOption(key, label, duration)).join('')}
+                    </select></label>
+                    <label data-manual-stack-duration-value-field>持续数值<input type="number" min="1" step="1" value="${escapeHtml(seed.durationValue == null ? 1 : seed.durationValue)}" data-manual-stack-duration-value></label>
+                    <label>重复施加时<select data-manual-stack-refresh>
+                        ${renderOption('yes', '刷新整组持续时间', seed.refreshDuration === false ? 'no' : 'yes')}
+                        ${renderOption('no', '保留剩余持续时间', seed.refreshDuration === false ? 'no' : 'yes')}
+                    </select></label>
+                </div>
+                <div class="manual-custom-target-slots" data-manual-stack-target-slots><span>指定位置</span>${renderTargetSlotChecks(seed.targetSlots || first.targetSlots)}</div>
+                <p class="manual-custom-stack-hint" data-manual-stack-mode-hint></p>
+            </div>
+        </section>`;
+    }
+
+    function updateStackEditor(container) {
+        const mode = container.querySelector('[data-manual-stack-mode]').value;
+        const stacked = mode !== 'none';
+        const options = container.querySelector('[data-manual-stack-options]');
+        options.hidden = !stacked;
+        options.querySelectorAll('input, select').forEach((input) => { input.disabled = !stacked; });
+        const display = container.querySelector('[data-manual-buff-display-mode]');
+        const switchToLarge = stacked && display.value !== 'large';
+        if (stacked) display.value = 'large';
+        display.disabled = stacked;
+        const target = container.querySelector('[data-manual-stack-target]').value;
+        const duration = container.querySelector('[data-manual-stack-duration-type]').value;
+        container.querySelector('[data-manual-stack-target-slots]').hidden = target !== 'ally_slots';
+        container.querySelector('[data-manual-stack-duration-value-field]').hidden = duration === 'permanent';
+        container.querySelector('[data-manual-stack-duration-value]').disabled = !stacked || duration === 'permanent';
+        container.querySelector('[data-manual-stack-refresh]').disabled = !stacked || duration === 'permanent';
+        container.querySelector('[data-manual-stack-mode-hint]').textContent = mode === 'scale'
+            ? '下方填写每层效果量；二动、三动请改用依序强化。'
+            : '下方填写每项的解锁层数；达到该层数后持续生效，之前的效果仍然保留。同一层可解锁多项效果。';
+        container.querySelectorAll('[data-manual-custom-effect]').forEach((row) => {
+            const targetSelect = row.querySelector('[data-manual-effect-target]');
+            if (stacked && targetSelect.value !== target) {
+                targetSelect.value = target;
+                updateBuffEffectRowMeta(row, false, 'independent');
+            }
+            if (switchToLarge) updateBuffEffectRowMeta(row, false, 'independent', true);
+            targetSelect.disabled = stacked;
+            row.querySelectorAll('[data-manual-effect-target-slots] input').forEach((input) => { input.disabled = stacked; });
+            const effectDuration = row.querySelector('[data-manual-effect-duration-type]');
+            effectDuration.disabled = stacked;
+            row.querySelector('[data-manual-effect-duration-value]').disabled = stacked || effectDuration.value === 'permanent';
+            row.querySelector('[data-manual-effect-target-field]').hidden = stacked;
+            row.querySelector('[data-manual-effect-target-slots]').hidden = stacked || targetSelect.value !== 'ally_slots';
+            row.querySelector('[data-manual-effect-duration-field]').hidden = stacked;
+            row.querySelector('[data-manual-effect-duration-value-field]').hidden = stacked || row.querySelector('[data-manual-effect-duration-type]').value === 'permanent';
+            row.querySelector('[data-manual-effect-value-label]').textContent = mode === 'scale' ? '每层加成数值' : '加成数值';
+            row.querySelector('[data-manual-effect-unlock-field]').hidden = mode !== 'tier';
+            const unlock = row.querySelector('[data-manual-effect-unlock]');
+            unlock.disabled = mode !== 'tier';
+            unlock.max = container.querySelector('[data-manual-stack-max]').value;
+        });
+    }
+
     function wireBuffEffectRow(row) {
         const typeSelect = row.querySelector('[data-manual-effect-type]');
         const subtypeSelect = row.querySelector('[data-manual-effect-subtype]');
@@ -1046,6 +1373,8 @@
         if (durationSelect) durationSelect.addEventListener('change', () => {
             const field = row.querySelector('[data-manual-effect-duration-value-field]');
             if (field) field.hidden = durationSelect.value === 'permanent';
+            const input = row.querySelector('[data-manual-effect-duration-value]');
+            if (input) input.disabled = durationSelect.value === 'permanent';
         });
         const remove = row.querySelector('[data-manual-remove-effect]');
         if (remove) remove.addEventListener('click', () => {
@@ -1183,6 +1512,19 @@
         }
         base.damages = collectDamageDefinitions(form);
         base.displayMode = form.querySelector('[data-manual-buff-display-mode]').value;
+        const stackMode = form.querySelector('[data-manual-stack-mode]').value;
+        if (stackMode !== 'none') {
+            base.stacking = {
+                mode: stackMode,
+                max: Number(form.querySelector('[data-manual-stack-max]').value),
+                add: Number(form.querySelector('[data-manual-stack-add]').value),
+                target: form.querySelector('[data-manual-stack-target]').value,
+                targetSlots: Array.from(form.querySelectorAll('[data-manual-stack-target-slots] input:checked')).map((input) => Number(input.value)),
+                durationType: form.querySelector('[data-manual-stack-duration-type]').value,
+                durationValue: form.querySelector('[data-manual-stack-duration-value]').value,
+                refreshDuration: form.querySelector('[data-manual-stack-refresh]').value !== 'no'
+            };
+        }
         base.effects = Array.from(form.querySelectorAll('[data-manual-custom-effect]')).map((row) => ({
             target: row.querySelector('[data-manual-effect-target]').value,
             targetSlots: Array.from(row.querySelectorAll('[data-manual-effect-target-slots] input:checked')).map((input) => Number(input.value)),
@@ -1191,7 +1533,8 @@
             zone: row.querySelector('[data-manual-effect-zone]').value,
             value: row.querySelector('[data-manual-effect-value]').value,
             durationType: row.querySelector('[data-manual-effect-duration-type]').value,
-            durationValue: row.querySelector('[data-manual-effect-duration-value]').value
+            durationValue: row.querySelector('[data-manual-effect-duration-value]').value,
+            ...(stackMode === 'tier' ? { unlockStacks: Number(row.querySelector('[data-manual-effect-unlock]').value) } : {})
         }));
         return base;
     }
@@ -1255,6 +1598,7 @@
                         </div>
                         <button type="button" class="manual-custom-add-effect manual-custom-add-damage" data-manual-add-damage>＋ 新增伤害</button>
                     </section>
+                    ${renderStackSettings(common)}
                     <div class="manual-custom-display-mode">
                         <label>Buff显示方式
                             <select data-manual-buff-display-mode>
@@ -1284,6 +1628,10 @@
                 wireDamageRow(list.lastElementChild);
             });
             container.querySelectorAll('[data-manual-custom-effect]').forEach(wireBuffEffectRow);
+            container.querySelectorAll('.manual-custom-stack-settings select, [data-manual-stack-max]').forEach((input) => {
+                input.addEventListener('change', () => updateStackEditor(container));
+            });
+            updateStackEditor(container);
             const displayModeSelect = container.querySelector('[data-manual-buff-display-mode]');
             if (displayModeSelect) displayModeSelect.addEventListener('change', () => {
                 if (displayModeSelect.value !== 'large') return;
@@ -1298,6 +1646,7 @@
                 const mode = displayModeSelect ? displayModeSelect.value : 'small';
                 list.insertAdjacentHTML('beforeend', renderBuffEffectRow({}, index, mode));
                 wireBuffEffectRow(list.lastElementChild);
+                updateStackEditor(container);
             });
         }
 
@@ -1346,7 +1695,9 @@
         const summary = (Array.isArray(skill.steps) ? skill.steps : []).filter((step) => step && step.do === 'buff').map((step) => (
             `${step.name || step.prop} · ${MANUAL_TARGET_LABELS[step.target] || step.target}`
         )).join('；');
-        return `${damageSummary}${definition.displayMode === 'large' ? '大Buff' : '小Buff'} · ${summary}`;
+        const stacking = definition.stacking;
+        const stackSummary = stacking ? `${stacking.mode === 'tier' ? '依序强化' : '叠层强化'} · 每次+${stacking.add}层 / 上限${stacking.max}层 · ` : '';
+        return `${damageSummary}${stackSummary}${definition.displayMode === 'large' ? '大Buff' : '小Buff'} · ${summary}`;
     }
 
     function renderCustomLibrary(board) {
@@ -1749,7 +2100,29 @@
         renderTimeline(board);
     }
 
+    function repeatStackSkill(board, blockId) {
+        const found = findBlock(blockId);
+        if (!found || !isStackSkillBlock(found.block)) return;
+        // 保留技能引用，不能复制成另一个技能ID，否则会成为不同的叠层状态。
+        let added = createSkillBlock(found.block.skillId, found.block.actorSlot);
+        if (!added) {
+            // 技能库已删除的旧方块仍可按存档内的标准steps继续使用。
+            const snapshot = cloneJson(found.block);
+            ['id', 'fixed', 'buffs', 'damage', 'hitCount'].forEach((key) => { delete snapshot[key]; });
+            added = createDynamicBlock(found.block.type, snapshot);
+        }
+        found.turn.blocks.splice(found.index + 1, 0, added);
+        setMutationDetail(board, `已在“${found.block.name}”后方插入同一叠层技能，可拖动到需要增加层数的位置。`);
+        renderTimeline(board);
+    }
+
     function wireTimeline(board) {
+        board.querySelectorAll('[data-manual-repeat-stack]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                repeatStackSkill(board, button.getAttribute('data-manual-repeat-stack'));
+            });
+        });
         board.querySelectorAll('[data-manual-delete-turn]').forEach((button) => {
             button.addEventListener('click', () => {
                 deleteTurn(board, Number(button.getAttribute('data-manual-delete-turn')));
@@ -1819,11 +2192,15 @@
         });
         renderTimeline(board);
         setMutationDetail(board, `已删除第${turnNumber}回合及其中的全部行动和技能，后续回合已重新编号。`);
+        if (Number(state.hpTurnScope) === turnNumber) state.hpTurnScope = 'all';
+        else if (Number(state.hpTurnScope) > turnNumber) state.hpTurnScope = String(Number(state.hpTurnScope) - 1);
+        updateManualActorHp(board);
     }
 
     function addTurn(board) {
         const number = state.turns.length + 1;
         state.turns.push(createTurn(number, false));
+        updateManualActorHp(board);
         renderTimeline(board);
         setMutationDetail(board, `已新增第${number}回合，并生成主角至4号位的固定基础行动槽。`);
     }
@@ -1970,10 +2347,14 @@
 
         ensureInitialState();
         const board = autoBoard.cloneNode(true);
-        const ownedSkillSources = captureOwnedSkillSources(board);
+        const ownedSkillLists = captureOwnedSkillLists(board);
+        const modeButtons = Array.from(board.querySelectorAll('[data-burst-settings-mode]')).map((element) => ({
+            element, mode: element.getAttribute('data-burst-settings-mode')
+        }));
         board.id = MANUAL_BOARD_ID;
         isolateCopiedDom(board);
-        restoreOwnedSkillSources(ownedSkillSources);
+        restoreOwnedSkillLists(ownedSkillLists);
+        prepareManualActorSettings(board, ownedSkillLists, modeButtons);
         prepareBoard(board);
         container.replaceChildren(board);
         return true;
@@ -1995,6 +2376,12 @@
     };
 
     global.ManualBurstSimulator = api;
+
+    if (typeof global.addEventListener === 'function') {
+        global.addEventListener('damageCalculationUpdated', () => {
+            if (state.settingsMode === 'advanced') updateManualActorHp(document.getElementById(MANUAL_BOARD_ID));
+        });
+    }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', createBoard);

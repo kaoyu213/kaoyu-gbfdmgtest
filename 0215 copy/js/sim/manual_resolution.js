@@ -108,6 +108,10 @@
     function createRuntimeStatus(definition, metadata) {
         const status = Object.assign({}, cloneJson(definition || {}), cloneJson(metadata || {}));
         status.status_id = String(status.status_id || status.id || `manual_status_${Date.now()}`);
+        if (status.stacking) {
+            status.stacks = Math.min(Math.max(1, Number(status.stacking.max) || Number.MAX_SAFE_INTEGER),
+                Math.max(1, Number(status.stacks) || Number(status.stacking.add) || 1));
+        }
         status.duration = normalizeDuration(status);
         if (status.duration && status.duration.type !== 'permanent') {
             const field = getRemainingField(status.duration.type);
@@ -363,7 +367,7 @@
         const actor = getActor(state, actorSlot);
         const result = [];
         (actor && Array.isArray(actor.statuses) ? actor.statuses : []).forEach((status) => {
-            (Array.isArray(status.effects) ? status.effects : []).forEach((effect, index) => {
+            getEffectiveStatusEffects(status).forEach((effect, index) => {
                 if (!isBonusNormalEffect(effect)) return;
                 const formula = effect.formula && typeof effect.formula === 'object' ? effect.formula : effect;
                 result.push({
@@ -493,13 +497,17 @@
         return `剩余${remaining}${unit}`;
     }
 
+    function getEffectiveStatusEffects(status) {
+        const resolver = global.StatusResolver || nodeStatusApi;
+        return resolver && typeof resolver.getEffectiveStatusEffects === 'function'
+            ? resolver.getEffectiveStatusEffects(status)
+            : (Array.isArray(status && status.effects) ? status.effects : []);
+    }
+
     function getStatusEffectDetails(status) {
         if (!status) return [];
-        if (status.display_detail) return [String(status.display_detail)];
-        const stackMultiplier = status.stacking && status.stacking.scale_effects === true
-            ? Math.max(1, Number(status.stacks) || 1)
-            : 1;
-        return (Array.isArray(status.effects) ? status.effects : []).map((effect) => {
+        if (status.display_detail && !status.stacking) return [String(status.display_detail)];
+        return getEffectiveStatusEffects(status).map((effect) => {
             if (!effect) return '';
             const formula = effect.formula && typeof effect.formula === 'object'
                 ? effect.formula
@@ -513,10 +521,10 @@
                     : null;
                 const label = meta && meta.label || effect.label || formula.label || formula.prop;
                 const format = meta && meta.format || formula.format || effect.format || 'percent';
-                return `${label} ${formatFormulaValue(Number(formula.value) * stackMultiplier, format)}`;
+                return `${label} ${formatFormulaValue(Number(formula.value), format)}`;
             }
             if (effect.effect_type === 'bonus_damage') {
-                return `追击 ${formatFormulaValue(Number(effect.value) * stackMultiplier, 'percent')}`;
+                return `追击 ${formatFormulaValue(Number(effect.value), 'percent')}`;
             }
             if (effect.effect_type === 'extra_attack') return '再攻击';
             if (effect.effect_type === 'multiattack') return String(effect.mode || '连击率提升');
@@ -559,12 +567,16 @@
                         icon: '',
                         initial: String(display.initial || Array.from(label)[0] || '强'),
                         displayMode: 'large',
+                        stacks: status.stacking ? status.stacks : null,
                         detailLines: []
                     };
                     largeGroups.set(groupId, entry);
                     result.push(entry);
                 }
-                (details.length ? details : [status.name || '效果']).forEach((detail) => {
+                if (status.stacking) {
+                    appendUniqueTooltipLine(entry.detailLines, `当前${status.stacks}层 / 上限${status.stacking.max}层`);
+                }
+                (details.length ? details : [status.stacking ? '尚未解锁加成' : status.name || '效果']).forEach((detail) => {
                     const line = duration ? `${detail}（${duration}）` : detail;
                     appendUniqueTooltipLine(entry.detailLines, line);
                 });
@@ -798,6 +810,13 @@
         }
 
         (Array.isArray(turns) ? turns : []).forEach((turn) => {
+            if (typeof opts.getActorHpPercent === 'function') {
+                Object.keys(runtimeState.actors).forEach((slot) => {
+                    const hp = Number(opts.getActorHpPercent(turn, Number(slot)));
+                    runtimeState.actors[slot].hpPercent = Number.isFinite(hp)
+                        ? Math.max(0, Math.min(100, hp)) : 100;
+                });
+            }
             (turn && Array.isArray(turn.blocks) ? turn.blocks : []).forEach((block) => {
                 if (!block || !block.id) return;
                 const actorSlot = Number(block.actorSlot == null ? 0 : block.actorSlot);
@@ -864,6 +883,9 @@
                         if (!step || step.do !== 'buff' || !Array.isArray(step.applied)) return;
                         step.applied.forEach((status) => {
                             if (!status || !status.status_id) return;
+                            // 不刷新持续时间的叠层仍是原状态，本次伤害使用过它，
+                            // 必须继续消耗其原有的行动次数；首次获得则仍不消耗。
+                            if (status.stacking && status.stacking.refresh_duration === false) return;
                             if (status.target === 'enemy') enemyStatusIdsBeforeSkill.delete(status.status_id);
                             if (Number(status.target_slot) === actorSlot) actorStatusIdsBeforeSkill.delete(status.status_id);
                         });

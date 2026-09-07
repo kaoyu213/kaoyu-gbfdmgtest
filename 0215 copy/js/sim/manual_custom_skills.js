@@ -331,13 +331,41 @@
         const effects = Array.isArray(source.effects) ? source.effects : [];
         if (effects.length === 0) throw new Error('强化技能至少需要一个效果。');
         const id = String(source.id || existing && existing.id || createId());
-        const displayMode = normalizeBuffDisplayMode(source.displayMode || source.display_mode);
+        const stackSource = source.stacking || {};
+        const stackMode = String(stackSource.mode || 'none');
+        if (!['none', 'scale', 'tier'].includes(stackMode)) throw new Error('请选择有效的叠层方式。');
+        const isStacked = stackMode !== 'none';
+        const positiveInteger = (value, label) => {
+            const number = Number(value);
+            if (!Number.isSafeInteger(number) || number < 1) throw new Error(`${label}必须是正整数。`);
+            return number;
+        };
+        const stacking = isStacked ? Object.assign({}, normalizeTarget(stackSource), {
+            mode: stackMode,
+            max: positiveInteger(stackSource.max == null ? 5 : stackSource.max, '层数上限'),
+            add: positiveInteger(stackSource.add == null ? 1 : stackSource.add, '每次增加层数'),
+            durationType: stackSource.durationType || 'permanent',
+            durationValue: stackSource.durationValue,
+            refreshDuration: stackSource.refreshDuration !== false
+        }) : null;
+        const displayMode = isStacked ? 'large' : normalizeBuffDisplayMode(source.displayMode || source.display_mode);
         const normalizedDamages = damageSources.map(normalizeDamagePart);
-        const normalizedEffects = effects.map((effect, index) => normalizeBuffEffect(
-            applyDefaultBuffZone(effect, displayMode),
-            id,
-            index
-        ));
+        const normalizedEffects = effects.map((effect, index) => {
+            const input = stacking ? Object.assign({}, effect, {
+                target: stacking.target, targetSlots: stacking.targetSlots,
+                durationType: stacking.durationType, durationValue: stacking.durationValue
+            }) : effect;
+            const item = normalizeBuffEffect(applyDefaultBuffZone(input, displayMode), id, index);
+            if (stackMode === 'scale' && ['double_strike', 'triple_strike'].includes(item.definition.buffType)) {
+                throw new Error('二动、三动不能按层数相乘，请使用依序强化，在指定层数解锁。');
+            }
+            if (stackMode === 'tier') {
+                const unlockStacks = positiveInteger(effect.unlockStacks == null ? index + 1 : effect.unlockStacks, '解锁层数');
+                if (unlockStacks > stacking.max) throw new Error('解锁层数不能超过层数上限。');
+                item.definition.unlockStacks = unlockStacks;
+            }
+            return item;
+        });
         if (displayMode === 'large') {
             const statusDisplay = {
                 mode: 'large',
@@ -351,6 +379,21 @@
                 item.step.display_detail = item.step.name;
             });
         }
+        // 叠层强化只有一个运行时状态；全部效果共享层数和持续时间。
+        const buffSteps = stacking ? [{
+            do: 'buff', id: `${id}_stack`, name, unique: true,
+            target: stacking.target, target_slots: stacking.targetSlots,
+            duration: normalizedEffects[0].step.duration,
+            status_display: { mode: 'large', group_id: id, label: name, initial: getNameInitial(name) },
+            stacking: { mode: 'add', max: stacking.max, add: stacking.add,
+                scale_effects: stackMode === 'scale', refresh_duration: stacking.refreshDuration },
+            stacks: Math.min(stacking.max, stacking.add),
+            effects: normalizedEffects.map(({ step, definition: effect }) => ({
+                effect_type: step.effect_type || 'stat_mod',
+                min_stacks: stackMode === 'tier' ? effect.unlockStacks : 1,
+                formula: { prop: step.prop, zone: step.zone, value: step.value, format: step.format }
+            }))
+        }] : normalizedEffects.map((item) => item.step);
         const skillIcon = displayMode === 'large' ? '' : String(source.icon || '').trim();
         const now = new Date().toISOString();
         return {
@@ -367,12 +410,13 @@
             show_icon: false,
             // 强化技能的附加伤害始终先结算，随后才施加本技能的Buff。
             steps: normalizedDamages.map((item) => item.step)
-                .concat(normalizedEffects.map((item) => item.step)),
+                .concat(buffSteps),
             manual_definition: {
                 type: 'buff',
                 name,
                 desc: String(source.desc || source.description || '').trim(),
                 displayMode,
+                ...(stacking ? { stacking } : {}),
                 icon: skillIcon,
                 damages: normalizedDamages.map((item) => item.definition),
                 effects: normalizedEffects.map((item) => item.definition)

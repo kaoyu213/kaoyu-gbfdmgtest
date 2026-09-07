@@ -493,13 +493,13 @@ function calculateStrongBuffSum(hpPercent01, capList) {
 // - amount: 小/中/大 对应 1/2/3
 // 返回值为小数（如 3% 返回 0.03）
 // ==========================================
-function getLbStaminaStrongBonus(hpPercent01, amount) {
+function getLbStaminaStrongBonus(hpPercent01, amount, options) {
     const amt = Number(amount) || 0;
     if (amt !== 1 && amt !== 2 && amt !== 3) return 0;
 
     let hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
     // 游戏中的“1HP”应视为 0% 档，避免在 0~25% 区间插值出 2.04%/1.04% 这类值
-    if (hp <= 0.01) {
+    if (hp <= 0.01 && !(options && options.exactHpPercent)) {
         hp = 0;
     }
 
@@ -544,13 +544,13 @@ function getLbStaminaStrongBonus(hpPercent01, amount) {
 //  - 減少ライン~0%: 从 max 线性下降到 min
 //  - 1HP 视为 0% 档，取 min（确保 1血时为整数百分比）
 // ==========================================
-function getRingEarringStaminaStrongBonus(hpPercent01, amountPlus) {
+function getRingEarringStaminaStrongBonus(hpPercent01, amountPlus, options) {
     const amt = Math.floor(Number(amountPlus) || 0);
     if (amt <= 0) return 0;
 
     let hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
     // 1HP 视为 0% 档，避免 1.04%/2.04% 这类小数
-    if (hp <= 0.01) {
+    if (hp <= 0.01 && !(options && options.exactHpPercent)) {
         hp = 0;
     }
 
@@ -617,13 +617,13 @@ function getRingEarringStaminaStrongBonus(hpPercent01, amountPlus) {
 //
 // 返回值为小数（如 5% 返回 0.05），用于“逆境乘区”或“总背水（逆境）”汇总。
 // ==========================================
-function getRingEarringEnmityAdversityBonus(hpPercent01, amountPlus) {
+function getRingEarringEnmityAdversityBonus(hpPercent01, amountPlus, options) {
     const amt = Math.floor(Number(amountPlus) || 0);
     if (amt <= 0) return 0;
 
     let hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
     // 1HP 视为 0% 档，避免出现 1.04% 这类小数边界
-    if (hp <= 0.01) {
+    if (hp <= 0.01 && !(options && options.exactHpPercent)) {
         hp = 0;
     }
 
@@ -698,13 +698,13 @@ function getRingEarringEnmityAdversityBonus(hpPercent01, amountPlus) {
 //
 // 返回值为小数（如 3% 返回 0.03），计入“逆境乘区”与其他逆境 Buff 同框。
 // ==========================================
-function getLbEnmityAdversityBonus(hpPercent01, amount) {
+function getLbEnmityAdversityBonus(hpPercent01, amount, options) {
     const amt = Number(amount) || 0;
     if (amt !== 1 && amt !== 2 && amt !== 3) return 0;
 
     let hp = Math.max(0, Math.min(1, Number(hpPercent01) || 0));
     // 1HP 视为 0% 档
-    if (hp <= 0.01) {
+    if (hp <= 0.01 && !(options && options.exactHpPercent)) {
         hp = 0;
     }
 

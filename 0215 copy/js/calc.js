@@ -216,7 +216,7 @@ window.getMcLbTotals = function() {
 };
 
 // 浑身/背水 曲线计算 (使用 decimal.js 进行精确计算，保留10位小数)
-function calculateCurveValue(curveKey, slvl, hpPercent) {
+function calculateCurveValue(curveKey, slvl, hpPercent, options) {
     const curveData = SKILL_CURVES[curveKey];
     if (!curveData) return 0;
 
@@ -235,7 +235,7 @@ function calculateCurveValue(curveKey, slvl, hpPercent) {
         // 倍率 = baseMult * ((1 + 2 * HP比例) * HP比例)
         
         let hpRatio;
-        if (hpPercent === 1) {
+        if (hpPercent === 1 && !(options && options.exactHpPercent)) {
             // 当 hpPercent 为 1 时，代表游戏中的“1HP”极限背水状态，HP损失比例直接视为 1.0
             hpRatio = new Decimal(1.0);
         } else {
@@ -262,7 +262,7 @@ function calculateCurveValue(curveKey, slvl, hpPercent) {
         if (amt !== 1 && amt !== 2 && amt !== 3) return 0;
 
         // 游戏中的“1HP”显示为 hpPercent=1，应当按 0% 档处理（否则会在 0%~25% 间插值出 1.04%/2.04% 这类值）
-        if (Number(hpPercent) <= 1) {
+        if (Number(hpPercent) <= 1 && !(options && options.exactHpPercent)) {
             hpPercent = 0;
         }
 
@@ -298,14 +298,14 @@ function calculateCurveValue(curveKey, slvl, hpPercent) {
         if (amt !== 1 && amt !== 2 && amt !== 3) return 0;
 
         // 游戏中的“1HP”显示为 hpPercent=1，应当按 0% 档处理，避免 1.04% 这类边界
-        if (Number(hpPercent) <= 1) {
+        if (Number(hpPercent) <= 1 && !(options && options.exactHpPercent)) {
             hpPercent = 0;
         }
 
         const hp01 = Math.max(0, Math.min(1, new Decimal(hpPercent || 0).div(100).toNumber()));
         // 直接复用戒指/耳饰背水 +N 的通用曲线（amount=1/2/3 → 背水+1/+2/+3）
         if (typeof getRingEarringEnmityAdversityBonus === 'function') {
-            return getRingEarringEnmityAdversityBonus(hp01, amt);
+            return getRingEarringEnmityAdversityBonus(hp01, amt, options);
         }
         return 0;
     }
@@ -313,7 +313,7 @@ function calculateCurveValue(curveKey, slvl, hpPercent) {
 }
 
 // 解析技能值
-function parseSkillValue(valStr, currentSlvl, context, hpPercent) {
+function parseSkillValue(valStr, currentSlvl, context, hpPercent, options) {
     if (!valStr) return 0;
     const str = String(valStr);
 
@@ -336,7 +336,7 @@ function parseSkillValue(valStr, currentSlvl, context, hpPercent) {
             // 按你当前口径：1HP（显示 1%）按 0% 档处理
             let hp = Number(hpPercent);
             if (!Number.isFinite(hp)) hp = 100;
-            if (hp <= 1) hp = 0;
+            if (hp <= 1 && !(options && options.exactHpPercent)) hp = 0;
             const hp01 = Math.max(0, Math.min(1, new Decimal(hp).div(100).toNumber()));
 
             const minVal = parseLinearToken(parts[1]);
@@ -747,8 +747,9 @@ function recalculate() {
     if(rankInput > 425) rankInput = 425; 
     
     let rankStats = calculateRankStats(rankInput);
-    const rankStatsEl = document.getElementById('mc-rank-stats');
-    if (rankStatsEl) rankStatsEl.innerText = `(HP: ${rankStats.hp} / ATK: ${rankStats.atk})`;
+    document.querySelectorAll('[id="mc-rank-stats"]').forEach(el => {
+        el.innerText = `(HP: ${rankStats.hp} / ATK: ${rankStats.atk})`;
+    });
 
     const mcLbTotals = (typeof window.getMcLbTotals === 'function') ? window.getMcLbTotals() : {};
     let lbAtk = mcLbTotals.baseAtk || 0;
@@ -852,6 +853,8 @@ function recalculate() {
         STAT_CONFIG.forEach(cfg => party[i].stats[cfg.key] = 0);
         party[i].stats['weapon_na_ranshu'] = 1;
         party[i].stats._elementAtkEntries = [];
+        // 保留曲线来源供手动模拟按独立HP重算，不改变静态计算结果。
+        party[i].stats._hpDependentWeaponEntries = [];
     }
 
     // 解析当前召唤石的 effect 字符串，并写入 stats 统筹字典（主要写给主角，后续可以通过共享或者复制传给全队）
@@ -1024,6 +1027,7 @@ function recalculate() {
     ['mc_atk_passive', 'mc_def_passive', 'mc_hp_passive', 
      'mc_da_passive', 'mc_ta_passive', 'mc_all_cap_passive', 
      'mc_skill_dmg_passive', 'mc_skill_dmg_cap_passive', 
+     'mc_debuff_resistance_passive', 'mc_skill_hit_rate_passive',
      'mc_ca_passive', 'mc_cb_cap_passive'].forEach(k => {
         party[0].stats[k] = (party[0].stats[k] || 0) + (defaultMastery[k] || 0);
     });
@@ -1097,9 +1101,13 @@ function recalculate() {
     party[0].stats['mc_na_dmg_amp_passive_non_c5'] = isClass5 ? 0 : (defaultMastery['mc_na_dmg_amp_passive_non_c5'] || 0);
     
     if (!isClass5) {
+        ['mc_def_passive_non_c5', 'mc_heal_cap_passive_non_c5', 'mc_debuff_success_passive_non_c5'].forEach(key => {
+            party[0].stats[key] = (party[0].stats[key] || 0) + (defaultMastery[key] || 0);
+        });
         // 如果不是 C5 职业，赋予非 C5 相关的常驻加成
         party[0].stats['mc_all_cap_passive_non_c5'] = defaultMastery['mc_all_cap_passive_non_c5'] || 0;
     }
+    party[0].stats['mc_def_passive_max_hp'] = currentHpPercent === 100 ? (defaultMastery.mc_def_passive_max_hp || 0) : 0;
 
     party.forEach((member, i) => {
         if (!member.element) return; 
@@ -1257,6 +1265,15 @@ function recalculate() {
                         member.stats['weapon_na_ranshu'] = Math.max(member.stats['weapon_na_ranshu'] || 1, v);
                     } else if (member.stats.hasOwnProperty(effect.prop)) {
                         member.stats[effect.prop] += finalVal;
+                        if (/^(curve:|linear_hp:|linear_hp_down:)/.test(String(effect.value))) {
+                            member.stats._hpDependentWeaponEntries.push({
+                                prop: effect.prop, value: effect.value, slvl,
+                                context: Object.assign({}, context), appliedValue: finalVal,
+                                boost: effect.boost === 'optimus' ? finalOptimus
+                                    : (effect.boost === 'magna' || effect.boost === 'omega') ? finalMagna
+                                    : effect.boost === 'jinzhou' ? baseJinzhou : 0
+                            });
+                        }
                         if (typeof addElementAtkEntry === 'function'
                             && (effect.prop === 'weapon_element_atk'
                                 || effect.prop === 'weapon_progression_element_atk'

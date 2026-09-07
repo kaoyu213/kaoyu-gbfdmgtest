@@ -263,7 +263,9 @@ function renderBonusDisplay(bonusObj, targetId) {
 
 // 渲染全局加成
 function renderGlobalMastery() {
-    const container = document.getElementById('mc-mastery-display');
+    const containers = document.querySelectorAll('[id="mc-mastery-display"]');
+    const container = containers[0];
+    if (!container) return;
     container.innerHTML = '';
 
     const grid = document.createElement('div');
@@ -296,6 +298,7 @@ function renderGlobalMastery() {
     grid.appendChild(leftCol);
     grid.appendChild(rightCol);
     container.appendChild(grid);
+    Array.from(containers).slice(1).forEach(other => { other.innerHTML = container.innerHTML; });
 }
 
 // 导出

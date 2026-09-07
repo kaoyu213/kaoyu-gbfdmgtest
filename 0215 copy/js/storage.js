@@ -163,6 +163,7 @@ function saveToLocal(silent) {
             // 2. 主角配置
             mc: {
                 jobId: currentMC.jobId,
+                mastery: getDefaultMastery(),
                 rank: parseInt(document.getElementById('mc-rank-input')?.value) || 406,
                 lbSlots: (typeof getMcLbSelections === 'function') ? getMcLbSelections() : [],
                 lbSlotsByJob: (typeof getMcLbSlotsByJobForStorage === 'function')
@@ -251,6 +252,7 @@ function loadFromLocal(silent) {
             return false;
         }
         
+        setMasteryOverrides(data.mc?.mastery);
         // 1. 恢复武器盘
         currentGrid.fill(null); // 清空当前武器盘
         
@@ -356,6 +358,7 @@ function loadFromLocal(silent) {
         }
         
         // 5. 恢复特殊加成（按用户独立：空数组表示该用户全部未勾选）
+        activeSpecialBuffs = new Set(specialBuffsData.map(buff => buff.id));
         if (Array.isArray(data.specialBuffs)) {
             activeSpecialBuffs.clear();
             if (specialBuffsData && Array.isArray(specialBuffsData)) {
@@ -442,6 +445,7 @@ function loadFromLocal(silent) {
         
         // 重新渲染并计算
         try { renderGrid(); } catch(e) { console.error('renderGrid error:', e); }
+        renderGlobalMastery();
         try { renderSpecialTab(); } catch(e) { console.error('renderSpecialTab error:', e); }
         try { recalculate(); } catch(e) { console.error('recalculate error:', e); }
         
@@ -717,6 +721,7 @@ function exportToClipboard() {
             // 主角配置
             mc: {
                 jobId: currentMC.jobId,
+                mastery: getDefaultMastery(),
                 rank: parseInt(document.getElementById('mc-rank-input')?.value) || 404,
                 lbSlots: (typeof getMcLbSelections === 'function') ? getMcLbSelections() : [],
                 lbSlotsByJob: (typeof getMcLbSlotsByJobForStorage === 'function')
@@ -741,6 +746,7 @@ function exportToClipboard() {
             
             // 特殊加成
             specialBuffs: Array.from(activeSpecialBuffs),
+            specialBuffCustomValues: specialBuffCustomValues,
             
             // HP百分比
             hpPercent: document.getElementById('current-hp-slider')?.value || '100',
@@ -799,6 +805,9 @@ function resetConfig() {
         currentGrid.fill(null);
         
         // 重置主角设置
+        setMasteryOverrides({});
+        specialBuffCustomValues = {};
+        renderGlobalMastery();
         const mcRankInput = document.getElementById('mc-rank-input');
         if (mcRankInput) mcRankInput.value = '404';
         if (typeof ensureMcLbUI === 'function') ensureMcLbUI();

@@ -172,7 +172,7 @@ function normalizeCharaJsonBaseRate(key, value) {
 
 // 构建角色额外加成的汇总结果 (charabonussum)
 // hpPercent: 可选，0~100。若传入则「总浑身（强壮）」按当前HP折算显示；不传则显示满血值
-function buildCharabonusSummary(slotIndex, hpPercent) {
+function buildCharabonusSummary(slotIndex, hpPercent, options) {
     const result = {};
 
     // 如果没有配置汇总规则，直接返回空对象，保持兼容
@@ -207,7 +207,7 @@ function buildCharabonusSummary(slotIndex, hpPercent) {
     // 戒指浑身：使用 getRingEarringStaminaStrongBonus 曲线
     if (ringStamina > 0) {
         if (typeof getRingEarringStaminaStrongBonus === 'function') {
-            ringEarringStrong += getRingEarringStaminaStrongBonus(hp01ForChar, ringStamina);
+            ringEarringStrong += getRingEarringStaminaStrongBonus(hp01ForChar, ringStamina, options);
         } else {
             // 兜底：走旧的 cap → 通用强壮曲线逻辑
             strongCaps.push((2 + ringStamina) / 100);
@@ -217,7 +217,7 @@ function buildCharabonusSummary(slotIndex, hpPercent) {
     // 耳饰浑身：使用同一套曲线，独立计算后累加
     if (earringStamina > 0) {
         if (typeof getRingEarringStaminaStrongBonus === 'function') {
-            ringEarringStrong += getRingEarringStaminaStrongBonus(hp01ForChar, earringStamina);
+            ringEarringStrong += getRingEarringStaminaStrongBonus(hp01ForChar, earringStamina, options);
         } else {
             strongCaps.push((2 + earringStamina) / 100);
         }
@@ -230,14 +230,14 @@ function buildCharabonusSummary(slotIndex, hpPercent) {
             const hp01 = (typeof hpPercent === 'number')
                 ? Math.max(0, Math.min(1, hpPercent / 100))
                 : 1;
-            lbStrongBonus = amounts.reduce((acc, amt) => acc + getLbStaminaStrongBonus(hp01, amt), 0);
+            lbStrongBonus = amounts.reduce((acc, amt) => acc + getLbStaminaStrongBonus(hp01, amt, options), 0);
         } else {
             // 兼容旧存档：只有累计值时，仍按 1/2/3 处理（多于3会被忽略）
             const lbStaminaLevel = charData['chara_lb_stamina'] || 0;
             if (lbStaminaLevel > 0) {
                 if (typeof hpPercent === 'number') {
                     const hp01 = Math.max(0, Math.min(1, hpPercent / 100));
-                    lbStrongBonus = getLbStaminaStrongBonus(hp01, lbStaminaLevel);
+                    lbStrongBonus = getLbStaminaStrongBonus(hp01, lbStaminaLevel, options);
                 } else {
                     lbStrongBonus = getLbStaminaStrongBonus(1, lbStaminaLevel);
                 }
@@ -286,19 +286,19 @@ function buildCharabonusSummary(slotIndex, hpPercent) {
     // 戒指背水：使用 getRingEarringEnmityAdversityBonus 曲线
     const ringEnmity = charData['chara_ring_enmity'] || 0;
     if (ringEnmity > 0 && typeof getRingEarringEnmityAdversityBonus === 'function') {
-        ringAdversity = getRingEarringEnmityAdversityBonus(hp01ForAdversity, ringEnmity);
+        ringAdversity = getRingEarringEnmityAdversityBonus(hp01ForAdversity, ringEnmity, options);
     }
 
     // 耳饰背水：与戒指共用同一套背水+N → 逆境曲线，独立计算后累加
     const earringEnmity = charData['chara_earring_enmity'] || 0;
     if (earringEnmity > 0 && typeof getRingEarringEnmityAdversityBonus === 'function') {
-        earringAdversity = getRingEarringEnmityAdversityBonus(hp01ForAdversity, earringEnmity);
+        earringAdversity = getRingEarringEnmityAdversityBonus(hp01ForAdversity, earringEnmity, options);
     }
 
     // LB 背水：小/中/大 → 1/2/3 级，对应 getLbEnmityAdversityBonus 曲线
     const lbEnmityLevel = charData['chara_lb_enmity'] || 0;
     if (lbEnmityLevel > 0 && typeof getLbEnmityAdversityBonus === 'function') {
-        lbAdversity = getLbEnmityAdversityBonus(hp01ForAdversity, lbEnmityLevel);
+        lbAdversity = getLbEnmityAdversityBonus(hp01ForAdversity, lbEnmityLevel, options);
     }
 
     // enchantAdversity / skillAdversity：武器附魔逆境在 calc 已写入 stats；技能逆境待接
@@ -690,7 +690,7 @@ function buildAllEffectsForSlot(charIndex, options) {
         return { totals: totals, sources: sources };
     }
 
-    var stats = party[charIndex].stats;
+    var stats = options.statsOverride || party[charIndex].stats;
     var registry = (typeof BuffRegistry !== 'undefined') ? new BuffRegistry() : null;
     var allBuffTypes = new Set();
     var specialCfgByEffectKey = {};
@@ -974,7 +974,8 @@ function buildAllEffectsForSlot(charIndex, options) {
             };
         }
         if (typeof STAT_CONFIG !== 'undefined') {
-            var currentHp = parseInt(document.getElementById('current-hp-slider')?.value, 10);
+            var currentHp = Number.isFinite(options.hpPercent) ? options.hpPercent
+                : parseInt(document.getElementById('current-hp-slider')?.value, 10);
             var hp01ForStrong = Number.isNaN(currentHp) ? 1 : Math.max(0, Math.min(1, currentHp / 100));
             STAT_CONFIG.forEach(function(cfg) {
                 if (cfg && cfg.zone === 'charabonus' && cfg.prop) {
@@ -991,16 +992,16 @@ function buildAllEffectsForSlot(charIndex, options) {
                         return;
                     }
                     if ((cfg.key === 'chara_ring_stamina' || cfg.key === 'chara_earring_stamina') && typeof getRingEarringStaminaStrongBonus === 'function') {
-                        registerVal = getRingEarringStaminaStrongBonus(hp01ForStrong, val);
+                        registerVal = getRingEarringStaminaStrongBonus(hp01ForStrong, val, options);
                         displayFormat = 'percent';
                     } else if (cfg.key === 'chara_lb_stamina' && typeof getLbStaminaStrongBonus === 'function') {
                         var lbAmounts = Array.isArray(cp['chara_lb_stamina_amounts']) ? cp['chara_lb_stamina_amounts'] : null;
                         if (lbAmounts && lbAmounts.length > 0) {
                             registerVal = lbAmounts.reduce(function(acc, amt) {
-                                return acc + getLbStaminaStrongBonus(hp01ForStrong, amt);
+                                return acc + getLbStaminaStrongBonus(hp01ForStrong, amt, options);
                             }, 0);
                         } else {
-                            registerVal = getLbStaminaStrongBonus(hp01ForStrong, val);
+                            registerVal = getLbStaminaStrongBonus(hp01ForStrong, val, options);
                         }
                         displayFormat = 'percent';
                     }

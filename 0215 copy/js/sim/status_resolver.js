@@ -312,15 +312,27 @@
         return !!(evaluator && typeof evaluator.evaluate === 'function' && evaluator.evaluate(conditions, context || {}));
     }
 
+    // 只投影当前层数的效果，不改写定义，供每hit结算和图标提示共用。
+    function getEffectiveStatusEffects(status) {
+        const stacks = Math.max(1, Number(status && status.stacks) || 1);
+        const multiplier = status && status.stacking && status.stacking.scale_effects === true ? stacks : 1;
+        return (Array.isArray(status && status.effects) ? status.effects : [])
+            .filter((effect) => effect && (effect.min_stacks == null || stacks >= Number(effect.min_stacks)))
+            .map((effect) => {
+                if (multiplier === 1) return effect;
+                const resolved = cloneJson(effect);
+                if (resolved.formula && resolved.formula.value != null) resolved.formula.value = Number(resolved.formula.value) * multiplier;
+                if (resolved.value != null) resolved.value = Number(resolved.value) * multiplier;
+                return resolved;
+            });
+    }
+
     function statusEffectToZoneEntry(status, effect, idx, context) {
         if (!status || !effect) return null;
         if (!effectConditionsMatch(effect, context)) return null;
         const formula = effect.formula && typeof effect.formula === 'object' ? effect.formula : null;
         if (!formula || !formula.prop || !formula.zone) return null;
-        const stackMultiplier = status.stacking && status.stacking.scale_effects === true
-            ? Math.max(1, Number(status.stacks) || 1)
-            : 1;
-        const value = Number(formula.value) * stackMultiplier;
+        const value = Number(formula.value);
         if (!Number.isFinite(value) || value === 0) return null;
         const meta = typeof getBuffDisplayMeta === 'function'
             ? getBuffDisplayMeta(formula.prop, formula.zone, {
@@ -342,7 +354,7 @@
     function collectZoneEntriesFromStatuses(statuses, context) {
         const entries = [];
         (Array.isArray(statuses) ? statuses : []).forEach((status) => {
-            const effects = Array.isArray(status.effects) ? status.effects : [];
+            const effects = getEffectiveStatusEffects(status);
             effects.forEach((effect, idx) => {
                 const entry = statusEffectToZoneEntry(status, effect, idx, context || {});
                 if (entry) entries.push(entry);
@@ -398,6 +410,7 @@
         getSkillActions,
         getStatusesFromSkillActions,
         collectZoneEntriesFromStatuses,
+        getEffectiveStatusEffects,
         isStatusDisplayActive,
         statusToPartyBuffDisplay,
         normalizeStepToAction,

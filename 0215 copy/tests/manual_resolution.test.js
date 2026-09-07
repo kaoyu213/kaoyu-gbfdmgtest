@@ -8,6 +8,7 @@ const customSkills = require('../js/sim/manual_custom_skills.js');
 const buffDirectory = require('../js/buff_directory.js');
 const buffZones = require('../js/buff_zones.js');
 const { BuffRegistry } = require('../js/buff_registry.js');
+const statusResolver = require('../js/sim/status_resolver.js');
 
 function run(name, test) {
     test();
@@ -22,6 +23,226 @@ function status(id, duration, effects) {
         effects: effects || []
     };
 }
+
+function stackSkill(mode, overrides = {}) {
+    return customSkills.buildSkill(Object.assign({
+        id: `test_stack_${mode}`, type: 'buff', name: mode === 'scale' ? '蓄势强化' : '阶梯强化',
+        stacking: { mode, max: 3, add: 1, target: 'self', durationType: 'permanent' },
+        effects: mode === 'scale'
+            ? [{ buffType: 'normal_atk', value: 10 }, { buffType: 'dmg_supp', value: 1000 }]
+            : [{ buffType: 'normal_atk', value: 10, unlockStacks: 1 },
+                { buffType: 'def_mod', value: 20, unlockStacks: 2 },
+                { buffType: 'dmg_supp', value: 3000, unlockStacks: 3 }]
+    }, overrides));
+}
+
+function stackEntries(state, slot = 0) {
+    return statusResolver.collectZoneEntriesFromStatuses(state.actors[slot].statuses);
+}
+
+run('叠层强化共用一个状态，百分比和固定值按层数相乘且达到上限停止', () => {
+    const skill = stackSkill('scale');
+    assert.strictEqual(skill.steps.length, 1);
+    assert.strictEqual(skill.buff_display_mode, 'large');
+    assert.ok(skill.steps[0].effects.every((effect) => effect.formula.zone === 'independent'));
+    const state = manual.createState();
+    for (let i = 1; i <= 5; i++) {
+        manual.resolveSkill(state, skill, { ownerSlot: 0 });
+        assert.strictEqual(state.actors[0].statuses.length, 1);
+        assert.strictEqual(state.actors[0].statuses[0].stacks, Math.min(i, 3));
+        const entries = stackEntries(state);
+        assert.ok(Math.abs(entries[0].value - Math.min(i, 3) * 0.1) < 1e-9);
+        assert.strictEqual(entries[1].value, Math.min(i, 3) * 1000);
+    }
+    const icon = manual.projectStatusBuffs(state.actors[0].statuses)[0];
+    assert.strictEqual(icon.initial, '蓄');
+    assert.strictEqual(icon.stacks, 3);
+    assert.ok(icon.tooltip.includes('+30%'));
+    assert.ok(icon.tooltip.includes('3,000'));
+    assert.ok(icon.tooltip.includes('当前3层 / 上限3层'));
+    assert.strictEqual(skill.steps[0].effects[0].formula.value, 0.1, '投影不能修改技能定义');
+});
+
+run('依序强化逐层累计A、A+B、A+B+C，之前解锁效果不重复倍乘', () => {
+    const skill = stackSkill('tier');
+    const state = manual.createState();
+    for (let count = 1; count <= 3; count++) {
+        manual.resolveSkill(state, skill, { ownerSlot: 0 });
+        const entries = stackEntries(state);
+        assert.deepStrictEqual(entries.map((entry) => entry.prop), ['normal_atk', 'def_mod', 'dmg_supp'].slice(0, count));
+        assert.deepStrictEqual(entries.map((entry) => entry.value), [0.1, 0.2, 3000].slice(0, count));
+        assert.strictEqual(manual.projectStatusBuffs(state.actors[0].statuses).length, 1);
+    }
+});
+
+run('依序强化可同层解锁多项并从未解锁状态跨层解锁', () => {
+    const skill = stackSkill('tier', {
+        effects: [{ buffType: 'normal_atk', value: 10, unlockStacks: 2 },
+            { buffType: 'dmg_cap', value: 5, unlockStacks: 2 }]
+    });
+    const state = manual.createState();
+    manual.resolveSkill(state, skill, { ownerSlot: 0 });
+    assert.deepStrictEqual(stackEntries(state), []);
+    assert.ok(manual.projectStatusBuffs(state.actors[0].statuses)[0].tooltip.includes('尚未解锁'));
+    manual.resolveSkill(state, skill, { ownerSlot: 0 });
+    assert.strictEqual(stackEntries(state).length, 2);
+});
+
+run('首次数值也受层数上限限制，重复施加保留定义的每次增加量', () => {
+    const skill = stackSkill('scale', {
+        stacking: { mode: 'scale', max: 3, add: 5, durationType: 'permanent' }
+    });
+    const state = manual.createState();
+    manual.resolveSkill(state, skill, { ownerSlot: 0 });
+    assert.strictEqual(state.actors[0].statuses[0].stacks, 3);
+    assert.strictEqual(manual.createRuntimeStatus({ stacking: { mode: 'add', max: 2, add: 8 } }).stacks, 2);
+});
+
+run('全体叠层各自独立，同名不同技能不共用计层', () => {
+    const party = stackSkill('scale', { stacking: { mode: 'scale', target: 'ally_party', max: 3, add: 1, durationType: 'permanent' } });
+    const self = stackSkill('scale');
+    const unrelated = stackSkill('scale', { id: 'another_same_name' });
+    const state = manual.createState();
+    manual.resolveSkill(state, party, { ownerSlot: 0 });
+    manual.resolveSkill(state, self, { ownerSlot: 1 });
+    assert.deepStrictEqual([0, 1, 2, 3].map((slot) => state.actors[slot].statuses[0].stacks), [1, 2, 1, 1]);
+    assert.strictEqual(state.actors[4].statuses.length, 0);
+    manual.resolveSkill(state, unrelated, { ownerSlot: 1 });
+    assert.strictEqual(state.actors[1].statuses.length, 2);
+});
+
+run('叠层统一持续时间可刷新或保留，到期整组移除后重新从首层开始', () => {
+    for (const refreshDuration of [true, false]) {
+        const skill = stackSkill('scale', { stacking: {
+            mode: 'scale', max: 3, add: 1, durationType: 'turns', durationValue: 2, refreshDuration
+        } });
+        const state = manual.createState();
+        manual.resolveSkill(state, skill, { ownerSlot: 0 });
+        manual.finishTurn(state);
+        manual.resolveSkill(state, skill, { ownerSlot: 0 });
+        assert.strictEqual(manual.getStatusRemaining(state.actors[0].statuses[0]), refreshDuration ? 2 : 1);
+        manual.finishTurn(state);
+        if (refreshDuration) manual.finishTurn(state);
+        assert.strictEqual(state.actors[0].statuses.length, 0);
+        manual.resolveSkill(state, skill, { ownerSlot: 0 });
+        assert.strictEqual(state.actors[0].statuses[0].stacks, 1);
+    }
+});
+
+run('持续行动的叠层Buff覆盖完整TA并统一到期，不对每个效果单独扣次', () => {
+    const skill = stackSkill('scale', { stacking: {
+        mode: 'scale', max: 3, add: 2, durationType: 'action', durationValue: 1
+    } });
+    const state = manual.createState();
+    manual.resolveSkill(state, skill, { ownerSlot: 0 });
+    const amounts = [];
+    manual.resolveNormalAttack(state, { actorSlot: 0, mode: 'ta' }, { calculateHit: () => {
+        amounts.push(stackEntries(state)[0].value);
+        return 1;
+    } });
+    assert.deepStrictEqual(amounts, [0.2, 0.2, 0.2]);
+    assert.strictEqual(state.actors[0].statuses.length, 0);
+});
+
+run('伤害后叠层使用旧层数结算伤害，再获得新层数', () => {
+    const skill = stackSkill('scale', { damages: [{ multiplier: 1, hits: 2, decayMode: 'fuzzy', cap: 100000 }] });
+    const state = manual.createState();
+    const seen = [];
+    for (let i = 0; i < 3; i++) manual.resolveSkill(state, skill, { ownerSlot: 0 }, {
+        calculateHit: () => { seen.push(stackEntries(state)[0]?.value || 0); return 100; }
+    });
+    assert.deepStrictEqual(seen, [0, 0, 0.1, 0.1, 0.2, 0.2]);
+});
+
+run('伤害后增加层数但不刷新时，原行动持续次数仍被本次伤害消耗', () => {
+    for (const refreshDuration of [false, true]) {
+        const skill = stackSkill('scale', {
+            stacking: { mode: 'scale', max: 3, add: 1, durationType: 'action', durationValue: 2, refreshDuration },
+            damages: [{ multiplier: 1, hits: 1, decayMode: 'fuzzy', cap: 100000 }]
+        });
+        const result = manual.resolveTimeline([{ number: 1, blocks: [0, 1].map((index) => ({
+            id: `stack_damage_${index}`, type: 'buff', actorSlot: 0, skillId: skill.id, steps: skill.steps
+        })) }], { calculateHit: () => 100 });
+        assert.strictEqual(result.state.actors[0].statuses[0].stacks, 2);
+        assert.strictEqual(manual.getStatusRemaining(result.state.actors[0].statuses[0]), refreshDuration ? 2 : 1);
+    }
+});
+
+run('时间轴删除、移动和修改技能后从头重算层数、图标及伤害', () => {
+    let skill = stackSkill('scale');
+    const block = (id) => ({ id, type: 'buff', skillId: skill.id, actorSlot: 0, steps: skill.steps });
+    const action = { id: 'attack', type: 'actor_action', actorSlot: 0, actionMode: 'sa' };
+    const evaluate = (blocks) => manual.resolveTimeline([{ number: 1, blocks }], {
+        getSkillById: () => skill,
+        calculateHit: (hit, context) => 100 * (1 + statusResolver.collectZoneEntriesFromStatuses(context.actorStatuses)
+            .filter((entry) => entry.prop === 'normal_atk').reduce((sum, entry) => sum + entry.value, 0))
+    });
+    const first = block('first'), second = block('second');
+    const full = evaluate([first, second, action]);
+    assert.strictEqual(full.buffsByBlockId.attack[0].stacks, 2);
+    assert.strictEqual(full.damageByBlockId.attack, 120);
+    assert.strictEqual(evaluate([first, action]).buffsByBlockId.attack[0].stacks, 1);
+    assert.strictEqual(evaluate([first, action, second]).buffsByBlockId.attack[0].stacks, 1);
+    assert.deepStrictEqual(evaluate([action]).buffsByBlockId.attack, []);
+    skill = stackSkill('scale', { effects: [{ buffType: 'normal_atk', value: 20 }] });
+    assert.strictEqual(evaluate([first, second, action]).damageByBlockId.attack, 140);
+});
+
+run('叠层追击按当前层数计算；依序追击未解锁时不产生额外hit', () => {
+    const state = manual.createState();
+    const scale = stackSkill('scale', { effects: [{ buffType: 'bonus_na', subtype: 'water', zone: 'E', value: 10 }] });
+    manual.resolveSkill(state, scale, { ownerSlot: 0 });
+    manual.resolveSkill(state, scale, { ownerSlot: 0 });
+    assert.strictEqual(manual.collectBonusHitSources(state, 0)[0].value, 0.2);
+    const tierState = manual.createState();
+    const tier = stackSkill('tier', { effects: [{ buffType: 'bonus_na', subtype: 'water', zone: 'E', value: 10, unlockStacks: 2 }] });
+    manual.resolveSkill(tierState, tier, { ownerSlot: 0 });
+    assert.strictEqual(manual.resolveNormalAttack(tierState, { actorSlot: 0, mode: 'ta' }, { calculateHit: () => 1 }).hitCount, 3);
+    manual.resolveSkill(tierState, tier, { ownerSlot: 0 });
+    assert.strictEqual(manual.resolveNormalAttack(tierState, { actorSlot: 0, mode: 'ta' }, { calculateHit: () => 1 }).hitCount, 6);
+});
+
+run('敌方叠层DB在hit耗尽前逐hit生效，到期整组清除', () => {
+    const skill = stackSkill('scale', { stacking: {
+        mode: 'scale', target: 'enemy', max: 3, add: 2, durationType: 'hit', durationValue: 2
+    }, effects: [{ buffType: 'taken_dmg_supp', zone: 'enemy_db', value: 1000 }] });
+    const state = manual.createState();
+    manual.resolveSkill(state, skill, { ownerSlot: 0 });
+    const seen = [];
+    manual.resolveNormalAttack(state, { actorSlot: 0, mode: 'ta' }, { calculateHit: () => {
+        seen.push(statusResolver.collectZoneEntriesFromStatuses(state.enemy.statuses)[0]?.value || 0);
+        return 1;
+    } });
+    assert.deepStrictEqual(seen, [2000, 2000, 0]);
+});
+
+run('叠层定义校验层数和门槛，不允许将二动三动当作数值倍乘', () => {
+    for (const value of [0, -1, 1.5, Infinity]) {
+        assert.throws(() => stackSkill('scale', { stacking: { mode: 'scale', max: value } }), /正整数/);
+    }
+    assert.throws(() => stackSkill('tier', { effects: [{ buffType: 'normal_atk', value: 10, unlockStacks: 4 }] }), /超过/);
+    assert.throws(() => stackSkill('scale', { effects: [{ buffType: 'double_strike', value: 2 }] }), /不能按层数相乘/);
+    const tier = stackSkill('tier', { effects: [{ buffType: 'double_strike', value: 2, unlockStacks: 2 }] });
+    assert.strictEqual(tier.steps[0].effects[0].min_stacks, 2);
+});
+
+run('叠层自定义技能保存、重新载入、编辑及复制均保留层数定义', () => {
+    const data = {};
+    const storage = { getItem: (key) => data[key] || null, setItem: (key, value) => { data[key] = value; } };
+    customSkills.load(storage);
+    const original = stackSkill('tier');
+    const saved = customSkills.save(Object.assign({ id: original.id }, original.manual_definition), storage);
+    customSkills.load(storage);
+    assert.deepStrictEqual(customSkills.get(saved.id).steps, saved.steps);
+    const copy = customSkills.duplicate(saved.id, storage);
+    assert.deepStrictEqual(copy.manual_definition.stacking, saved.manual_definition.stacking);
+    assert.notStrictEqual(copy.steps[0].id, saved.steps[0].id);
+    const edited = customSkills.save(Object.assign({ id: saved.id }, saved.manual_definition, {
+        stacking: Object.assign({}, saved.manual_definition.stacking, { add: 2 })
+    }), storage);
+    assert.strictEqual(edited.steps[0].stacking.add, 2);
+    assert.strictEqual(edited.steps[0].id, saved.steps[0].id);
+});
 
 run('旧 turns 字段继续按持续回合解析', () => {
     assert.deepStrictEqual(manual.normalizeDuration({ turns: 3 }), {

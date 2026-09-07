@@ -730,9 +730,11 @@
             ? snapshot.actors[slot]
             : null;
         const runtimeEntries = getBattleStatusZoneEntries(slot, battleState);
-        const actorEffectTotals = runtimeEntries.length === 0 && snapshotActor && snapshotActor.isAdvantage === isAdvantage
+        const manualHp = battleState && battleState.manualTimeline ? getActorDamageHpPercent(slot, battleState) : null;
+        const actorEffectTotals = manualHp == null && runtimeEntries.length === 0 && snapshotActor && snapshotActor.isAdvantage === isAdvantage
             ? snapshotActor.effectTotals
-            : buildSimulationEffectTotals(slot, isAdvantage, runtimeEntries);
+            : buildSimulationEffectTotals(slot, isAdvantage, runtimeEntries,
+                manualHp == null ? null : getActorStats(slot, battleState), manualHp);
         const effectTotals = mergeEnemyDamageEffectTotals(actorEffectTotals, battleState);
 
         return {
@@ -1415,6 +1417,8 @@
         const partyStats = typeof party !== 'undefined' && party[slot] && party[slot].stats
             ? party[slot].stats
             : null;
+        out._hpDependentWeaponEntries = partyStats && Array.isArray(partyStats._hpDependentWeaponEntries)
+            ? cloneJson(partyStats._hpDependentWeaponEntries) : [];
         out._elementAtkEntries = partyStats && Array.isArray(partyStats._elementAtkEntries)
             ? partyStats._elementAtkEntries
                 .filter((entry) => {
@@ -1430,12 +1434,15 @@
         return out;
     }
 
-    function buildSimulationEffectTotals(slot, isAdvantage, additionalZoneEntries) {
+    function buildSimulationEffectTotals(slot, isAdvantage, additionalZoneEntries, statsOverride, hpPercent) {
         return typeof buildAllEffectsForSlot === 'function'
             ? buildAllEffectsForSlot(slot, {
                 isAdvantage,
                 ignoreTestBuffSettings: true,
                 includeScenarioBuffs: false,
+                statsOverride: statsOverride || undefined,
+                hpPercent: hpPercent == null ? undefined : hpPercent,
+                exactHpPercent: hpPercent != null,
                 additionalZoneEntries: Array.isArray(additionalZoneEntries) ? additionalZoneEntries : [],
                 persist: false
             }).totals
@@ -1519,7 +1526,10 @@
     function getEnemyDefenseDownPercent(battleState) {
         const effects = [];
         getEnemyStatuses(battleState).forEach((status) => {
-            (Array.isArray(status && status.effects) ? status.effects : []).forEach((effect, index) => {
+            const activeEffects = window.StatusResolver && typeof window.StatusResolver.getEffectiveStatusEffects === 'function'
+                ? window.StatusResolver.getEffectiveStatusEffects(status)
+                : (Array.isArray(status && status.effects) ? status.effects : []);
+            activeEffects.forEach((effect, index) => {
                 if (!effect) return;
                 const formula = effect.formula && typeof effect.formula === 'object'
                     ? effect.formula
@@ -1641,6 +1651,35 @@
         return totals;
     }
 
+    function getActorDamageHpPercent(slot, battleState) {
+        if (battleState && battleState.manualTimeline) {
+            const actor = getBattleActor(slot, battleState);
+            const hp = actor && actor.hpPercent != null ? Number(actor.hpPercent) : 100;
+            return Number.isFinite(hp) ? Math.max(0, Math.min(100, hp)) : 100;
+        }
+        return ensureActorSettings(slot, battleState && battleState.turn).hpPercent;
+    }
+
+    function applyManualWeaponHp(stats, hpPercent) {
+        // 从该次静态快照扣除原曲线值，加入手动HP曲线值；不写回party或DOM。
+        const adjustments = {};
+        (stats._hpDependentWeaponEntries || []).forEach((entry) => {
+            if (!Object.prototype.hasOwnProperty.call(stats, entry.prop)) return;
+            const value = String(entry.value);
+            const base = value.startsWith('curve:')
+                ? calculateCurveValue(value.slice(6), entry.slvl, hpPercent, { exactHpPercent: true })
+                : parseSkillValue(value, entry.slvl, entry.context, hpPercent, { exactHpPercent: true });
+            const updated = new Decimal(base).times(new Decimal(1).plus(entry.boost || 0))
+                .toDecimalPlaces(10).toNumber();
+            adjustments[entry.prop] = (adjustments[entry.prop] || new Decimal(0))
+                .plus(updated).minus(entry.appliedValue);
+        });
+        Object.keys(adjustments).forEach((prop) => {
+            stats[prop] = new Decimal(stats[prop] || 0).plus(adjustments[prop]).toDecimalPlaces(10).toNumber();
+        });
+        return stats;
+    }
+
     function getActorStats(slot, battleState) {
         const snapshot = getSimulationSnapshot(battleState);
         const snapshotActor = snapshot && snapshot.actors
@@ -1654,6 +1693,7 @@
                     : []
             })
             : buildSimulationBaseStats(slot);
+        if (battleState && battleState.manualTimeline) applyManualWeaponHp(stats, getActorDamageHpPercent(slot, battleState));
         const runtimeEntries = getBattleStatusZoneEntries(slot, battleState);
         stats._charabuffZoneEffectTotals = calculateRuntimeZoneTotals(runtimeEntries);
         runtimeEntries.forEach((entry, index) => {
@@ -1670,7 +1710,7 @@
         return stats;
     }
 
-    function getActorFormulaBonuses(slot, hpPercent) {
+    function getActorFormulaBonuses(slot, hpPercent, options) {
         const strongCaps = [];
         let lbStaminaBonus = 0;
         let charStrongBonus = 0;
@@ -1683,7 +1723,7 @@
             [ringStamina, earringStamina].forEach((amount) => {
                 if (amount <= 0) return;
                 if (typeof getRingEarringStaminaStrongBonus === 'function') {
-                    charStrongBonus += getRingEarringStaminaStrongBonus(hp01, amount);
+                    charStrongBonus += getRingEarringStaminaStrongBonus(hp01, amount, options);
                 } else {
                     strongCaps.push((2 + amount) / 100);
                 }
@@ -1694,17 +1734,17 @@
                     ? charData.chara_lb_stamina_amounts
                     : [];
                 if (amounts.length > 0) {
-                    lbStaminaBonus = amounts.reduce((sum, amount) => sum + getLbStaminaStrongBonus(hp01, amount), 0);
+                    lbStaminaBonus = amounts.reduce((sum, amount) => sum + getLbStaminaStrongBonus(hp01, amount, options), 0);
                 } else {
                     const level = Number(charData.chara_lb_stamina) || 0;
-                    if (level > 0) lbStaminaBonus = getLbStaminaStrongBonus(hp01, level);
+                    if (level > 0) lbStaminaBonus = getLbStaminaStrongBonus(hp01, level, options);
                 }
             }
         }
 
         let adversityStrongBonus = 0;
         if (typeof buildCharabonusSummary === 'function') {
-            const summary = buildCharabonusSummary(slot, hpPercent);
+            const summary = buildCharabonusSummary(slot, hpPercent, options);
             if (summary && typeof summary.adversity === 'number') adversityStrongBonus = summary.adversity;
         }
 
@@ -1745,10 +1785,9 @@
         if (panelAtk <= 0) return 0;
 
         const stats = getActorStats(slot, battleState);
-        const settings = ensureActorSettings(slot, battleState && battleState.turn);
-        const hpPercent = settings.hpPercent;
+        const hpPercent = getActorDamageHpPercent(slot, battleState);
         const context = getActorCalculationContext(slot, battleState);
-        const bonuses = getActorFormulaBonuses(slot, hpPercent);
+        const bonuses = getActorFormulaBonuses(slot, hpPercent, { exactHpPercent: !!(battleState && battleState.manualTimeline) });
         const raw = calculateDamage(panelAtk, stats, hpPercent, Object.assign({
             isAdvantage: context.isAdvantage,
             forceAdvantage: context.forceAdvantage,
@@ -1892,10 +1931,10 @@
         if (panelAtk <= 0) return 0;
         overrides = overrides || {};
         const stats = getActorStats(slot, battleState);
-        const settings = ensureActorSettings(slot, battleState && battleState.turn);
         const context = getActorCalculationContext(slot, battleState);
-        const bonuses = getActorFormulaBonuses(slot, settings.hpPercent);
-        const result = window.CaDmgCalc.calculateCaDamage(panelAtk, stats, settings.hpPercent, Object.assign({
+        const hpPercent = getActorDamageHpPercent(slot, battleState);
+        const bonuses = getActorFormulaBonuses(slot, hpPercent, { exactHpPercent: !!(battleState && battleState.manualTimeline) });
+        const result = window.CaDmgCalc.calculateCaDamage(panelAtk, stats, hpPercent, Object.assign({
             defense: context.defense,
             defenseDown: context.defenseDown,
             charIndex: slot,
@@ -2035,15 +2074,15 @@
         }
 
         const stats = getActorStats(slot, battleState);
-        const settings = ensureActorSettings(slot, battleState && battleState.turn);
         const context = getActorCalculationContext(slot, battleState);
-        const bonuses = getActorFormulaBonuses(slot, settings.hpPercent);
+        const hpPercent = getActorDamageHpPercent(slot, battleState);
+        const bonuses = getActorFormulaBonuses(slot, hpPercent, { exactHpPercent: !!(battleState && battleState.manualTimeline) });
         const thresholdTableId = params.threshold_table || null;
         const exactTable = thresholdTableId && window.ThresholdRegistry && typeof window.ThresholdRegistry.getById === 'function'
             ? window.ThresholdRegistry.getById(thresholdTableId)
             : null;
         const useExactCap = !!exactTable;
-        const oneHit = window.SkillDmgCalc.calculateSkillDamage(getActorPanelAttack(slot, battleState), stats, settings.hpPercent, Object.assign({
+        const oneHit = window.SkillDmgCalc.calculateSkillDamage(getActorPanelAttack(slot, battleState), stats, hpPercent, Object.assign({
             skillBaseMult: multiplier,
             defense: context.defense,
             defenseDown: context.defenseDown,
@@ -2111,10 +2150,9 @@
         const actors = {};
         FRONTLINE_SLOTS.concat(SUB_SLOTS).forEach((slot) => {
             const actor = source.actors && source.actors[slot] ? source.actors[slot] : {};
-            const settings = ensureActorSettings(slot, turn);
             actors[slot] = Object.assign({}, actor, {
                 slot,
-                hpPercent: actor.hpPercent == null ? settings.hpPercent : actor.hpPercent,
+                hpPercent: actor.hpPercent == null ? 100 : actor.hpPercent,
                 statuses: Array.isArray(actor.statuses) ? actor.statuses : []
             });
         });

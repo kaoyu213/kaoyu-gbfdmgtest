@@ -158,6 +158,7 @@ async function init() {
             input.addEventListener('change', function() {
                 const v = this.value;
                 document.querySelectorAll('[id="mc-rank-input"]').forEach(el => { if (el !== this) el.value = v; });
+                recalculate();
                 if (typeof saveToLocal === 'function') saveToLocal(true);
             });
         });
@@ -225,7 +226,13 @@ function switchUser(userId) {
     document.querySelectorAll('.user-tab').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-user') === userId);
     });
-    if (typeof loadFromLocal === 'function') loadFromLocal(true);
+    if (typeof loadFromLocal === 'function' && !loadFromLocal(true)) {
+        setMasteryOverrides({});
+        document.querySelectorAll('[id="mc-rank-input"]').forEach(el => { el.value = 406; });
+        activeSpecialBuffs = new Set(specialBuffsData.map(buff => buff.id));
+        specialBuffCustomValues = {};
+        renderSpecialTab();
+    }
     if (typeof renderGlobalMastery === 'function') renderGlobalMastery();
     if (typeof recalculate === 'function') recalculate();
     if (window.ManualBurstSimulator && typeof window.ManualBurstSimulator.reloadForCurrentUser === 'function') {
